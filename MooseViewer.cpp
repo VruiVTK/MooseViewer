@@ -31,8 +31,13 @@
 #include <vtkLight.h>
 #include <vtkNew.h>
 #include <vtkOutlineFilter.h>
+#include <vtkPointData.h>
 #include <vtkPolyDataMapper.h>
 #include <vtkProperty.h>
+
+#include <vtkCellData.h>
+#include <vtkMultiBlockDataSet.h>
+#include <vtkUnstructuredGrid.h>
 
 // MooseViewer includes
 #include "BaseLocator.h"
@@ -326,13 +331,36 @@ void MooseViewer::initContext(GLContextData& contextData) const
     {
     vtkNew<vtkExodusIIReader> reader;
     reader->SetFileName(this->FileName);
+    reader->UpdateInformation();
+//    reader->GenerateObjectIdCellArrayOn();
+//    reader->GenerateGlobalElementIdArrayOn();
+//    reader->GenerateGlobalNodeIdArrayOn();
+    reader->Update();
     vtkNew<vtkCompositeDataGeometryFilter> compositeFilter;
     compositeFilter->SetInputConnection(reader->GetOutputPort());
     compositeFilter->Update();
     compositeFilter->GetOutput()->GetBounds(this->DataBounds);
     mapper->SetInputConnection(compositeFilter->GetOutputPort());
-    
+
     dataOutline->SetInputConnection(compositeFilter->GetOutputPort());
+
+//    int numBlocks = reader->GetNumberOfObjectAttributes();
+//    std::cout << "Blocks : " << numBlocks << std::endl;
+
+//    for (vtkIdType j = 0; j < numBlocks; ++j)
+//      {
+//      vtkSmartPointer<vtkDataObject> pd = vtkDataObject::SafeDownCast(reader->GetOutput()->GetBlock(j));
+//      std::cout << std::endl << "Block : " << j << std::endl;
+      int NumArrays = compositeFilter->GetOutput()->GetPointData()->GetNumberOfArrays();
+//      int NumArrays = ->GetNumberOfPointResultArrays();
+      std::cout << "Number : " << NumArrays << std::endl;
+
+      for (vtkIdType i = 0; i < NumArrays; ++i)
+        {
+       // std::cout << "Array " << i << ": " << reader->GetPointResultArrayName(i) << std::endl;
+        std::cout << "Array " << i << ": " << compositeFilter->GetOutput()->GetPointData()->GetArrayName(i) << std::endl;
+        }
+//      }
     }
   else
     {
@@ -340,6 +368,7 @@ void MooseViewer::initContext(GLContextData& contextData) const
     cube->Update();
     cube->GetOutput()->GetBounds(this->DataBounds);
     mapper->SetInputData(cube->GetOutput());
+
     dataOutline->SetInputData(cube->GetOutput());
     }
 
