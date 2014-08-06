@@ -55,6 +55,10 @@ MooseViewer::DataItem::DataItem(void)
   this->actor->GetProperty()->SetEdgeColor(1.0, 1.0, 1.0);
   this->externalVTKWidget->GetRenderer()->AddActor(this->actor);
 
+  this->reader = vtkSmartPointer<vtkExodusIIReader>::New();
+  this->compositeFilter = vtkSmartPointer<vtkCompositeDataGeometryFilter>::New();
+  this->compositeFilter->SetInputConnection(this->reader->GetOutputPort());
+
   this->flashlight = vtkSmartPointer<vtkLight>::New();
   this->flashlight->SwitchOff();
   this->flashlight->SetLightTypeToHeadlight();
@@ -327,50 +331,18 @@ void MooseViewer::initContext(GLContextData& contextData) const
 
   vtkNew<vtkOutlineFilter> dataOutline;
 
-  if(this->FileName)
-    {
-    vtkNew<vtkExodusIIReader> reader;
-    reader->SetFileName(this->FileName);
-    reader->UpdateInformation();
-//    reader->GenerateObjectIdCellArrayOn();
-//    reader->GenerateGlobalElementIdArrayOn();
-//    reader->GenerateGlobalNodeIdArrayOn();
-    reader->Update();
-    vtkNew<vtkCompositeDataGeometryFilter> compositeFilter;
-    compositeFilter->SetInputConnection(reader->GetOutputPort());
-    compositeFilter->Update();
-    compositeFilter->GetOutput()->GetBounds(this->DataBounds);
-    mapper->SetInputConnection(compositeFilter->GetOutputPort());
+  dataItem->reader->SetFileName(this->FileName);
+  dataItem->reader->UpdateInformation();
+//  reader->GenerateObjectIdCellArrayOn();
+//  reader->GenerateGlobalElementIdArrayOn();
+//  reader->GenerateGlobalNodeIdArrayOn();
+  dataItem->reader->Update();
 
-    dataOutline->SetInputConnection(compositeFilter->GetOutputPort());
+  dataItem->compositeFilter->Update();
+  dataItem->compositeFilter->GetOutput()->GetBounds(this->DataBounds);
+  mapper->SetInputConnection(dataItem->compositeFilter->GetOutputPort());
 
-//    int numBlocks = reader->GetNumberOfObjectAttributes();
-//    std::cout << "Blocks : " << numBlocks << std::endl;
-
-//    for (vtkIdType j = 0; j < numBlocks; ++j)
-//      {
-//      vtkSmartPointer<vtkDataObject> pd = vtkDataObject::SafeDownCast(reader->GetOutput()->GetBlock(j));
-//      std::cout << std::endl << "Block : " << j << std::endl;
-      int NumArrays = compositeFilter->GetOutput()->GetPointData()->GetNumberOfArrays();
-//      int NumArrays = ->GetNumberOfPointResultArrays();
-      std::cout << "Number : " << NumArrays << std::endl;
-
-      for (vtkIdType i = 0; i < NumArrays; ++i)
-        {
-       // std::cout << "Array " << i << ": " << reader->GetPointResultArrayName(i) << std::endl;
-        std::cout << "Array " << i << ": " << compositeFilter->GetOutput()->GetPointData()->GetArrayName(i) << std::endl;
-        }
-//      }
-    }
-  else
-    {
-    vtkNew<vtkCubeSource> cube;
-    cube->Update();
-    cube->GetOutput()->GetBounds(this->DataBounds);
-    mapper->SetInputData(cube->GetOutput());
-
-    dataOutline->SetInputData(cube->GetOutput());
-    }
+  dataOutline->SetInputConnection(dataItem->compositeFilter->GetOutputPort());
 
   vtkNew<vtkPolyDataMapper> mapperOutline;
   mapperOutline->SetInputConnection(dataOutline->GetOutputPort());

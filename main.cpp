@@ -5,20 +5,27 @@
 // MooseViewer includes
 #include "MooseViewer.h"
 
-void printUsage(void)
+void printUsage(bool longForm = true)
 {
-  std::cout << "\nMooseViewer - Render VTK objects in the VRUI context" << std::endl;
-  std::cout << "Example application that demonstrates loading of MOOSE" <<
-               "\nframework Exodus II files." << std::endl;
-  std::cout << "\nUSAGE:\n\t./MooseViewer [-f <string>] [-h]" << std::endl;
-  std::cout << "\nWhere:" << std::endl;
-  std::cout << "\t-f <string>, -fileName <string>" << std::endl;
-  std::cout << "\tName of ExodusII file to load using VTK.\n" << std::endl;
-  std::cout << "\t-h, -help" << std::endl;
-  std::cout << "\tDisplay this usage information and exit." << std::endl;
-  std::cout << "\nAdditionally, all the commandline switches that VRUI " <<
-    "accepts\ncan be passed to MooseViewer.\nFor example, -rootSection," <<
-    " -vruiVerbose, -vruiHelp, etc.\n" << std::endl;
+  if (longForm)
+    {
+    std::cout << "\nMooseViewer - Render VTK objects in the VRUI context" << std::endl;
+    std::cout << "Example application that demonstrates loading of MOOSE" <<
+                 "\nframework Exodus II files." << std::endl;
+    std::cout << "\nUSAGE:\n\t./MooseViewer -f <string> [-h]" << std::endl;
+    std::cout << "\nWhere:" << std::endl;
+    std::cout << "\t-f <string>, -fileName <string>" << std::endl;
+    std::cout << "\tName of ExodusII file to load using VTK.\n" << std::endl;
+    std::cout << "\t-h, -help" << std::endl;
+    std::cout << "\tDisplay this usage information and exit." << std::endl;
+    std::cout << "\nAdditionally, all the commandline switches that VRUI " <<
+      "accepts\ncan be passed to MooseViewer.\nFor example, -rootSection," <<
+      " -vruiVerbose, -vruiHelp, etc.\n" << std::endl;
+    }
+  else
+    {
+    std::cout << "\nUSAGE:\n\t./MooseViewer -f <string> [-h]" << std::endl;
+    }
 }
 
 /* Create and execute an application object: */
@@ -50,6 +57,13 @@ int main(int argc, char* argv[])
           return 0;
           }
         }
+      }
+
+    if(name.empty())
+      {
+      std::cerr << "\nERROR: FileName not provided." << std::endl;
+      printUsage(false);
+      return 1;
       }
 
     MooseViewer application(argc, argv);

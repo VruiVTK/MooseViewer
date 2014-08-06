@@ -22,10 +22,12 @@ namespace GLMotif
   class PopupMenu;
 }
 
-class vtkActor;
 class BaseLocator;
 class ClippingPlane;
 class ExternalVTKWidget;
+class vtkActor;
+class vtkCompositeDataGeometryFilter;
+class vtkExodusIIReader;
 class vtkLight;
 
 class MooseViewer:public Vrui::Application,public GLObject
@@ -40,8 +42,10 @@ private:
     /* VTK components */
     vtkSmartPointer<ExternalVTKWidget> externalVTKWidget;
     vtkSmartPointer<vtkActor> actor;
-    vtkSmartPointer<vtkLight> flashlight;
     vtkSmartPointer<vtkActor> actorOutline;
+    vtkSmartPointer<vtkCompositeDataGeometryFilter> compositeFilter;
+    vtkSmartPointer<vtkExodusIIReader> reader;
+    vtkSmartPointer<vtkLight> flashlight;
 
     /* Constructor and destructor*/
     DataItem(void);
