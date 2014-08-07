@@ -55,9 +55,7 @@ MooseViewer::DataItem::DataItem(void)
   this->actor->GetProperty()->SetEdgeColor(1.0, 1.0, 1.0);
   this->externalVTKWidget->GetRenderer()->AddActor(this->actor);
 
-  this->reader = vtkSmartPointer<vtkExodusIIReader>::New();
   this->compositeFilter = vtkSmartPointer<vtkCompositeDataGeometryFilter>::New();
-  this->compositeFilter->SetInputConnection(this->reader->GetOutputPort());
 
   this->flashlight = vtkSmartPointer<vtkLight>::New();
   this->flashlight->SwitchOff();
@@ -93,12 +91,17 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   NumberOfClippingPlanes(6),
   FlashlightSwitch(0),
   FlashlightPosition(0),
-  FlashlightDirection(0)
+  FlashlightDirection(0),
+  variablesMenu(0),
+  colorByVariablesMenu(0)
 {
   /* Create the user interface: */
   renderingDialog = createRenderingDialog();
   mainMenu=createMainMenu();
   Vrui::setMainMenu(mainMenu);
+
+  this->reader = vtkSmartPointer<vtkExodusIIReader>::New();
+  this->variables.clear();
 
   this->DataBounds = new double[6];
   this->FlashlightSwitch = new int[1];
@@ -149,6 +152,13 @@ void MooseViewer::setFileName(const char* name)
     }
   this->FileName = new char[strlen(name) + 1];
   strcpy(this->FileName, name);
+
+  this->reader->SetFileName(this->FileName);
+  this->reader->UpdateInformation();
+  this->updateVariablesMenu();
+//  reader->GenerateObjectIdCellArrayOn();
+//  reader->GenerateGlobalElementIdArrayOn();
+//  reader->GenerateGlobalNodeIdArrayOn();
 }
 
 //----------------------------------------------------------------------------
@@ -164,6 +174,14 @@ GLMotif::PopupMenu* MooseViewer::createMainMenu(void)
     new GLMotif::PopupMenu("MainMenuPopup",Vrui::getWidgetManager());
   mainMenuPopup->setTitle("Main Menu");
   GLMotif::Menu* mainMenu = new GLMotif::Menu("MainMenu",mainMenuPopup,false);
+
+  GLMotif::CascadeButton* variablesCascade =
+    new GLMotif::CascadeButton("VariablesCascade", mainMenu, "Variables");
+  variablesCascade->setPopup(createVariablesMenu());
+
+  GLMotif::CascadeButton* colorByVariablesCascade =
+    new GLMotif::CascadeButton("colorByVariablesCascade", mainMenu, "Color By");
+  colorByVariablesCascade->setPopup(createColorByVariablesMenu());
 
   GLMotif::CascadeButton* representationCascade =
     new GLMotif::CascadeButton("RepresentationCascade", mainMenu,
@@ -271,6 +289,76 @@ GLMotif::Popup * MooseViewer::createAnalysisToolsMenu(void)
 }
 
 //----------------------------------------------------------------------------
+GLMotif::Popup* MooseViewer::createVariablesMenu(void)
+{
+  const GLMotif::StyleSheet* ss = Vrui::getWidgetManager()->getStyleSheet();
+
+  GLMotif::Popup* variablesMenuPopup =
+    new GLMotif::Popup("variablesMenuPopup", Vrui::getWidgetManager());
+  this->variablesMenu = new GLMotif::SubMenu(
+    "variablesMenu", variablesMenuPopup, false);
+
+  this->variablesMenu->manageChild();
+  return variablesMenuPopup;
+}
+
+//----------------------------------------------------------------------------
+GLMotif::Popup* MooseViewer::createColorByVariablesMenu(void)
+{
+  const GLMotif::StyleSheet* ss = Vrui::getWidgetManager()->getStyleSheet();
+
+  GLMotif::Popup* colorByVariablesMenuPopup =
+    new GLMotif::Popup("colorByVariablesMenuPopup", Vrui::getWidgetManager());
+  this->colorByVariablesMenu = new GLMotif::SubMenu(
+    "colorByVariablesMenu", colorByVariablesMenuPopup, false);
+
+  this->colorByVariablesMenu->manageChild();
+  return colorByVariablesMenuPopup;
+}
+
+//----------------------------------------------------------------------------
+void MooseViewer::updateVariablesMenu(void)
+{
+  /* Clear the menu first */
+  int i;
+  for (i = this->variablesMenu->getNumRows(); i >= 0; --i)
+    {
+    variablesMenu->removeWidgets(i);
+    }
+
+  for (i = 0; i < this->reader->GetNumberOfPointResultArrays(); ++i)
+    {
+    GLMotif::ToggleButton* button = new GLMotif::ToggleButton(
+      this->reader->GetPointResultArrayName(i),
+      variablesMenu, this->reader->GetPointResultArrayName(i));
+    button->getValueChangedCallbacks().add(
+      this, &MooseViewer::changeVariablesCallback);
+    button->setToggle(false);
+    }
+}
+
+//----------------------------------------------------------------------------
+void MooseViewer::updateColorByVariablesMenu(void)
+{
+  /* Clear the menu first */
+  int i;
+  for (i = this->colorByVariablesMenu->getNumRows(); i >= 0; --i)
+    {
+    colorByVariablesMenu->removeWidgets(i);
+    }
+
+  for (i = 0; i < this->variables.size(); ++i)
+    {
+    GLMotif::ToggleButton* button = new GLMotif::ToggleButton(
+      this->variables[i].c_str(),
+      colorByVariablesMenu, this->variables[i].c_str());
+    button->getValueChangedCallbacks().add(
+      this, &MooseViewer::changeColorByVariablesCallback);
+    button->setToggle(false);
+    }
+}
+
+//----------------------------------------------------------------------------
 GLMotif::PopupWindow* MooseViewer::createRenderingDialog(void) {
   const GLMotif::StyleSheet& ss = *Vrui::getWidgetManager()->getStyleSheet();
   GLMotif::PopupWindow * dialogPopup = new GLMotif::PopupWindow(
@@ -331,13 +419,7 @@ void MooseViewer::initContext(GLContextData& contextData) const
 
   vtkNew<vtkOutlineFilter> dataOutline;
 
-  dataItem->reader->SetFileName(this->FileName);
-  dataItem->reader->UpdateInformation();
-//  reader->GenerateObjectIdCellArrayOn();
-//  reader->GenerateGlobalElementIdArrayOn();
-//  reader->GenerateGlobalNodeIdArrayOn();
-  dataItem->reader->Update();
-
+  dataItem->compositeFilter->SetInputConnection(this->reader->GetOutputPort());
   dataItem->compositeFilter->Update();
   dataItem->compositeFilter->GetOutput()->GetBounds(this->DataBounds);
   mapper->SetInputConnection(dataItem->compositeFilter->GetOutputPort());
@@ -372,6 +454,8 @@ void MooseViewer::display(GLContextData& contextData) const
         ++clippingPlaneIndex;
       }
     }
+
+  this->reader->Update();
 
   /* Get context data item */
   DataItem* dataItem = contextData.retrieveDataItem<DataItem>(this);
@@ -587,6 +671,39 @@ void MooseViewer::toolDestructionCallback(
         }
       }
     }
+}
+
+//----------------------------------------------------------------------------
+void MooseViewer::changeVariablesCallback(
+  GLMotif::ToggleButton::ValueChangedCallbackData* callBackData)
+{
+  std::string nameStr = std::string(callBackData->toggle->getName());
+  int setter = callBackData->set ? 1 : 0;
+  this->reader->SetPointResultArrayStatus(nameStr.c_str(), setter);
+  std::vector< std::string >::iterator iter;
+  for (iter = this->variables.begin(); iter != this->variables.end(); ++iter)
+    {
+    if ((*iter).compare(nameStr) == 0)
+      {
+
+      break;
+      }
+    }
+  if (iter == this->variables.end())
+    {
+    variables.push_back(nameStr);
+    }
+  else
+    {
+    this->variables.erase(iter);
+    }
+  this->updateColorByVariablesMenu();
+}
+
+//----------------------------------------------------------------------------
+void MooseViewer::changeColorByVariablesCallback(
+  GLMotif::ToggleButton::ValueChangedCallbackData* callBackData)
+{
 }
 
 //----------------------------------------------------------------------------

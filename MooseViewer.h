@@ -15,11 +15,16 @@
 // VTK includes
 #include <vtkSmartPointer.h>
 
+// STL includes
+#include <vector>
+#include <string>
+
 /* Forward Declarations */
 namespace GLMotif
 {
   class Popup;
   class PopupMenu;
+  class SubMenu;
 }
 
 class BaseLocator;
@@ -44,7 +49,6 @@ private:
     vtkSmartPointer<vtkActor> actor;
     vtkSmartPointer<vtkActor> actorOutline;
     vtkSmartPointer<vtkCompositeDataGeometryFilter> compositeFilter;
-    vtkSmartPointer<vtkExodusIIReader> reader;
     vtkSmartPointer<vtkLight> flashlight;
 
     /* Constructor and destructor*/
@@ -52,14 +56,30 @@ private:
     virtual ~DataItem(void);
   };
 
+  /* vtkExodusIIReader */
+  vtkSmartPointer<vtkExodusIIReader> reader;
+
   /* Elements: */
   GLMotif::PopupMenu* mainMenu; // The program's main menu
   GLMotif::PopupMenu* createMainMenu(void);
   GLMotif::Popup* createRepresentationMenu(void);
   GLMotif::Popup* createAnalysisToolsMenu(void);
+  GLMotif::Popup* createVariablesMenu(void);
+  GLMotif::Popup* createColorByVariablesMenu(void);
   GLMotif::PopupWindow* renderingDialog;
   GLMotif::PopupWindow* createRenderingDialog(void);
   GLMotif::TextField* opacityValue;
+
+  /* Update the menus */
+  void updateVariablesMenu(void);
+  void updateColorByVariablesMenu(void);
+
+  /* Variables submenu */
+  GLMotif::SubMenu* variablesMenu;
+  GLMotif::SubMenu* colorByVariablesMenu;
+
+  /* Variables vector */
+  std::vector<std::string> variables;
 
   /* Name of file to load */
   char* FileName;
@@ -128,6 +148,8 @@ public:
   void changeRepresentationCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
   void showRenderingDialogCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
   void changeAnalysisToolsCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
+  void changeVariablesCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
+  void changeColorByVariablesCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
 
   virtual void toolCreationCallback(Vrui::ToolManager::ToolCreationCallbackData* cbData);
   virtual void toolDestructionCallback(Vrui::ToolManager::ToolDestructionCallbackData* cbData);
