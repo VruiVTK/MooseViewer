@@ -1,7 +1,8 @@
-// STD includes
+// STL includes
+#include <algorithm>
 #include <iostream>
-#include <string>
 #include <math.h>
+#include <string>
 
 // OpenGL/Motif includes
 #include <GL/GLContextData.h>
@@ -340,6 +341,17 @@ void MooseViewer::updateVariablesMenu(void)
 //----------------------------------------------------------------------------
 void MooseViewer::updateColorByVariablesMenu(void)
 {
+  /* Preserve the selection */
+  std::string selectedToggle;
+  GLMotif::RadioBox* old_colorby_RadioBox =
+    static_cast<GLMotif::RadioBox*> (colorByVariablesMenu->getChild(0));
+  if (old_colorby_RadioBox)
+    {
+    GLMotif::ToggleButton* selectedToggleButton =
+      old_colorby_RadioBox->getSelectedToggle();
+    selectedToggle.assign(selectedToggleButton->getString());
+    }
+
   /* Clear the menu first */
   int i;
   for (i = this->colorByVariablesMenu->getNumRows(); i >= 0; --i)
@@ -347,14 +359,32 @@ void MooseViewer::updateColorByVariablesMenu(void)
     colorByVariablesMenu->removeWidgets(i);
     }
 
-  for (i = 0; i < this->variables.size(); ++i)
+  if (this->variables.size() > 0)
     {
-    GLMotif::ToggleButton* button = new GLMotif::ToggleButton(
-      this->variables[i].c_str(),
-      colorByVariablesMenu, this->variables[i].c_str());
-    button->getValueChangedCallbacks().add(
-      this, &MooseViewer::changeColorByVariablesCallback);
-    button->setToggle(false);
+    std::sort(this->variables.begin(), this->variables.end());
+    GLMotif::RadioBox* colorby_RadioBox =
+      new GLMotif::RadioBox("Color RadioBox",colorByVariablesMenu,true);
+
+    int selectedIndex = -1;
+
+    for (i = 0; i < this->variables.size(); ++i)
+      {
+      GLMotif::ToggleButton* button = new GLMotif::ToggleButton(
+        this->variables[i].c_str(),
+        colorby_RadioBox, this->variables[i].c_str());
+      button->getValueChangedCallbacks().add(
+        this, &MooseViewer::changeColorByVariablesCallback);
+      button->setToggle(false);
+      if ( !selectedToggle.empty() && (selectedIndex < 0) &&
+        (selectedToggle.compare(this->variables[i]) == 0))
+        {
+        selectedIndex = i;
+        }
+      }
+
+    selectedIndex = selectedIndex > 0 ? selectedIndex : 0;
+    colorby_RadioBox->setSelectedToggle(selectedIndex);
+    colorby_RadioBox->setSelectionMode(GLMotif::RadioBox::ATMOST_ONE);
     }
 }
 
@@ -685,7 +715,6 @@ void MooseViewer::changeVariablesCallback(
     {
     if ((*iter).compare(nameStr) == 0)
       {
-
       break;
       }
     }
