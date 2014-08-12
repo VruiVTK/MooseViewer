@@ -24,7 +24,6 @@ MooseViewer::DataItem::DataItem(void)
   this->mapper->SetInputConnection(this->compositeFilter->GetOutputPort());
   this->mapper->SetScalarVisibility(1);
   this->mapper->SetScalarModeToUsePointFieldData();
-  this->mapper->SetColorModeToMapScalars();
   this->actor->SetMapper(this->mapper);
 
   this->flashlight = vtkSmartPointer<vtkLight>::New();
@@ -41,7 +40,6 @@ MooseViewer::DataItem::DataItem(void)
 
   this->lut = vtkSmartPointer<vtkLookupTable>::New();
   this->lut->SetNumberOfColors(256);
-  this->lut->SetAlphaRange(0.0, 1.0);
   this->lut->Build();
   this->mapper->SetLookupTable(this->lut);
 
