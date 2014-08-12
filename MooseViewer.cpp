@@ -587,7 +587,7 @@ void MooseViewer::display(GLContextData& contextData) const
     }
 
   /* Set actor opacity */
-//  dataItem->actor->GetProperty()->SetOpacity(this->Opacity);
+  dataItem->actor->GetProperty()->SetOpacity(this->Opacity);
   /* Set the appropriate representation */
   if (this->RepresentationType != -1)
     {
