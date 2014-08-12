@@ -35,6 +35,8 @@ SET(${PROJECT_NAME}_SRCS
   ClippingPlane.h
   ClippingPlaneLocator.cpp
   ClippingPlaneLocator.h
+  DataItem.cpp
+  DataItem.h
   FlashlightLocator.cpp
   FlashlightLocator.h
   main.cpp

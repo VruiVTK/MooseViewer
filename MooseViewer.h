@@ -40,22 +40,7 @@ class MooseViewer:public Vrui::Application,public GLObject
 /* Embedded classes: */
   typedef std::vector<BaseLocator*> BaseLocatorList;
 private:
-  struct DataItem : public GLObject::DataItem
-  {
-  /* Elements */
-  public:
-    /* VTK components */
-    vtkSmartPointer<ExternalVTKWidget> externalVTKWidget;
-    vtkSmartPointer<vtkActor> actor;
-    vtkSmartPointer<vtkActor> actorOutline;
-    vtkSmartPointer<vtkCompositeDataGeometryFilter> compositeFilter;
-    vtkSmartPointer<vtkLight> flashlight;
-
-    /* Constructor and destructor*/
-    DataItem(void);
-    virtual ~DataItem(void);
-  };
-
+  struct DataItem;
   /* vtkExodusIIReader */
   vtkSmartPointer<vtkExodusIIReader> reader;
 
