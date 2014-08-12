@@ -6,6 +6,8 @@
 #include <vtkActor.h>
 #include <vtkCompositeDataGeometryFilter.h>
 #include <vtkLight.h>
+#include <vtkLookupTable.h>
+#include <vtkPolyDataMapper.h>
 #include <vtkProperty.h>
 
 //----------------------------------------------------------------------------
@@ -18,6 +20,12 @@ MooseViewer::DataItem::DataItem(void)
   this->externalVTKWidget->GetRenderer()->AddActor(this->actor);
 
   this->compositeFilter = vtkSmartPointer<vtkCompositeDataGeometryFilter>::New();
+  this->mapper = vtkSmartPointer<vtkPolyDataMapper>::New();
+  this->mapper->SetInputConnection(this->compositeFilter->GetOutputPort());
+  this->mapper->SetScalarVisibility(1);
+  this->mapper->SetScalarModeToUsePointFieldData();
+  this->mapper->SetColorModeToMapScalars();
+  this->actor->SetMapper(this->mapper);
 
   this->flashlight = vtkSmartPointer<vtkLight>::New();
   this->flashlight->SwitchOff();
@@ -30,6 +38,19 @@ MooseViewer::DataItem::DataItem(void)
   this->actorOutline = vtkSmartPointer<vtkActor>::New();
   this->actorOutline->GetProperty()->SetColor(1.0, 1.0, 1.0);
   this->externalVTKWidget->GetRenderer()->AddActor(this->actorOutline);
+
+  this->lut = vtkSmartPointer<vtkLookupTable>::New();
+  this->lut->SetNumberOfColors(256);
+  this->lut->SetAlphaRange(0.0, 1.0);
+  this->lut->Build();
+  this->mapper->SetLookupTable(this->lut);
+
+//  this->externalVTKWidget->GetRenderWindow()->SetAlphaBitPlanes(1);
+//  this->externalVTKWidget->GetRenderWindow()->SetMultiSamples(0);
+//
+//  this->externalVTKWidget->GetRenderer()->SetUseDepthPeeling(1);
+//  this->externalVTKWidget->GetRenderer()->SetMaximumNumberOfPeels(4);
+//  this->externalVTKWidget->GetRenderer()->SetOcclusionRatio(0.1);
 }
 
 //----------------------------------------------------------------------------

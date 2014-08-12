@@ -7,6 +7,7 @@
 // Vrui includes
 #include <GL/GLObject.h>
 #include <GLMotif/PopupWindow.h>
+#include <GLMotif/RadioBox.h>
 #include <GLMotif/Slider.h>
 #include <GLMotif/TextField.h>
 #include <GLMotif/ToggleButton.h>
@@ -29,11 +30,8 @@ namespace GLMotif
 
 class BaseLocator;
 class ClippingPlane;
-class ExternalVTKWidget;
-class vtkActor;
-class vtkCompositeDataGeometryFilter;
+class TransferFunction1D;
 class vtkExodusIIReader;
-class vtkLight;
 
 class MooseViewer:public Vrui::Application,public GLObject
 {
@@ -51,6 +49,7 @@ private:
   GLMotif::Popup* createAnalysisToolsMenu(void);
   GLMotif::Popup* createVariablesMenu(void);
   GLMotif::Popup* createColorByVariablesMenu(void);
+  GLMotif::Popup*  createColorMapSubMenu(void);
   GLMotif::PopupWindow* renderingDialog;
   GLMotif::PopupWindow* createRenderingDialog(void);
   GLMotif::TextField* opacityValue;
@@ -58,6 +57,7 @@ private:
   /* Update the menus */
   void updateVariablesMenu(void);
   void updateColorByVariablesMenu(void);
+  std::string getSelectedColorByArrayName(void) const;
 
   /* Variables submenu */
   GLMotif::SubMenu* variablesMenu;
@@ -104,6 +104,12 @@ private:
   /* Outline visible */
   bool Outline;
 
+  /* Color editor dialog */
+  TransferFunction1D* ColorEditor;
+
+  /* Color Transfer function */
+  double * ColorMap;
+
   /* Constructors and destructors: */
 public:
   MooseViewer(int& argc,char**& argv);
@@ -132,9 +138,15 @@ public:
   void opacitySliderCallback(GLMotif::Slider::ValueChangedCallbackData* cbData);
   void changeRepresentationCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
   void showRenderingDialogCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
+  void showColorEditorDialogCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
   void changeAnalysisToolsCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
   void changeVariablesCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
   void changeColorByVariablesCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
+  void changeColorMapCallback(GLMotif::RadioBox::ValueChangedCallbackData* callBackData);
+  void alphaChangedCallback(Misc::CallbackData* callBackData);
+  void colorMapChangedCallback(Misc::CallbackData* callBackData);
+  void updateAlpha(void);
+  void updateColorMap(void);
 
   virtual void toolCreationCallback(Vrui::ToolManager::ToolCreationCallbackData* cbData);
   virtual void toolDestructionCallback(Vrui::ToolManager::ToolDestructionCallbackData* cbData);

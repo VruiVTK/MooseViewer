@@ -30,6 +30,7 @@
 #include <vtkCubeSource.h>
 #include <vtkExodusIIReader.h>
 #include <vtkLight.h>
+#include <vtkLookupTable.h>
 #include <vtkNew.h>
 #include <vtkOutlineFilter.h>
 #include <vtkPointData.h>
@@ -44,9 +45,12 @@
 #include "BaseLocator.h"
 #include "ClippingPlane.h"
 #include "ClippingPlaneLocator.h"
+#include "ColorMap.h"
 #include "DataItem.h"
 #include "FlashlightLocator.h"
 #include "MooseViewer.h"
+#include "ScalarWidget.h"
+#include "TransferFunction1D.h"
 
 //----------------------------------------------------------------------------
 MooseViewer::MooseViewer(int& argc,char**& argv)
@@ -82,6 +86,9 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   this->FlashlightPosition = new double[3];
   this->FlashlightDirection = new double[3];
 
+  /* Color Map */
+  this->ColorMap = new double[4*256];
+
   /* Initialize the clipping planes */
   ClippingPlanes = new ClippingPlane[NumberOfClippingPlanes];
   for(int i = 0; i < NumberOfClippingPlanes; ++i)
@@ -94,21 +101,30 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
 //----------------------------------------------------------------------------
 MooseViewer::~MooseViewer(void)
 {
-  if(this->DataBounds)
+  if (this->DataBounds)
     {
     delete[] this->DataBounds;
+    this->DataBounds = NULL;
     }
-  if(this->FlashlightSwitch)
+  if (this->FlashlightSwitch)
     {
     delete[] this->FlashlightSwitch;
+    this->FlashlightSwitch = NULL;
     }
-  if(this->FlashlightPosition)
+  if (this->FlashlightPosition)
     {
     delete[] this->FlashlightPosition;
+    this->FlashlightPosition = NULL;
     }
-  if(this->FlashlightDirection)
+  if (this->FlashlightDirection)
     {
     delete[] this->FlashlightDirection;
+    this->FlashlightDirection = NULL;
+    }
+  if (this->ColorMap)
+    {
+    delete[] this->ColorMap;
+    this->ColorMap = NULL;
     }
 }
 
@@ -155,6 +171,17 @@ GLMotif::PopupMenu* MooseViewer::createMainMenu(void)
   GLMotif::CascadeButton* colorByVariablesCascade =
     new GLMotif::CascadeButton("colorByVariablesCascade", mainMenu, "Color By");
   colorByVariablesCascade->setPopup(createColorByVariablesMenu());
+
+  GLMotif::CascadeButton * colorMapSubCascade =
+    new GLMotif::CascadeButton("ColorMapSubCascade", mainMenu, "Color Map");
+  colorMapSubCascade->setPopup(createColorMapSubMenu());
+
+   GLMotif::ToggleButton * showColorEditorDialog =
+     new GLMotif::ToggleButton("ShowColorEditorDialog", mainMenu,
+    "Color Editor");
+  showColorEditorDialog->setToggle(false);
+  showColorEditorDialog->getValueChangedCallbacks().add(
+    this, &MooseViewer::showColorEditorDialogCallback);
 
   GLMotif::CascadeButton* representationCascade =
     new GLMotif::CascadeButton("RepresentationCascade", mainMenu,
@@ -311,9 +338,8 @@ void MooseViewer::updateVariablesMenu(void)
 }
 
 //----------------------------------------------------------------------------
-void MooseViewer::updateColorByVariablesMenu(void)
+std::string MooseViewer::getSelectedColorByArrayName(void) const
 {
-  /* Preserve the selection */
   std::string selectedToggle;
   GLMotif::RadioBox* old_colorby_RadioBox =
     static_cast<GLMotif::RadioBox*> (colorByVariablesMenu->getChild(0));
@@ -323,6 +349,14 @@ void MooseViewer::updateColorByVariablesMenu(void)
       old_colorby_RadioBox->getSelectedToggle();
     selectedToggle.assign(selectedToggleButton->getString());
     }
+  return selectedToggle;
+}
+
+//----------------------------------------------------------------------------
+void MooseViewer::updateColorByVariablesMenu(void)
+{
+  /* Preserve the selection */
+  std::string selectedToggle = this->getSelectedColorByArrayName();
 
   /* Clear the menu first */
   int i;
@@ -361,6 +395,35 @@ void MooseViewer::updateColorByVariablesMenu(void)
 }
 
 //----------------------------------------------------------------------------
+GLMotif::Popup* MooseViewer::createColorMapSubMenu(void)
+{
+  GLMotif::Popup * colorMapSubMenuPopup = new GLMotif::Popup(
+    "ColorMapSubMenuPopup", Vrui::getWidgetManager());
+  GLMotif::RadioBox* colorMaps = new GLMotif::RadioBox(
+    "ColorMaps", colorMapSubMenuPopup, false);
+  colorMaps->setSelectionMode(GLMotif::RadioBox::ALWAYS_ONE);
+  colorMaps->addToggle("Full Rainbow");
+  colorMaps->addToggle("Inverse Full Rainbow");
+  colorMaps->addToggle("Rainbow");
+  colorMaps->addToggle("Inverse Rainbow");
+  colorMaps->addToggle("Cold to Hot");
+  colorMaps->addToggle("Hot to Cold");
+  colorMaps->addToggle("Black to White");
+  colorMaps->addToggle("White to Black");
+  colorMaps->addToggle("HSB Hues");
+  colorMaps->addToggle("Inverse HSB Hues");
+  colorMaps->addToggle("Davinci");
+  colorMaps->addToggle("Inverse Davinci");
+  colorMaps->addToggle("Seismic");
+  colorMaps->addToggle("Inverse Seismic");
+  colorMaps->setSelectedToggle(3);
+  colorMaps->getValueChangedCallbacks().add(this,
+    &MooseViewer::changeColorMapCallback);
+  colorMaps->manageChild();
+  return colorMapSubMenuPopup;
+} // end createColorMapSubMenu()
+
+//----------------------------------------------------------------------------
 GLMotif::PopupWindow* MooseViewer::createRenderingDialog(void) {
   const GLMotif::StyleSheet& ss = *Vrui::getWidgetManager()->getStyleSheet();
   GLMotif::PopupWindow * dialogPopup = new GLMotif::PopupWindow(
@@ -390,6 +453,16 @@ void MooseViewer::frame(void)
 {
   if(this->FirstFrame)
     {
+    this->ColorEditor = new TransferFunction1D(this);
+    this->ColorEditor->createTransferFunction1D(CINVERSE_RAINBOW,
+      CONSTANT_RAMP, 0.0, 1.0);
+    this->ColorEditor->getColorMapChangedCallbacks().add(
+      this, &MooseViewer::colorMapChangedCallback);
+    this->ColorEditor->getAlphaChangedCallbacks().add(this,
+      &MooseViewer::alphaChangedCallback);
+    updateColorMap();
+    updateAlpha();
+
     /* Compute the data center and Radius once */
     this->Center[0] = (this->DataBounds[0] + this->DataBounds[1])/2.0;
     this->Center[1] = (this->DataBounds[2] + this->DataBounds[3])/2.0;
@@ -407,6 +480,8 @@ void MooseViewer::frame(void)
     centerDisplayCallback(0);
     this->FirstFrame = false;
     }
+  this->updateColorMap();
+  this->updateAlpha();
 }
 
 //----------------------------------------------------------------------------
@@ -416,15 +491,15 @@ void MooseViewer::initContext(GLContextData& contextData) const
   DataItem* dataItem = new DataItem();
   contextData.addDataItem(this, dataItem);
 
-  vtkNew<vtkPolyDataMapper> mapper;
-  dataItem->actor->SetMapper(mapper.GetPointer());
+//  vtkNew<vtkPolyDataMapper> mapper;
+//  dataItem->actor->SetMapper(mapper.GetPointer());
 
   vtkNew<vtkOutlineFilter> dataOutline;
 
   dataItem->compositeFilter->SetInputConnection(this->reader->GetOutputPort());
   dataItem->compositeFilter->Update();
   dataItem->compositeFilter->GetOutput()->GetBounds(this->DataBounds);
-  mapper->SetInputConnection(dataItem->compositeFilter->GetOutputPort());
+//  mapper->SetInputConnection(dataItem->compositeFilter->GetOutputPort());
 
   dataOutline->SetInputConnection(dataItem->compositeFilter->GetOutputPort());
 
@@ -457,10 +532,38 @@ void MooseViewer::display(GLContextData& contextData) const
       }
     }
 
+  /* Make sure the reader M-time changes for each context */
   this->reader->Update();
+
+  /* Required for alpha values */
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  glEnable( GL_BLEND );
 
   /* Get context data item */
   DataItem* dataItem = contextData.retrieveDataItem<DataItem>(this);
+
+  /* Color by selected array */
+  std::string selectedArray = this->getSelectedColorByArrayName();
+  if (!selectedArray.empty())
+    {
+    dataItem->mapper->SelectColorArray(selectedArray.c_str());
+
+    dataItem->compositeFilter->Update();
+    vtkSmartPointer<vtkDataArray> dataArray = vtkDataArray::SafeDownCast(
+      dataItem->compositeFilter->GetOutput()->GetPointData(
+        )->GetArray(selectedArray.c_str()));
+    dataItem->mapper->SetScalarRange(dataArray->GetRange());
+    dataItem->lut->SetTableRange(dataArray->GetRange());
+    
+    for (int i = 0; i < 256; ++i)
+      {
+      dataItem->lut->SetTableValue(i,
+        this->ColorMap[4*i + 0],
+        this->ColorMap[4*i + 1],
+        this->ColorMap[4*i + 2],
+        this->ColorMap[4*i + 3]);
+      }
+    }
 
   if(this->FlashlightSwitch[0])
     {
@@ -484,7 +587,7 @@ void MooseViewer::display(GLContextData& contextData) const
     }
 
   /* Set actor opacity */
-  dataItem->actor->GetProperty()->SetOpacity(this->Opacity);
+//  dataItem->actor->GetProperty()->SetOpacity(this->Opacity);
   /* Set the appropriate representation */
   if (this->RepresentationType != -1)
     {
@@ -610,6 +713,27 @@ void MooseViewer::showRenderingDialogCallback(
 }
 
 //----------------------------------------------------------------------------
+void MooseViewer::showColorEditorDialogCallback(
+  GLMotif::ToggleButton::ValueChangedCallbackData* callBackData)
+{
+  /* open/close transfer function dialog based on which toggle button changed state: */
+  if (strcmp(callBackData->toggle->getName(), "ShowColorEditorDialog") == 0)
+    {
+    if (callBackData->set)
+      {
+      /* Open the transfer function dialog at the same position as the main menu: */
+      Vrui::getWidgetManager()->popupPrimaryWidget(this->ColorEditor,
+        Vrui::getWidgetManager()->calcWidgetTransformation(mainMenu));
+      }
+    else
+      {
+      /* Close the transfer function dialog: */
+      Vrui::popdownPrimaryWidget(this->ColorEditor);
+    }
+  }
+}
+
+//----------------------------------------------------------------------------
 ClippingPlane * MooseViewer::getClippingPlanes(void)
 {
   return this->ClippingPlanes;
@@ -705,6 +829,49 @@ void MooseViewer::changeVariablesCallback(
 void MooseViewer::changeColorByVariablesCallback(
   GLMotif::ToggleButton::ValueChangedCallbackData* callBackData)
 {
+  Vrui::requestUpdate();
+}
+
+//----------------------------------------------------------------------------
+void MooseViewer::changeColorMapCallback(
+  GLMotif::RadioBox::ValueChangedCallbackData* callBackData)
+{
+  int value = callBackData->radioBox->getToggleIndex(
+    callBackData->newSelectedToggle);
+  this->ColorEditor->changeColorMap(value);
+  this->updateColorMap();
+  this->updateAlpha();
+  Vrui::requestUpdate();
+}
+
+//----------------------------------------------------------------------------
+void MooseViewer::colorMapChangedCallback(
+  Misc::CallbackData* callBackData)
+{
+  this->ColorEditor->exportColorMap(this->ColorMap);
+  this->updateAlpha();
+  Vrui::requestUpdate();
+}
+
+//----------------------------------------------------------------------------
+void MooseViewer::alphaChangedCallback(Misc::CallbackData* callBackData)
+{
+  this->ColorEditor->exportAlpha(this->ColorMap);
+  Vrui::requestUpdate();
+}
+
+//----------------------------------------------------------------------------
+void MooseViewer::updateAlpha(void)
+{
+  this->ColorEditor->exportAlpha(this->ColorMap);
+  Vrui::requestUpdate();
+}
+
+//----------------------------------------------------------------------------
+void MooseViewer::updateColorMap(void)
+{
+  this->ColorEditor->exportColorMap(this->ColorMap);
+  Vrui::requestUpdate();
 }
 
 //----------------------------------------------------------------------------

@@ -12,6 +12,8 @@ class ExternalVTKWidget;
 class vtkActor;
 class vtkCompositeDataGeometryFilter;
 class vtkLight;
+class vtkLookupTable;
+class vtkPolyDataMapper;
 
 struct MooseViewer::DataItem : public GLObject::DataItem
 {
@@ -22,6 +24,8 @@ public:
   vtkSmartPointer<vtkActor> actor;
   vtkSmartPointer<vtkActor> actorOutline;
   vtkSmartPointer<vtkCompositeDataGeometryFilter> compositeFilter;
+  vtkSmartPointer<vtkPolyDataMapper> mapper;
+  vtkSmartPointer<vtkLookupTable> lut;
   vtkSmartPointer<vtkLight> flashlight;
 
   /* Constructor and destructor*/

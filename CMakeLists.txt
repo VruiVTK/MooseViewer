@@ -35,13 +35,45 @@ SET(${PROJECT_NAME}_SRCS
   ClippingPlane.h
   ClippingPlaneLocator.cpp
   ClippingPlaneLocator.h
+  ColorMapCallbackData.cpp
+  ColorMapCallbackData.h
+  ColorMapChangedCallbackData.cpp
+  ColorMapChangedCallbackData.h
+  ColorMap.cpp
+  ColorMap.h
+  ControlPointChangedCallbackData.cpp
+  ControlPointChangedCallbackData.h
+  ControlPoint.cpp
+  ControlPoint.h
   DataItem.cpp
   DataItem.h
   FlashlightLocator.cpp
   FlashlightLocator.h
+  Gaussian.cpp
+  Gaussian.h
   main.cpp
   MooseViewer.cpp
   MooseViewer.h
+  RGBAColor.cpp
+  RGBAColor.h
+  ScalarWidgetCallbackData.cpp
+  ScalarWidgetCallbackData.h
+  ScalarWidgetChangedCallbackData.cpp
+  ScalarWidgetChangedCallbackData.h
+  ScalarWidgetControlPointChangedCallbackData.cpp
+  ScalarWidgetControlPointChangedCallbackData.h
+  ScalarWidgetControlPoint.cpp
+  ScalarWidgetControlPoint.h
+  ScalarWidget.cpp
+  ScalarWidget.h
+  ScalarWidgetStorage.cpp
+  ScalarWidgetStorage.h
+  Storage.cpp
+  Storage.h
+  SwatchesWidget.cpp
+  SwatchesWidget.h
+  TransferFunction1D.cpp
+  TransferFunction1D.h
   )
 
 ADD_EXECUTABLE(${PROJECT_NAME} ${${PROJECT_NAME}_SRCS})
