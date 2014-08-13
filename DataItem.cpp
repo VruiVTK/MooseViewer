@@ -43,12 +43,14 @@ MooseViewer::DataItem::DataItem(void)
   this->lut->Build();
   this->mapper->SetLookupTable(this->lut);
 
+  /* Setting alpha bit planes should be done in VRUI while
+   * creating the context */
 //  this->externalVTKWidget->GetRenderWindow()->SetAlphaBitPlanes(1);
 //  this->externalVTKWidget->GetRenderWindow()->SetMultiSamples(0);
 //
-//  this->externalVTKWidget->GetRenderer()->SetUseDepthPeeling(1);
-//  this->externalVTKWidget->GetRenderer()->SetMaximumNumberOfPeels(4);
-//  this->externalVTKWidget->GetRenderer()->SetOcclusionRatio(0.1);
+  this->externalVTKWidget->GetRenderer()->SetUseDepthPeeling(1);
+  this->externalVTKWidget->GetRenderer()->SetMaximumNumberOfPeels(4);
+  this->externalVTKWidget->GetRenderer()->SetOcclusionRatio(0.1);
 }
 
 //----------------------------------------------------------------------------
