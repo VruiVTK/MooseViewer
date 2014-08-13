@@ -47,7 +47,8 @@ MooseViewer::DataItem::DataItem(void)
    * creating the context */
 //  this->externalVTKWidget->GetRenderWindow()->SetAlphaBitPlanes(1);
 //  this->externalVTKWidget->GetRenderWindow()->SetMultiSamples(0);
-//
+
+  /* Use depth peeling to enable transparency */
   this->externalVTKWidget->GetRenderer()->SetUseDepthPeeling(1);
   this->externalVTKWidget->GetRenderer()->SetMaximumNumberOfPeels(4);
   this->externalVTKWidget->GetRenderer()->SetOcclusionRatio(0.1);

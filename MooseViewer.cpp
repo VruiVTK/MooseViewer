@@ -12,9 +12,10 @@
 #include <GLMotif/Popup.h>
 #include <GLMotif/PopupMenu.h>
 #include <GLMotif/RadioBox.h>
-#include <GLMotif/ToggleButton.h>
+#include <GLMotif/Separator.h>
 #include <GLMotif/StyleSheet.h>
 #include <GLMotif/SubMenu.h>
+#include <GLMotif/ToggleButton.h>
 #include <GLMotif/WidgetManager.h>
 
 // VRUI includes
@@ -337,14 +338,40 @@ void MooseViewer::updateVariablesMenu(void)
     variablesMenu->removeWidgets(i);
     }
 
-  for (i = 0; i < this->reader->GetNumberOfPointResultArrays(); ++i)
+  const GLMotif::StyleSheet* ss = Vrui::getWidgetManager()->getStyleSheet();
+
+  if (this->reader->GetNumberOfPointResultArrays() > 0)
     {
-    GLMotif::ToggleButton* button = new GLMotif::ToggleButton(
-      this->reader->GetPointResultArrayName(i),
-      variablesMenu, this->reader->GetPointResultArrayName(i));
-    button->getValueChangedCallbacks().add(
-      this, &MooseViewer::changeVariablesCallback);
-    button->setToggle(false);
+    GLMotif::Label* pointArraysLabel = new GLMotif::Label(
+      "Point_Arrays", variablesMenu, "Point Arrays");
+    for (i = 0; i < this->reader->GetNumberOfPointResultArrays(); ++i)
+      {
+      GLMotif::ToggleButton* button = new GLMotif::ToggleButton(
+        this->reader->GetPointResultArrayName(i),
+        variablesMenu, this->reader->GetPointResultArrayName(i));
+      button->getValueChangedCallbacks().add(
+        this, &MooseViewer::changeVariablesCallback);
+      button->setToggle(false);
+      }
+    }
+
+  GLMotif::Separator * pointsep = new GLMotif::Separator(
+    "Points_Separator", variablesMenu, GLMotif::Separator::HORIZONTAL,
+    ss->menuButtonBorderWidth, GLMotif::Separator::RAISED);
+
+  if (this->reader->GetNumberOfElementResultArrays() > 0)
+    {
+    GLMotif::Label* elementArraysLabel = new GLMotif::Label(
+      "Element_Arrays", variablesMenu, "Element Arrays");
+    for (i = 0; i < this->reader->GetNumberOfElementResultArrays(); ++i)
+      {
+      GLMotif::ToggleButton* button = new GLMotif::ToggleButton(
+        this->reader->GetElementResultArrayName(i),
+        variablesMenu, this->reader->GetElementResultArrayName(i));
+      button->getValueChangedCallbacks().add(
+        this, &MooseViewer::changeVariablesCallback);
+      button->setToggle(false);
+      }
     }
 }
 
@@ -502,15 +529,11 @@ void MooseViewer::initContext(GLContextData& contextData) const
   DataItem* dataItem = new DataItem();
   contextData.addDataItem(this, dataItem);
 
-//  vtkNew<vtkPolyDataMapper> mapper;
-//  dataItem->actor->SetMapper(mapper.GetPointer());
-
   vtkNew<vtkOutlineFilter> dataOutline;
 
   dataItem->compositeFilter->SetInputConnection(this->reader->GetOutputPort());
   dataItem->compositeFilter->Update();
   dataItem->compositeFilter->GetOutput()->GetBounds(this->DataBounds);
-//  mapper->SetInputConnection(dataItem->compositeFilter->GetOutputPort());
 
   dataOutline->SetInputConnection(dataItem->compositeFilter->GetOutputPort());
 
@@ -546,10 +569,6 @@ void MooseViewer::display(GLContextData& contextData) const
   /* Make sure the reader M-time changes for each context */
   this->reader->Update();
 
-  /* Required for alpha values */
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-  glEnable( GL_BLEND );
-
   /* Get context data item */
   DataItem* dataItem = contextData.retrieveDataItem<DataItem>(this);
 
@@ -563,9 +582,25 @@ void MooseViewer::display(GLContextData& contextData) const
     vtkSmartPointer<vtkDataArray> dataArray = vtkDataArray::SafeDownCast(
       dataItem->compositeFilter->GetOutput()->GetPointData(
         )->GetArray(selectedArray.c_str()));
+    if (!dataArray)
+      {
+      dataArray = vtkDataArray::SafeDownCast(
+        dataItem->compositeFilter->GetOutput()->GetCellData(
+          )->GetArray(selectedArray.c_str()));
+      dataItem->mapper->SetScalarModeToUseCellFieldData();
+      if (!dataArray)
+        {
+        std::cerr << "The selected array is neither PointDataArray"\
+          " nor CellDataArray" << std::endl;
+        }
+      }
+    else
+      {
+      dataItem->mapper->SetScalarModeToUsePointFieldData();
+      }
     dataItem->mapper->SetScalarRange(dataArray->GetRange());
     dataItem->lut->SetTableRange(dataArray->GetRange());
-    
+
     for (int i = 0; i < 256; ++i)
       {
       dataItem->lut->SetTableValue(i,
@@ -816,7 +851,38 @@ void MooseViewer::changeVariablesCallback(
 {
   std::string nameStr = std::string(callBackData->toggle->getName());
   int setter = callBackData->set ? 1 : 0;
-  this->reader->SetPointResultArrayStatus(nameStr.c_str(), setter);
+
+  int numPointResultArrays = this->reader->GetNumberOfPointResultArrays();
+  int numElementResultArrays = this->reader->GetNumberOfElementResultArrays();
+
+  int i;
+  for (i = 0; i < numPointResultArrays; ++i)
+    {
+    if (nameStr.compare(std::string(
+          this->reader->GetPointResultArrayName(i))) == 0)
+      {
+      this->reader->SetPointResultArrayStatus(nameStr.c_str(), setter);
+      break;
+      }
+    }
+  if (i == numPointResultArrays)
+    {
+    for (i = 0; i < numElementResultArrays; ++i)
+      {
+      if (nameStr.compare(std::string(
+            this->reader->GetElementResultArrayName(i))) == 0)
+        {
+        this->reader->SetElementResultArrayStatus(nameStr.c_str(), setter);
+        break;
+        }
+      }
+    if (i == numElementResultArrays)
+      {
+      std::cerr << "ERROR: The selected array is neither"
+        " point nor element array" << std::endl;
+      }
+    }
+
   std::vector< std::string >::iterator iter;
   for (iter = this->variables.begin(); iter != this->variables.end(); ++iter)
     {
