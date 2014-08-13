@@ -29,6 +29,8 @@ SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 INCLUDE(InstallRequiredSystemLibraries)
 
 SET(${PROJECT_NAME}_SRCS
+  AnimationDialog.cpp
+  AnimationDialog.h
   BaseLocator.cpp
   BaseLocator.h
   ClippingPlane.cpp

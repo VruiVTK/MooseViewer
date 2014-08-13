@@ -28,6 +28,7 @@ namespace GLMotif
   class SubMenu;
 }
 
+class AnimationDialog;
 class BaseLocator;
 class ClippingPlane;
 class TransferFunction1D;
@@ -39,8 +40,6 @@ class MooseViewer:public Vrui::Application,public GLObject
   typedef std::vector<BaseLocator*> BaseLocatorList;
 private:
   struct DataItem;
-  /* vtkExodusIIReader */
-  vtkSmartPointer<vtkExodusIIReader> reader;
 
   /* Elements: */
   GLMotif::PopupMenu* mainMenu; // The program's main menu
@@ -110,14 +109,23 @@ private:
   /* Color Transfer function */
   double * ColorMap;
 
+  /* Animation dialog */
+  AnimationDialog* AnimationControl;
+
   /* Constructors and destructors: */
 public:
   MooseViewer(int& argc,char**& argv);
   virtual ~MooseViewer(void);
 
+  /* vtkExodusIIReader */
+  vtkSmartPointer<vtkExodusIIReader> reader;
+
   /* Methods to set/get the filename to read */
   void setFileName(const char* name);
   const char* getFileName(void);
+
+  /* Animation */
+  bool IsPlaying;
 
   /* Clipping Planes */
   ClippingPlane * getClippingPlanes(void);
@@ -139,6 +147,7 @@ public:
   void changeRepresentationCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
   void showRenderingDialogCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
   void showColorEditorDialogCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
+  void showAnimationDialogCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
   void changeAnalysisToolsCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
   void changeVariablesCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
   void changeColorByVariablesCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);

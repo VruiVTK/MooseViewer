@@ -44,6 +44,7 @@
 #include <vtkUnstructuredGrid.h>
 
 // MooseViewer includes
+#include "AnimationDialog.h"
 #include "BaseLocator.h"
 #include "ClippingPlane.h"
 #include "ClippingPlaneLocator.h"
@@ -72,7 +73,8 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   FlashlightPosition(0),
   FlashlightDirection(0),
   variablesMenu(0),
-  colorByVariablesMenu(0)
+  colorByVariablesMenu(0),
+  IsPlaying(false)
 {
   /* Set Window properties:
    * Since the application requires translucency, GLX_ALPHA_SIZE is set to 1 at
@@ -194,6 +196,13 @@ GLMotif::PopupMenu* MooseViewer::createMainMenu(void)
   showColorEditorDialog->setToggle(false);
   showColorEditorDialog->getValueChangedCallbacks().add(
     this, &MooseViewer::showColorEditorDialogCallback);
+
+   GLMotif::ToggleButton * showAnimationDialog =
+     new GLMotif::ToggleButton("ShowAnimationDialog", mainMenu,
+    "Animation");
+  showAnimationDialog->setToggle(false);
+  showAnimationDialog->getValueChangedCallbacks().add(
+    this, &MooseViewer::showAnimationDialogCallback);
 
   GLMotif::CascadeButton* representationCascade =
     new GLMotif::CascadeButton("RepresentationCascade", mainMenu,
@@ -491,6 +500,7 @@ void MooseViewer::frame(void)
 {
   if(this->FirstFrame)
     {
+    /* Initialize the color editor */
     this->ColorEditor = new TransferFunction1D(this);
     this->ColorEditor->createTransferFunction1D(CINVERSE_RAINBOW,
       CONSTANT_RAMP, 0.0, 1.0);
@@ -500,6 +510,9 @@ void MooseViewer::frame(void)
       &MooseViewer::alphaChangedCallback);
     updateColorMap();
     updateAlpha();
+
+    /* Initialize the Animation control */
+    this->AnimationControl = new AnimationDialog(this);
 
     /* Compute the data center and Radius once */
     this->Center[0] = (this->DataBounds[0] + this->DataBounds[1])/2.0;
@@ -520,6 +533,20 @@ void MooseViewer::frame(void)
     }
   this->updateColorMap();
   this->updateAlpha();
+  if (this->IsPlaying)
+    {
+    int currentTimeStep = this->reader->GetTimeStep();
+    if (currentTimeStep < this->reader->GetTimeStepRange()[1])
+      {
+      this->reader->SetTimeStep(currentTimeStep + 1);
+      Vrui::scheduleUpdate(Vrui::getApplicationTime() + 1.0/125.0);
+      }
+    else
+      {
+      this->AnimationControl->stopAnimation();
+      this->IsPlaying = !this->IsPlaying;
+      }
+    }
 }
 
 //----------------------------------------------------------------------------
@@ -775,6 +802,27 @@ void MooseViewer::showColorEditorDialogCallback(
       {
       /* Close the transfer function dialog: */
       Vrui::popdownPrimaryWidget(this->ColorEditor);
+    }
+  }
+}
+
+//----------------------------------------------------------------------------
+void MooseViewer::showAnimationDialogCallback(
+  GLMotif::ToggleButton::ValueChangedCallbackData* callBackData)
+{
+  /* open/close animation dialog based on which toggle button changed state: */
+  if (strcmp(callBackData->toggle->getName(), "ShowAnimationDialog") == 0)
+    {
+    if (callBackData->set)
+      {
+      /* Open the animation dialog at the same position as the main menu: */
+      Vrui::getWidgetManager()->popupPrimaryWidget(this->AnimationControl,
+        Vrui::getWidgetManager()->calcWidgetTransformation(mainMenu));
+      }
+    else
+      {
+      /* Close the transfer function dialog: */
+      Vrui::popdownPrimaryWidget(this->AnimationControl);
     }
   }
 }
