@@ -160,9 +160,9 @@ void MooseViewer::setFileName(const char* name)
   this->reader->SetFileName(this->FileName);
   this->reader->UpdateInformation();
   this->updateVariablesMenu();
-//  reader->GenerateObjectIdCellArrayOn();
-//  reader->GenerateGlobalElementIdArrayOn();
-//  reader->GenerateGlobalNodeIdArrayOn();
+  reader->GenerateObjectIdCellArrayOn();
+  reader->GenerateGlobalElementIdArrayOn();
+  reader->GenerateGlobalNodeIdArrayOn();
 }
 
 //----------------------------------------------------------------------------
@@ -350,10 +350,17 @@ void MooseViewer::updateVariablesMenu(void)
 
   const GLMotif::StyleSheet* ss = Vrui::getWidgetManager()->getStyleSheet();
 
+  GLMotif::Label* pointArraysLabel = new GLMotif::Label(
+    "Point_Arrays", variablesMenu, "Point Arrays");
+  GLMotif::ToggleButton* nodeIdbutton = new GLMotif::ToggleButton(
+    this->reader->GetPedigreeNodeIdArrayName(),
+    variablesMenu, "Pedigree Node Ids");
+  nodeIdbutton->getValueChangedCallbacks().add(
+    this, &MooseViewer::changeVariablesCallback);
+  nodeIdbutton->setToggle(false);
+
   if (this->reader->GetNumberOfPointResultArrays() > 0)
     {
-    GLMotif::Label* pointArraysLabel = new GLMotif::Label(
-      "Point_Arrays", variablesMenu, "Point Arrays");
     for (i = 0; i < this->reader->GetNumberOfPointResultArrays(); ++i)
       {
       GLMotif::ToggleButton* button = new GLMotif::ToggleButton(
@@ -369,10 +376,25 @@ void MooseViewer::updateVariablesMenu(void)
     "Points_Separator", variablesMenu, GLMotif::Separator::HORIZONTAL,
     ss->menuButtonBorderWidth, GLMotif::Separator::RAISED);
 
+  GLMotif::Label* elementArraysLabel = new GLMotif::Label(
+    "Element_Arrays", variablesMenu, "Element Arrays");
+
+  GLMotif::ToggleButton* objectIdbutton = new GLMotif::ToggleButton(
+    this->reader->GetObjectIdArrayName(),
+    variablesMenu, "Object Ids");
+  objectIdbutton->getValueChangedCallbacks().add(
+    this, &MooseViewer::changeVariablesCallback);
+  objectIdbutton->setToggle(false);
+
+  GLMotif::ToggleButton* elementIdbutton = new GLMotif::ToggleButton(
+    this->reader->GetPedigreeElementIdArrayName(),
+    variablesMenu, "Pedigree Element Ids");
+  elementIdbutton->getValueChangedCallbacks().add(
+    this, &MooseViewer::changeVariablesCallback);
+  elementIdbutton->setToggle(false);
+
   if (this->reader->GetNumberOfElementResultArrays() > 0)
     {
-    GLMotif::Label* elementArraysLabel = new GLMotif::Label(
-      "Element_Arrays", variablesMenu, "Element Arrays");
     for (i = 0; i < this->reader->GetNumberOfElementResultArrays(); ++i)
       {
       GLMotif::ToggleButton* button = new GLMotif::ToggleButton(
@@ -615,6 +637,8 @@ void MooseViewer::display(GLContextData& contextData) const
     {
     dataItem->mapper->SelectColorArray(selectedArray.c_str());
 
+    bool dataArrayFound = true;
+
     dataItem->compositeFilter->Update();
     vtkSmartPointer<vtkDataArray> dataArray = vtkDataArray::SafeDownCast(
       dataItem->compositeFilter->GetOutput()->GetPointData(
@@ -629,14 +653,19 @@ void MooseViewer::display(GLContextData& contextData) const
         {
         std::cerr << "The selected array is neither PointDataArray"\
           " nor CellDataArray" << std::endl;
+        dataArrayFound = false;
         }
       }
     else
       {
       dataItem->mapper->SetScalarModeToUsePointFieldData();
       }
-    dataItem->mapper->SetScalarRange(dataArray->GetRange());
-    dataItem->lut->SetTableRange(dataArray->GetRange());
+
+    if (dataArrayFound)
+      {
+      dataItem->mapper->SetScalarRange(dataArray->GetRange());
+      dataItem->lut->SetTableRange(dataArray->GetRange());
+      }
 
     for (int i = 0; i < 256; ++i)
       {
@@ -933,11 +962,6 @@ void MooseViewer::changeVariablesCallback(
         this->reader->SetElementResultArrayStatus(nameStr.c_str(), setter);
         break;
         }
-      }
-    if (i == numElementResultArrays)
-      {
-      std::cerr << "ERROR: The selected array is neither"
-        " point nor element array" << std::endl;
       }
     }
 
