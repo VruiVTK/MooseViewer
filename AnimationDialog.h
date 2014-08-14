@@ -6,6 +6,8 @@
 #include <GLMotif/PopupWindow.h>
 #include <GLMotif/RowColumn.h>
 #include <GLMotif/StyleSheet.h>
+#include <GLMotif/TextField.h>
+#include <GLMotif/ToggleButton.h>
 #include <GLMotif/WidgetManager.h>
 
 // Forward declarations
@@ -19,17 +21,27 @@ public:
 
     void stopAnimation(void);
 
+    void updateTimeInformation(void);
+
 private:
     MooseViewer * mooseViewer;
 
     void initialize(void);
     void createAnimationDialog(const GLMotif::StyleSheet& styleSheet);
     GLMotif::RowColumn* createButtonBox(GLMotif::RowColumn*& colorMapDialog);
+    GLMotif::RowColumn* createTimeStepBox(GLMotif::RowColumn*& colorMapDialog);
 
     void renderFrameCallback(GLMotif::Button::CallbackData* _callbackData);
     void playPauseCallback(GLMotif::Button::CallbackData* _callbackData);
+    void loopPlayCallback(
+      GLMotif::ToggleButton::ValueChangedCallbackData* _callbackData);
 
     GLMotif::Button* playButton;
+    GLMotif::TextField* stepField;
+    GLMotif::TextField* timeField;
+
+    double minTime, maxTime;
+    int numberOfTimeSteps;
 };
 
 #endif //_ANIMATIONDIALOG_H

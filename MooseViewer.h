@@ -126,6 +126,7 @@ public:
 
   /* Animation */
   bool IsPlaying;
+  bool Loop;
 
   /* Clipping Planes */
   ClippingPlane * getClippingPlanes(void);

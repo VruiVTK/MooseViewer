@@ -74,7 +74,8 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   FlashlightDirection(0),
   variablesMenu(0),
   colorByVariablesMenu(0),
-  IsPlaying(false)
+  IsPlaying(false),
+  Loop(false)
 {
   /* Set Window properties:
    * Since the application requires translucency, GLX_ALPHA_SIZE is set to 1 at
@@ -388,13 +389,16 @@ void MooseViewer::updateVariablesMenu(void)
 std::string MooseViewer::getSelectedColorByArrayName(void) const
 {
   std::string selectedToggle;
-  GLMotif::RadioBox* old_colorby_RadioBox =
+  GLMotif::RadioBox* radioBox =
     static_cast<GLMotif::RadioBox*> (colorByVariablesMenu->getChild(0));
-  if (old_colorby_RadioBox)
+  if (radioBox && (radioBox->getNumRows() > 0))
     {
     GLMotif::ToggleButton* selectedToggleButton =
-      old_colorby_RadioBox->getSelectedToggle();
-    selectedToggle.assign(selectedToggleButton->getString());
+      radioBox->getSelectedToggle();
+    if (selectedToggleButton)
+      {
+      selectedToggle.assign(selectedToggleButton->getString());
+      }
     }
   return selectedToggle;
 }
@@ -541,12 +545,18 @@ void MooseViewer::frame(void)
       this->reader->SetTimeStep(currentTimeStep + 1);
       Vrui::scheduleUpdate(Vrui::getApplicationTime() + 1.0/125.0);
       }
+    else if(this->Loop)
+      {
+      this->reader->SetTimeStep(this->reader->GetTimeStepRange()[0]);
+      Vrui::scheduleUpdate(Vrui::getApplicationTime() + 1.0/125.0);
+      }
     else
       {
       this->AnimationControl->stopAnimation();
       this->IsPlaying = !this->IsPlaying;
       }
     }
+  this->AnimationControl->updateTimeInformation();
 }
 
 //----------------------------------------------------------------------------
@@ -954,6 +964,10 @@ void MooseViewer::changeVariablesCallback(
 void MooseViewer::changeColorByVariablesCallback(
   GLMotif::ToggleButton::ValueChangedCallbackData* callBackData)
 {
+  if (this->variables.size() == 1)
+    {
+    callBackData->toggle->setToggle(true);
+    }
   Vrui::requestUpdate();
 }
 
