@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+    <meta charset='utf-8' />
+    <meta http-equiv="X-UA-Compatible" content="chrome=1" />
+    <meta name="description" content="MooseViewer : Application demonstrating the use of vtkRenderingExternal module to render VTK objects in the VRUI context" />
+
+    <link rel="stylesheet" type="text/css" media="screen" href="stylesheets/stylesheet.css">
+
+    <title>MooseViewer</title>
+  </head>
+
+  <body>
+
+    <!-- HEADER -->
+    <div id="header_wrap" class="outer">
+        <header class="inner">
+          <a id="forkme_banner" href="https://github.com/VruiVTK/MooseViewer">View on GitHub</a>
+
+          <h1 id="project_title">MooseViewer</h1>
+          <h2 id="project_tagline">Application demonstrating the use of vtkRenderingExternal module to render VTK objects in the VRUI context</h2>
+
+            <section id="downloads">
+              <a class="zip_download_link" href="https://github.com/VruiVTK/MooseViewer/zipball/master">Download this project as a .zip file</a>
+              <a class="tar_download_link" href="https://github.com/VruiVTK/MooseViewer/tarball/master">Download this project as a tar.gz file</a>
+            </section>
+        </header>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div id="main_content_wrap" class="outer">
+      <section id="main_content" class="inner">
+        <h3>
+<a name="welcome-to-mooseviewer" class="anchor" href="#welcome-to-mooseviewer"><span class="octicon octicon-link"></span></a>Welcome to MooseViewer</h3>
+
+<p>This application demonstrates use of the new vtkRenderingExternal module to
+visualize ExodusII files in the VRUI context.</p>
+
+<h3>
+<a name="supported-operating-systems" class="anchor" href="#supported-operating-systems"><span class="octicon octicon-link"></span></a>Supported Operating Systems</h3>
+
+<ul>
+<li>Linux</li>
+<li>Mac OSX</li>
+</ul><h3>
+<a name="prerequisites" class="anchor" href="#prerequisites"><span class="octicon octicon-link"></span></a>Prerequisites</h3>
+
+<p>NOTE: To build MooseViewer along with all its prerequisites, simply build the superbuild from <a href="https://github.com/vruivtk/MooseViewerSuperbuild">MooseViewerSuperbuild</a></p>
+
+<p>MooseViewer application requires the following software to be built and installed.</p>
+
+<ul>
+<li><a href="http://cmake.org">CMake</a></li>
+<li><a href="http://idav.ucdavis.edu/%7Eokreylos/ResDev/Vrui/">Vrui</a></li>
+<li><a href="https://github.com/sankhesh/VTK/tree/Rendering_External_Module">VTK with the vtkRenderingExternal module turned ON</a></li>
+</ul><h3>
+<a name="clone-mooseviewer-source" class="anchor" href="#clone-mooseviewer-source"><span class="octicon octicon-link"></span></a>Clone MooseViewer source</h3>
+
+<p>The MooseViewer application can be built from source obtained using one of the download links on this page or using the commandline as follows:</p>
+
+<p><code>
+$ git clone https://github.com/VruiVTK/MooseViewer.git
+</code></p>
+
+<p>The above command creates a directory <em>MooseViewer</em> with the source code.</p>
+
+<h3>
+<a name="configure-instructions" class="anchor" href="#configure-instructions"><span class="octicon octicon-link"></span></a>Configure Instructions</h3>
+
+<p>Configure the build using CMake.</p>
+
+<p>Set the following CMake variables:</p>
+
+<pre><code>* VRUI_PKGCONFIG_DIR - Path to pkgconfig directory of your VRUI installation
+* VTK_DIR - Path to the VTK build directory
+</code></pre>
+
+<p>Once all the required variables are set, press <code>generate</code> to generate the makefile.</p>
+
+<h3>
+<a name="build-instructions" class="anchor" href="#build-instructions"><span class="octicon octicon-link"></span></a>Build Instructions</h3>
+
+<p>Build using the make tool.</p>
+
+<pre><code>$ make
+</code></pre>
+
+<h3>
+<a name="run-vruivtk" class="anchor" href="#run-vruivtk"><span class="octicon octicon-link"></span></a>Run MooseViewer</h3>
+
+<p>The build step will create an executable <em>MooseViewer</em> under the build directory that can be used to run the application.
+To get usage instructions for the application:</p>
+
+<pre><code>$ ./MooseViewer -help
+</code></pre>
+
+<p>To render an ExodusII data (.ex2) file, use the '-f' or '-fileName' argument.</p>
+
+<pre><code>$ ./MooseViewer -f can.ex2
+</code></pre>
+
+<h3>
+<a name="sample-data-files" class="anchor" href="#sample-data-files"><span
+    class="octicon octicon-link"></span></a>Sample Data Files</h3>
+    <p>Some sample ExodusII files are provided in the <a
+      href="https://github.com/VruiVTK/MooseViewer/tree/master/data">data</a>
+    directory. </p>
+<h3>
+<a name="sample-configuration-files" class="anchor" href="#sample-configuration-files"><span class="octicon octicon-link"></span></a>Sample Configuration Files</h3>
+<p>A couple of sample configuration files are added to the <a
+  href="https://github.com/VruiVTK/MooseViewer/tree/master/config">config</a>
+directory. <br>
+To use the sample files simply copy the files to the <code>etc</code> directory of
+your VRUI installation.<br>
+Make sure to backup your existing configuration files before copying the sample ones in.</p>
+
+<p>The sample configuration files are tested to work with an OptiTrack tracker
+with a VRPN server of hostname <em>OptiTrackServer</em>. The server uses the
+<em>Rigid Body Module</em> to configure two rigid bodies:<br>
+<ul>
+<li> Head </li>
+<li> Wand </li>
+</ul>
+The configuration files are merely the default configuration files for
+Vrui-3.1-002 with the required changes made to the <code>3dtv</code>(<a
+  href="https://github.com/VruiVTK/MooseViewer/blob/997766af95465339b1ddc614fa941978fff7c29b/config/VRDevices.cfg#L149-238">VRDevices.cfg</a>,
+<a
+href="https://github.com/VruiVTK/MooseViewer/blob/997766af95465339b1ddc614fa941978fff7c29b/config/Vrui.cfg#L1044-1302">Vrui.cfg</a>) section.
+</p>
+
+<p> To run the device daemon, </p>
+<pre><code>$ <VRUI-install-dir>/bin/VRDeviceDaemon -rootSection 3dtv</code></pre>
+<p> To run the application, </p>
+<pre><code>$ ./MooseViewer -rootSection 3dtv</code></pre>
+
+<h3>
+<a name="screenshots" class="anchor" href="#screenshots"><span class="octicon octicon-link"></span></a>Screenshots</h3>
+<p>The following are some screenshots of the application that demonstrate its
+various aspects. We are using the can.ex2 dataset here (provided in the
+    <a href="#sample-data-files">Sample Data</a>
+    directory.) </p>
+
+<p><img src="images/MainMenu.png" alt="MainMenu"></p>
+<p> Notice that the application calculates the bounds of the dataset and draws
+an outline around it. The outline can be turned off in the <a
+  href="#representation-menu"> Representation Menu</a>.
+
+<h4>
+<a name="variables" class="anchor" href="#variables"><span class="octicon
+    octicon-link"></span></a>Variables</h4>
+    <p> This menu provides access to all the attributes in the ExodusII data
+    file. Selecting the required variables here, ensures that the actual data
+    does not contain unnecessary data arrays. This reduces rendering
+    overhead.</p>
+<p><img src="images/VariablesMenu.png" alt="Variables"><figcaption>Variables Menu</figcaption></p>
+
+<h4>
+<a name="color-by" class="anchor" href="#color-by"><span class="octicon
+    octicon-link"></span></a>Color By Menu</h4>
+    <p>This is a dynamically created sub-menu that updates as and when the user
+    selects/deselects the variables from the <a href="#variables">Variables Menu</a>.
+    The user can choose which variable to color the dataset by.</p>
+<p><img src="images/ColorByMenu.png" alt="Color By Menu"><figcaption>Color By Menu</figcaption></p>
+
+<h4>
+<a name="color-map" class="anchor" href="#color-map"><span
+    class="octicon octicon-link"></span></a>Color Map</h4>
+<p> This sub-menu can be used to select a different color map for the
+dataset.</p>
+<p><img src="images/ColorMapMenu.png" alt="Color Map"><figcaption>Color Map Menu</figcaption></p>
+
+<h4>
+<a name="color-opacity-editor" class="anchor" href="#color-opacity-editor"><span class="octicon
+    octicon-link"></span></a>Color Opacity Editor Dialog</h4>
+    <p>This dialog allows editing the color and opacity functions for
+    visualizing the dataset.</p>
+<p><img src="images/ColorOpacityEditor.png" alt="Color Opacity
+Editor"><figcaption>Color Opacity Editor</figcaption></p>
+
+<h4>
+<a name="animation" class="anchor" href="#animation"><span
+    class="octicon octicon-link"></span></a>Animation Dialog</h4>
+ <p> This dialog allows animating through the various timesteps in the ExodusII
+ dataset. The dialog also show information about how many timesteps are present
+ in the dataset alongwith the current timestep and the time value.</p>
+<p><img src="images/AnimationDialog.png" alt="Animation
+Dialog"><figcaption>Animation Dialog</figcaption></p>
+
+<h4>
+<a name="representation-menu" class="anchor" href="#representation-menu"><span
+    class="octicon octicon-link"></span></a>Representation Menu</h4>
+<p><img src="images/RepresentationMenu.png" alt="Surface with edges representation"><figcaption>Surface with Edges Representation</figcaption></p>
+
+<h4>
+<a name="analysis-tools" class="anchor" href="#analysis-tools"><span
+    class="octicon octicon-link"></span></a>Analysis Tools</h4>
+<p> The <strong> Analysis Tools </strong> are setup to work with the VRUI locator tool. To use one of the analysis tools, toggle the radio button next to it.
+Hit the button on the Wiimote (or the wand device being used) that you would
+like to assign the selected analysis tool to. Since, the button is not assigned
+to any tool right now, it will bring up the default Vrui Menu.
+Select the 6-DOF Locator. This assigns the selected analysis tool to the
+button pressed. From now, on this button can be used to invoke the analysis tool
+it is assigned to.</p>
+<p><img src="images/AnalysisTools.png" alt="Analysis Tools"><figcaption>Analysis Tools Sub-menu</figcaption></p>
+
+<h4>
+<a name="rendering" class="anchor" href="#rendering"><span
+    class="octicon octicon-link"></span></a>Rendering</h4>
+<p> Change the actor level opacity </p>
+<p><img src="images/RenderingDialog.png" alt="Rendering"><figcaption>Rendering Dialog</figcaption></p>
+
+<h3>
+<a name="demo" class="anchor" href="#demo"><span
+  class="octicon octicon-link"></span></a>Demo</h4>
+<p> The following is a demo video showing most aspects of the MooseViewer application. </p>
+<iframe id="demovideo" name="demovideo"
+  src="https://docs.google.com/a/kitware.com/file/d/0Bxgq5zla1NcFZkduR19KeEJWOW8/preview"
+width="640" height="385" onload="totop()"></iframe>
+
+      </section>
+    </div>
+
+    <!-- FOOTER  -->
+    <div id="footer_wrap" class="outer">
+      <footer class="inner">
+        <p class="copyright">Vruivtk maintained by <a href="https://github.com/VruiVTK">VruiVTK</a></p>
+        <p>Published with <a href="http://pages.github.com">GitHub Pages</a></p>
+      </footer>
+    </div>
+
+  <script language="javascript">
+     function totop() {
+       var url = location.href;
+       var hash = url.substring(url.indexOf("#")+1);
+       if (hash == url)
+         {
+         scroll(0, 0);
+         }
+       else
+         {
+         location.href = "#" + hash;
+         history.replaceState(null, null, url1);
+         }
+     }
+  </script>
+
+  </body>
+</html>
