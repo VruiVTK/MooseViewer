@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <iostream>
 #include <math.h>
+#include <sstream>
 #include <string>
 
 // OpenGL/Motif includes
@@ -9,6 +10,7 @@
 #include <GL/gl.h>
 #include <GLMotif/CascadeButton.h>
 #include <GLMotif/Menu.h>
+#include <GLMotif/Pager.h>
 #include <GLMotif/Popup.h>
 #include <GLMotif/PopupMenu.h>
 #include <GLMotif/RadioBox.h>
@@ -359,17 +361,38 @@ void MooseViewer::updateVariablesMenu(void)
     this, &MooseViewer::changeVariablesCallback);
   nodeIdbutton->setToggle(false);
 
-  if (this->reader->GetNumberOfPointResultArrays() > 0)
+  GLMotif::Pager* pointsPager = NULL;
+  int currentPage = -1;
+  for (i = 0; i < this->reader->GetNumberOfPointResultArrays(); ++i)
     {
-    for (i = 0; i < this->reader->GetNumberOfPointResultArrays(); ++i)
+    GLMotif::Container* pointArraysContainer;
+    if (this->reader->GetNumberOfPointResultArrays() > 8)
       {
-      GLMotif::ToggleButton* button = new GLMotif::ToggleButton(
-        this->reader->GetPointResultArrayName(i),
-        variablesMenu, this->reader->GetPointResultArrayName(i));
-      button->getValueChangedCallbacks().add(
-        this, &MooseViewer::changeVariablesCallback);
-      button->setToggle(false);
+      if (!pointsPager)
+        {
+        pointsPager = new GLMotif::Pager("PointsPager", variablesMenu, true);
+        }
+      int newPage = static_cast<int> (i / 8);
+      if (currentPage != newPage)
+        {
+        currentPage = newPage;
+        std::stringstream ss;
+        ss << "PointsMenu" << currentPage;
+        GLMotif::Menu* menu = new GLMotif::Menu(
+          ss.str().c_str(), pointsPager, true);
+        pointArraysContainer = menu;
+        }
       }
+    else
+      {
+      pointArraysContainer = variablesMenu;
+      }
+    GLMotif::ToggleButton* button = new GLMotif::ToggleButton(
+      this->reader->GetPointResultArrayName(i),
+      pointArraysContainer, this->reader->GetPointResultArrayName(i));
+    button->getValueChangedCallbacks().add(
+      this, &MooseViewer::changeVariablesCallback);
+    button->setToggle(false);
     }
 
   GLMotif::Separator * pointsep = new GLMotif::Separator(
@@ -393,16 +416,47 @@ void MooseViewer::updateVariablesMenu(void)
     this, &MooseViewer::changeVariablesCallback);
   elementIdbutton->setToggle(false);
 
-  if (this->reader->GetNumberOfElementResultArrays() > 0)
+  GLMotif::Pager* elementsPager = NULL;
+  currentPage = -1;
+  for (i = 0; i < this->reader->GetNumberOfElementResultArrays(); ++i)
     {
-    for (i = 0; i < this->reader->GetNumberOfElementResultArrays(); ++i)
+    GLMotif::Container* elementArraysContainer;
+    if (this->reader->GetNumberOfElementResultArrays() > 8)
       {
-      GLMotif::ToggleButton* button = new GLMotif::ToggleButton(
-        this->reader->GetElementResultArrayName(i),
-        variablesMenu, this->reader->GetElementResultArrayName(i));
-      button->getValueChangedCallbacks().add(
-        this, &MooseViewer::changeVariablesCallback);
-      button->setToggle(false);
+      if (!elementsPager)
+        {
+        elementsPager =
+          new GLMotif::Pager("ElementsPager", variablesMenu, true);
+        }
+      int newPage = static_cast<int>(i / 8);
+      if( currentPage != newPage)
+        {
+        currentPage = newPage;
+        std::stringstream ss;
+        ss << "ElementsMenu" << currentPage;
+        GLMotif::Menu* menu = new GLMotif::Menu(
+          ss.str().c_str(), elementsPager, true);
+        elementArraysContainer = menu;
+        }
+      }
+    else
+      {
+      elementArraysContainer = variablesMenu;
+      }
+    GLMotif::ToggleButton* button = new GLMotif::ToggleButton(
+      this->reader->GetElementResultArrayName(i),
+      elementArraysContainer, this->reader->GetElementResultArrayName(i));
+    button->getValueChangedCallbacks().add(
+      this, &MooseViewer::changeVariablesCallback);
+    button->setToggle(false);
+
+    if (pointsPager)
+      {
+      pointsPager->setCurrentChildIndex(0);
+      }
+    if (elementsPager)
+      {
+      elementsPager->setCurrentChildIndex(0);
       }
     }
 }
