@@ -31,9 +31,10 @@ namespace GLMotif
 class AnimationDialog;
 class BaseLocator;
 class ClippingPlane;
+class Contours;
 class TransferFunction1D;
-class vtkExodusIIReader;
 class vtkDataArray;
+class vtkExodusIIReader;
 
 class MooseViewer:public Vrui::Application,public GLObject
 {
@@ -118,6 +119,11 @@ private:
   float* Histogram;
   void updateHistogram(void);
 
+  /* Contours dialog */
+  Contours* ContoursDialog;
+  bool ContourVisible;
+  std::vector<double> ContourValues;
+
   /* Constructors and destructors: */
 public:
   MooseViewer(int& argc,char**& argv);
@@ -143,6 +149,12 @@ public:
   double * getFlashlightPosition(void);
   double * getFlashlightDirection(void);
 
+  /* Contours */
+  std::vector<double> getContourValues();
+
+  /* Histogram */
+  float * getHistogram();
+
   /* Methods to manage render context */
   virtual void initContext(GLContextData& contextData) const;
   virtual void display(GLContextData& contextData) const;
@@ -154,6 +166,7 @@ public:
   void changeRepresentationCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
   void showRenderingDialogCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
   void showColorEditorDialogCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
+  void showContoursDialogCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
   void showAnimationDialogCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
   void changeAnalysisToolsCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
   void changeVariablesCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
@@ -163,6 +176,7 @@ public:
   void colorMapChangedCallback(Misc::CallbackData* callBackData);
   void updateAlpha(void);
   void updateColorMap(void);
+  void contourValueChangedCallback(Misc::CallbackData* callBackData);
 
   virtual void toolCreationCallback(Vrui::ToolManager::ToolCreationCallbackData* cbData);
   virtual void toolDestructionCallback(Vrui::ToolManager::ToolDestructionCallbackData* cbData);

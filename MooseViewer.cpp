@@ -51,6 +51,7 @@
 #include "ClippingPlane.h"
 #include "ClippingPlaneLocator.h"
 #include "ColorMap.h"
+#include "Contours.h"
 #include "DataItem.h"
 #include "FlashlightLocator.h"
 #include "MooseViewer.h"
@@ -60,24 +61,25 @@
 //----------------------------------------------------------------------------
 MooseViewer::MooseViewer(int& argc,char**& argv)
   :Vrui::Application(argc,argv),
+  analysisTool(0),
+  ClippingPlanes(NULL),
+  colorByVariablesMenu(0),
+  ContoursDialog(NULL),
   FileName(0),
+  FirstFrame(true),
+  FlashlightDirection(0),
+  FlashlightPosition(0),
+  FlashlightSwitch(0),
+  IsPlaying(false),
+  Loop(false),
   mainMenu(NULL),
-  renderingDialog(NULL),
+  NumberOfClippingPlanes(6),
   Opacity(1.0),
   opacityValue(NULL),
   Outline(true),
+  renderingDialog(NULL),
   RepresentationType(2),
-  FirstFrame(true),
-  analysisTool(0),
-  ClippingPlanes(NULL),
-  NumberOfClippingPlanes(6),
-  FlashlightSwitch(0),
-  FlashlightPosition(0),
-  FlashlightDirection(0),
-  variablesMenu(0),
-  colorByVariablesMenu(0),
-  IsPlaying(false),
-  Loop(false)
+  variablesMenu(0)
 {
   /* Set Window properties:
    * Since the application requires translucency, GLX_ALPHA_SIZE is set to 1 at
@@ -227,6 +229,12 @@ GLMotif::PopupMenu* MooseViewer::createMainMenu(void)
     new GLMotif::CascadeButton("AnalysisToolsCascade", mainMenu,
     "Analysis Tools");
   analysisToolsCascade->setPopup(createAnalysisToolsMenu());
+
+  GLMotif::ToggleButton * showContoursDialog = new GLMotif::ToggleButton(
+    "ShowContoursDialog", mainMenu, "Contours");
+  showContoursDialog->setToggle(false);
+  showContoursDialog->getValueChangedCallbacks().add(this,
+    &MooseViewer::showContoursDialogCallback);
 
   GLMotif::Button* centerDisplayButton =
     new GLMotif::Button("CenterDisplayButton",mainMenu,"Center Display");
@@ -644,6 +652,11 @@ void MooseViewer::frame(void)
       &MooseViewer::alphaChangedCallback);
     updateColorMap();
     updateAlpha();
+
+    /* Contours */
+    this->ContoursDialog = new Contours(this);
+    this->ContoursDialog->getAlphaChangedCallbacks().add(this,
+      &MooseViewer::contourValueChangedCallback);
 
     /* Initialize the Animation control */
     this->AnimationControl = new AnimationDialog(this);
@@ -1165,6 +1178,12 @@ double * MooseViewer::getFlashlightDirection(void)
 }
 
 //----------------------------------------------------------------------------
+float * MooseViewer::getHistogram(void)
+{
+  return this->Histogram;
+}
+
+//----------------------------------------------------------------------------
 void MooseViewer::updateHistogram(void)
 {
   /* Clear the histogram */
@@ -1196,5 +1215,34 @@ void MooseViewer::updateHistogram(void)
     }
 
   this->ColorEditor->setHistogram(this->Histogram);
+  this->ContoursDialog->setHistogram(this->Histogram);
+  Vrui::requestUpdate();
+}
+
+//----------------------------------------------------------------------------
+void MooseViewer::showContoursDialogCallback(
+  GLMotif::ToggleButton::ValueChangedCallbackData* callBackData)
+{
+  /* open/close slices dialog based on which toggle button changed state: */
+  if (strcmp(callBackData->toggle->getName(), "ShowContoursDialog") == 0)
+    {
+    if (callBackData->set)
+      {
+      /* Open the slices dialog at the same position as the main menu: */
+      Vrui::getWidgetManager()->popupPrimaryWidget(ContoursDialog,
+        Vrui::getWidgetManager()->calcWidgetTransformation(mainMenu));
+      }
+    else
+      {
+      /* Close the slices dialog: */
+      Vrui::popdownPrimaryWidget(ContoursDialog);
+      }
+    }
+}
+
+//----------------------------------------------------------------------------
+void MooseViewer::contourValueChangedCallback(Misc::CallbackData* callBackData)
+{
+  this->ContourValues = ContoursDialog->getContourValues();
   Vrui::requestUpdate();
 }
