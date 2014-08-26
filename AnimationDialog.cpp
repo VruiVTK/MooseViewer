@@ -248,8 +248,16 @@ void AnimationDialog::updateTimeInformation(void)
   int currentTimeStep = this->mooseViewer->reader->GetTimeStep();
   this->stepField->setValue(currentTimeStep);
 
-  double timeValue = ((this->maxTime - this->minTime) *
-    (double(currentTimeStep)/(this->numberOfTimeSteps - 1))) + this->minTime;
-  timeValue = (timeValue < 1e-4) ? 0.0 : timeValue;
+  double timeValue = 0.0;
+  if (this->numberOfTimeSteps > 1)
+    {
+    timeValue = ((this->maxTime - this->minTime) *
+      (double(currentTimeStep)/(this->numberOfTimeSteps - 1))) + this->minTime;
+    timeValue = (timeValue < 1e-4) ? 0.0 : timeValue;
+    }
+  else
+    {
+    timeValue = this->minTime;
+    }
   this->timeField->setValue(timeValue);
 }
