@@ -11,6 +11,7 @@
 class ExternalVTKWidget;
 class vtkActor;
 class vtkCompositeDataGeometryFilter;
+class vtkContourFilter;
 class vtkLight;
 class vtkLookupTable;
 class vtkPolyDataMapper;
@@ -27,6 +28,10 @@ public:
   vtkSmartPointer<vtkPolyDataMapper> mapper;
   vtkSmartPointer<vtkLookupTable> lut;
   vtkSmartPointer<vtkLight> flashlight;
+
+  vtkSmartPointer<vtkContourFilter> contourFilter;
+  vtkSmartPointer<vtkActor> contourActor;
+  vtkSmartPointer<vtkPolyDataMapper> contourMapper;
 
   /* Constructor and destructor*/
   DataItem(void);

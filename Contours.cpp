@@ -234,10 +234,11 @@ void Contours::toggleSelectCallback(GLMotif::ToggleButton::ValueChangedCallbackD
 //        mooseViewer->showYContourSlice(callBackData->set);
 //    } else if (strcmp(callBackData->toggle->getName(), "ShowZSliceToggle") == 0) {
 //        mooseViewer->showZContourSlice(callBackData->set);
-//    } else if (strcmp(callBackData->toggle->getName(), "ShowContoursToggle") == 0) {
-//        mooseViewer->setContourVisible(callBackData->set);
 //    }
-//    Vrui::requestUpdate();
+    if (strcmp(callBackData->toggle->getName(), "ShowContoursToggle") == 0) {
+        mooseViewer->setContourVisible(callBackData->set);
+    }
+    Vrui::requestUpdate();
 } // end toggleSelectCallback()
 
 /*

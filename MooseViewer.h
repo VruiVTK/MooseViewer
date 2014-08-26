@@ -151,6 +151,7 @@ public:
 
   /* Contours */
   std::vector<double> getContourValues();
+  void setContourVisible(bool visible);
 
   /* Histogram */
   float * getHistogram();

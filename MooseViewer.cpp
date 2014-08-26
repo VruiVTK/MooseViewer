@@ -31,6 +31,7 @@
 #include <ExternalVTKWidget.h>
 #include <vtkActor.h>
 #include <vtkCompositeDataGeometryFilter.h>
+#include <vtkContourFilter.h>
 #include <vtkCubeSource.h>
 #include <vtkExodusIIReader.h>
 #include <vtkLight.h>
@@ -65,6 +66,7 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   ClippingPlanes(NULL),
   colorByVariablesMenu(0),
   ContoursDialog(NULL),
+  ContourVisible(true),
   FileName(0),
   FirstFrame(true),
   FlashlightDirection(0),
@@ -700,6 +702,7 @@ void MooseViewer::frame(void)
       }
     }
   this->AnimationControl->updateTimeInformation();
+  this->updateHistogram();
 }
 
 //----------------------------------------------------------------------------
@@ -754,6 +757,8 @@ void MooseViewer::display(GLContextData& contextData) const
 
   /* Color by selected array */
   std::string selectedArray = this->getSelectedColorByArrayName();
+  int selectedArrayType = -1;
+  double * dataRange = NULL;
   if (!selectedArray.empty())
     {
     dataItem->mapper->SelectColorArray(selectedArray.c_str());
@@ -770,22 +775,30 @@ void MooseViewer::display(GLContextData& contextData) const
         dataItem->compositeFilter->GetOutput()->GetCellData(
           )->GetArray(selectedArray.c_str()));
       dataItem->mapper->SetScalarModeToUseCellFieldData();
+      dataItem->contourMapper->SetScalarModeToUseCellFieldData();
       if (!dataArray)
         {
         std::cerr << "The selected array is neither PointDataArray"\
           " nor CellDataArray" << std::endl;
         dataArrayFound = false;
         }
+      else
+        {
+        selectedArrayType = 1;
+        }
       }
     else
       {
       dataItem->mapper->SetScalarModeToUsePointFieldData();
+      dataItem->contourMapper->SetScalarModeToUsePointFieldData();
+      selectedArrayType = 0;
       }
 
     if (dataArrayFound)
       {
-      dataItem->mapper->SetScalarRange(dataArray->GetRange());
-      dataItem->lut->SetTableRange(dataArray->GetRange());
+      dataRange = dataArray->GetRange();
+      dataItem->mapper->SetScalarRange(dataRange);
+      dataItem->lut->SetTableRange(dataRange);
       }
 
     for (int i = 0; i < 256; ++i)
@@ -840,6 +853,30 @@ void MooseViewer::display(GLContextData& contextData) const
   else
     {
     dataItem->actor->VisibilityOff();
+    }
+
+  /* Contours */
+  if (!selectedArray.empty() && (selectedArrayType >= 0) && dataRange)
+    {
+    dataItem->contourFilter->SetInputArrayToProcess(0,0,0,
+      selectedArrayType, selectedArray.c_str());
+    dataItem->contourFilter->SetNumberOfContours(this->ContourValues.size());
+    for (int i = 0; i < this->ContourValues.size(); ++i)
+      {
+      double val = (this->ContourValues.at(i) / 255.0)*
+        (dataRange[1] - dataRange[0]) + dataRange[0];
+      dataItem->contourFilter->SetValue(i, val);
+      }
+    dataItem->contourMapper->SetScalarRange(dataRange);
+    }
+
+  if (this->ContourVisible)
+    {
+    dataItem->contourActor->VisibilityOn();
+    }
+  else
+    {
+    dataItem->contourActor->VisibilityOff();
     }
 
   /* Render the scene */
@@ -1245,4 +1282,10 @@ void MooseViewer::contourValueChangedCallback(Misc::CallbackData* callBackData)
 {
   this->ContourValues = ContoursDialog->getContourValues();
   Vrui::requestUpdate();
+}
+
+//----------------------------------------------------------------------------
+void MooseViewer::setContourVisible(bool visible)
+{
+  this->ContourVisible = visible;
 }
