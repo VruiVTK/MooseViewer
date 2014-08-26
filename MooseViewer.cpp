@@ -1181,7 +1181,7 @@ void MooseViewer::updateHistogram(void)
     }
 
   double * scalarRange = dataArray->GetRange();
-  if (abs(scalarRange[1] - scalarRange[0]) < 1e-6)
+  if (fabs(scalarRange[1] - scalarRange[0]) < 1e-6)
     {
     return;
     }
