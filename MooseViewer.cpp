@@ -106,6 +106,13 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   /* Color Map */
   this->ColorMap = new double[4*256];
 
+  /* Histogram */
+  this->Histogram = new float[256];
+  for(int j = 0; j < 256; ++j)
+    {
+    this->Histogram[j] = 0.0;
+    }
+
   /* Initialize the clipping planes */
   ClippingPlanes = new ClippingPlane[NumberOfClippingPlanes];
   for(int i = 0; i < NumberOfClippingPlanes; ++i)
@@ -142,6 +149,10 @@ MooseViewer::~MooseViewer(void)
     {
     delete[] this->ColorMap;
     this->ColorMap = NULL;
+    }
+  if(this->Histogram)
+    {
+    delete[] this->Histogram;
     }
 }
 
@@ -480,6 +491,43 @@ std::string MooseViewer::getSelectedColorByArrayName(void) const
 }
 
 //----------------------------------------------------------------------------
+void MooseViewer::getSelectedArray(vtkSmartPointer<vtkDataArray> dataArray,
+  int & type) const
+{
+  std::string selectedArray = this->getSelectedColorByArrayName();
+  if (selectedArray.empty())
+    {
+    return;
+    }
+  dataItem->compositeFilter->Update();
+  dataArray = vtkDataArray::SafeDownCast(
+    dataItem->compositeFilter->GetOutput()->GetPointData(
+      )->GetArray(selectedArray.c_str()));
+  if (!dataArray)
+    {
+    dataArray = vtkDataArray::SafeDownCast(
+      dataItem->compositeFilter->GetOutput()->GetCellData(
+        )->GetArray(selectedArray.c_str()));
+    if (!dataArray)
+      {
+      std::cerr << "The selected array is neither PointDataArray"\
+        " nor CellDataArray" << std::endl;
+      return;
+      }
+    else
+      {
+      type = 1; // CellData
+      return;
+      }
+    }
+  else
+    {
+    type = 0;
+    return; // PointData
+    }
+}
+
+//----------------------------------------------------------------------------
 void MooseViewer::updateColorByVariablesMenu(void)
 {
   /* Preserve the selection */
@@ -686,6 +734,12 @@ void MooseViewer::display(GLContextData& contextData) const
   DataItem* dataItem = contextData.retrieveDataItem<DataItem>(this);
 
   /* Color by selected array */
+
+  vtkSmartPointer<vtkDataArray> dataArray;
+  int type = -1;
+
+  this->getSelectedArray(dataArray, type);
+
   std::string selectedArray = this->getSelectedColorByArrayName();
   if (!selectedArray.empty())
     {
@@ -1107,4 +1161,15 @@ double * MooseViewer::getFlashlightPosition(void)
 double * MooseViewer::getFlashlightDirection(void)
 {
   return this->FlashlightDirection;
+}
+
+//----------------------------------------------------------------------------
+void MooseViewer::updateHistogram(void)
+{
+  vtkSmartPointer<vtkDataArray> dataArray;
+  int type = -1;
+  this->getSelectedArray(dataArray, type);
+  if (dataArray && type >= 0)
+    {
+    }
 }

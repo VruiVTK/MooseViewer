@@ -57,6 +57,8 @@ private:
   void updateVariablesMenu(void);
   void updateColorByVariablesMenu(void);
   std::string getSelectedColorByArrayName(void) const;
+  void getSelectedArray(vtkSmartPointer<vtkDataArray> array,
+    int & type);
 
   /* Variables submenu */
   GLMotif::SubMenu* variablesMenu;
@@ -111,6 +113,10 @@ private:
 
   /* Animation dialog */
   AnimationDialog* AnimationControl;
+
+  /* Draw histogram */
+  float* Histogram;
+  void updateHistogram(void);
 
   /* Constructors and destructors: */
 public:
