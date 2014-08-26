@@ -33,6 +33,7 @@ class BaseLocator;
 class ClippingPlane;
 class TransferFunction1D;
 class vtkExodusIIReader;
+class vtkDataArray;
 
 class MooseViewer:public Vrui::Application,public GLObject
 {
@@ -57,8 +58,7 @@ private:
   void updateVariablesMenu(void);
   void updateColorByVariablesMenu(void);
   std::string getSelectedColorByArrayName(void) const;
-  void getSelectedArray(vtkSmartPointer<vtkDataArray> array,
-    int & type);
+  vtkSmartPointer<vtkDataArray> getSelectedArray(int & type) const;
 
   /* Variables submenu */
   GLMotif::SubMenu* variablesMenu;

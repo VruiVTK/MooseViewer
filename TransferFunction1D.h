@@ -37,6 +37,7 @@ public:
     void setInteractive(bool interactive);
     Storage* getTransferFunction1D(void) const;
     void setTransferFunction1D(Storage* storage);
+    void setHistogram(float* hist);
 private:
     ScalarWidget* alphaComponent;
     ColorMap* colorMap;

@@ -491,39 +491,44 @@ std::string MooseViewer::getSelectedColorByArrayName(void) const
 }
 
 //----------------------------------------------------------------------------
-void MooseViewer::getSelectedArray(vtkSmartPointer<vtkDataArray> dataArray,
-  int & type) const
+vtkSmartPointer<vtkDataArray> MooseViewer::getSelectedArray(int & type) const
 {
+  vtkSmartPointer<vtkDataArray> dataArray;
   std::string selectedArray = this->getSelectedColorByArrayName();
   if (selectedArray.empty())
     {
-    return;
+    return dataArray;
     }
-  dataItem->compositeFilter->Update();
+
+  vtkSmartPointer<vtkCompositeDataGeometryFilter> compositeFilter =
+    vtkSmartPointer<vtkCompositeDataGeometryFilter>::New();
+  compositeFilter->SetInputConnection(this->reader->GetOutputPort());
+  compositeFilter->Update();
+
   dataArray = vtkDataArray::SafeDownCast(
-    dataItem->compositeFilter->GetOutput()->GetPointData(
+    compositeFilter->GetOutput()->GetPointData(
       )->GetArray(selectedArray.c_str()));
   if (!dataArray)
     {
     dataArray = vtkDataArray::SafeDownCast(
-      dataItem->compositeFilter->GetOutput()->GetCellData(
+      compositeFilter->GetOutput()->GetCellData(
         )->GetArray(selectedArray.c_str()));
     if (!dataArray)
       {
       std::cerr << "The selected array is neither PointDataArray"\
         " nor CellDataArray" << std::endl;
-      return;
+      return dataArray;
       }
     else
       {
       type = 1; // CellData
-      return;
+      return dataArray;
       }
     }
   else
     {
     type = 0;
-    return; // PointData
+    return dataArray; // PointData
     }
 }
 
@@ -565,7 +570,8 @@ void MooseViewer::updateColorByVariablesMenu(void)
 
     selectedIndex = selectedIndex > 0 ? selectedIndex : 0;
     colorby_RadioBox->setSelectedToggle(selectedIndex);
-    colorby_RadioBox->setSelectionMode(GLMotif::RadioBox::ATMOST_ONE);
+    colorby_RadioBox->setSelectionMode(GLMotif::RadioBox::ALWAYS_ONE);
+    this->updateHistogram();
     }
 }
 
@@ -734,12 +740,6 @@ void MooseViewer::display(GLContextData& contextData) const
   DataItem* dataItem = contextData.retrieveDataItem<DataItem>(this);
 
   /* Color by selected array */
-
-  vtkSmartPointer<vtkDataArray> dataArray;
-  int type = -1;
-
-  this->getSelectedArray(dataArray, type);
-
   std::string selectedArray = this->getSelectedColorByArrayName();
   if (!selectedArray.empty())
     {
@@ -1100,6 +1100,7 @@ void MooseViewer::changeColorByVariablesCallback(
     {
     callBackData->toggle->setToggle(true);
     }
+  this->updateHistogram();
   Vrui::requestUpdate();
 }
 
@@ -1166,10 +1167,34 @@ double * MooseViewer::getFlashlightDirection(void)
 //----------------------------------------------------------------------------
 void MooseViewer::updateHistogram(void)
 {
-  vtkSmartPointer<vtkDataArray> dataArray;
-  int type = -1;
-  this->getSelectedArray(dataArray, type);
-  if (dataArray && type >= 0)
+  /* Clear the histogram */
+  for(int j = 0; j < 256; ++j)
     {
+    this->Histogram[j] = 0.0;
     }
+
+  int type = -1;
+  vtkSmartPointer<vtkDataArray> dataArray = this->getSelectedArray(type);
+  if (!dataArray || (type < 0))
+    {
+    return;
+    }
+
+  double * scalarRange = dataArray->GetRange();
+  if (abs(scalarRange[1] - scalarRange[0]) < 1e-6)
+    {
+    return;
+    }
+
+  // Divide the range into 256 bins
+  for (int i = 0; i < dataArray->GetNumberOfTuples(); ++i)
+    {
+    double * tuple = dataArray->GetTuple(i);
+    int bin = static_cast<int>((tuple[0] - scalarRange[0])*255.0 /
+      (scalarRange[1] - scalarRange[0]));
+    this->Histogram[bin] += 1;
+    }
+
+  this->ColorEditor->setHistogram(this->Histogram);
+  Vrui::requestUpdate();
 }

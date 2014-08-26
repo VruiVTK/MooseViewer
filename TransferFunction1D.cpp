@@ -460,3 +460,12 @@ void TransferFunction1D::controlPointChangedCallback(Misc::CallbackData* _callba
             colorSliders[i]->setValue(0.5);
     }
 }
+
+/*
+ * setHistogram - Method to set and display the histogram
+ */
+void TransferFunction1D::setHistogram(float* hist)
+{
+  this->alphaComponent->setHistogram(hist);
+  this->alphaComponent->drawHistogram();
+}
