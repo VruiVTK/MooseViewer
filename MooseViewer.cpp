@@ -30,20 +30,21 @@
 // VTK includes
 #include <ExternalVTKWidget.h>
 #include <vtkActor.h>
+#include <vtkAppendPolyData.h>
+#include <vtkCellData.h>
+#include <vtkCellDataToPointData.h>
 #include <vtkCompositeDataGeometryFilter.h>
 #include <vtkContourFilter.h>
 #include <vtkCubeSource.h>
 #include <vtkExodusIIReader.h>
 #include <vtkLight.h>
 #include <vtkLookupTable.h>
+#include <vtkMultiBlockDataSet.h>
 #include <vtkNew.h>
 #include <vtkOutlineFilter.h>
 #include <vtkPointData.h>
 #include <vtkPolyDataMapper.h>
 #include <vtkProperty.h>
-
-#include <vtkCellData.h>
-#include <vtkMultiBlockDataSet.h>
 #include <vtkUnstructuredGrid.h>
 
 // MooseViewer includes
@@ -775,7 +776,6 @@ void MooseViewer::display(GLContextData& contextData) const
         dataItem->compositeFilter->GetOutput()->GetCellData(
           )->GetArray(selectedArray.c_str()));
       dataItem->mapper->SetScalarModeToUseCellFieldData();
-      dataItem->contourMapper->SetScalarModeToUseCellFieldData();
       if (!dataArray)
         {
         std::cerr << "The selected array is neither PointDataArray"\
@@ -790,7 +790,6 @@ void MooseViewer::display(GLContextData& contextData) const
     else
       {
       dataItem->mapper->SetScalarModeToUsePointFieldData();
-      dataItem->contourMapper->SetScalarModeToUsePointFieldData();
       selectedArrayType = 0;
       }
 
@@ -856,23 +855,39 @@ void MooseViewer::display(GLContextData& contextData) const
     }
 
   /* Contours */
-  if (!selectedArray.empty() && (selectedArrayType >= 0) && dataRange)
-    {
-    dataItem->contourFilter->SetInputArrayToProcess(0,0,0,
-      selectedArrayType, selectedArray.c_str());
-    dataItem->contourFilter->SetNumberOfContours(this->ContourValues.size());
-    for (int i = 0; i < this->ContourValues.size(); ++i)
-      {
-      double val = (this->ContourValues.at(i) / 255.0)*
-        (dataRange[1] - dataRange[0]) + dataRange[0];
-      dataItem->contourFilter->SetValue(i, val);
-      }
-    dataItem->contourMapper->SetScalarRange(dataRange);
-    }
-
   if (this->ContourVisible)
     {
-    dataItem->contourActor->VisibilityOn();
+    if (!selectedArray.empty() && (selectedArrayType >= 0) && dataRange)
+      {
+      vtkSmartPointer<vtkMultiBlockDataSet> mb =
+        vtkMultiBlockDataSet::SafeDownCast(
+          this->reader->GetOutput()->GetBlock(0));
+      dataItem->contours->RemoveAllInputConnections(0);
+      for (int i = 0; i < mb->GetNumberOfBlocks(); ++i)
+        {
+        vtkNew<vtkCellDataToPointData> cellToPointData;
+        cellToPointData->SetInputData(mb->GetBlock(i));
+
+        vtkNew<vtkContourFilter> contour;
+        contour->ComputeScalarsOn();
+        contour->SetInputConnection(cellToPointData->GetOutputPort());
+        contour->SetInputArrayToProcess(0,0,0,
+          vtkDataObject::FIELD_ASSOCIATION_POINTS, selectedArray.c_str());
+        contour->SetNumberOfContours(this->ContourValues.size());
+        for (int c = 0; c < this->ContourValues.size(); ++c)
+          {
+          double val = (this->ContourValues.at(c) / 255.0)*
+            (dataRange[1] - dataRange[0]) + dataRange[0];
+          contour->SetValue(c, val);
+          }
+        dataItem->contours->AddInputConnection(0, contour->GetOutputPort());
+        }
+      dataItem->contourMapper->SetInputConnection(
+        dataItem->contours->GetOutputPort());
+      dataItem->contourMapper->SetScalarRange(dataRange);
+      dataItem->contourMapper->SelectColorArray(selectedArray.c_str());
+      dataItem->contourActor->VisibilityOn();
+      }
     }
   else
     {

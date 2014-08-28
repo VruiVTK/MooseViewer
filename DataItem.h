@@ -10,6 +10,7 @@
 // Forward declarations
 class ExternalVTKWidget;
 class vtkActor;
+class vtkAppendPolyData;
 class vtkCompositeDataGeometryFilter;
 class vtkContourFilter;
 class vtkLight;
@@ -29,7 +30,7 @@ public:
   vtkSmartPointer<vtkLookupTable> lut;
   vtkSmartPointer<vtkLight> flashlight;
 
-  vtkSmartPointer<vtkContourFilter> contourFilter;
+  vtkSmartPointer<vtkAppendPolyData> contours;
   vtkSmartPointer<vtkActor> contourActor;
   vtkSmartPointer<vtkPolyDataMapper> contourMapper;
 

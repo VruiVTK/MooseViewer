@@ -4,6 +4,7 @@
 // VTK includes
 #include <ExternalVTKWidget.h>
 #include <vtkActor.h>
+#include <vtkAppendPolyData.h>
 #include <vtkCompositeDataGeometryFilter.h>
 #include <vtkContourFilter.h>
 #include <vtkLight.h>
@@ -54,16 +55,11 @@ MooseViewer::DataItem::DataItem(void)
   this->externalVTKWidget->GetRenderer()->SetMaximumNumberOfPeels(4);
   this->externalVTKWidget->GetRenderer()->SetOcclusionRatio(0.1);
 
-  this->contourFilter = vtkSmartPointer<vtkContourFilter>::New();
-  this->contourFilter->SetInputConnection(
-    this->compositeFilter->GetOutputPort());
-  this->contourFilter->GenerateTrianglesOn();
-  this->contourFilter->ComputeNormalsOn();
-  this->contourFilter->ComputeScalarsOn();
+  this->contours = vtkSmartPointer<vtkAppendPolyData>::New();
   this->contourMapper = vtkSmartPointer<vtkPolyDataMapper>::New();
-  this->contourMapper->SetInputConnection(
-    this->contourFilter->GetOutputPort());
-  this->contourMapper->ScalarVisibilityOn();
+  this->contourMapper->SetScalarVisibility(1);
+  this->contourMapper->SetScalarModeToUsePointFieldData();
+  this->contourMapper->SetColorModeToMapScalars();
   this->contourMapper->SetLookupTable(this->lut);
   this->contourActor = vtkSmartPointer<vtkActor>::New();
   this->contourActor->SetMapper(this->contourMapper);
