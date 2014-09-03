@@ -33,15 +33,18 @@
 #include <vtkAppendPolyData.h>
 #include <vtkCellData.h>
 #include <vtkCellDataToPointData.h>
+#include <vtkColorTransferFunction.h>
 #include <vtkCompositeDataGeometryFilter.h>
 #include <vtkContourFilter.h>
 #include <vtkCubeSource.h>
 #include <vtkExodusIIReader.h>
+#include <vtkGaussianSplatter.h>
 #include <vtkLight.h>
 #include <vtkLookupTable.h>
 #include <vtkMultiBlockDataSet.h>
 #include <vtkNew.h>
 #include <vtkOutlineFilter.h>
+#include <vtkPiecewiseFunction.h>
 #include <vtkPointData.h>
 #include <vtkPolyDataMapper.h>
 #include <vtkProperty.h>
@@ -73,6 +76,8 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   FlashlightDirection(0),
   FlashlightPosition(0),
   FlashlightSwitch(0),
+  GaussianSplatterExp(-1.0),
+  GaussianSplatterRadius(0.01),
   IsPlaying(false),
   Loop(false),
   mainMenu(NULL),
@@ -82,7 +87,8 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   Outline(true),
   renderingDialog(NULL),
   RepresentationType(2),
-  variablesMenu(0)
+  variablesMenu(0),
+  Volume(false)
 {
   /* Set Window properties:
    * Since the application requires translucency, GLX_ALPHA_SIZE is set to 1 at
@@ -297,8 +303,12 @@ GLMotif::Popup* MooseViewer::createRepresentationMenu(void)
     "ShowSurfaceWithEdges",representation_RadioBox,"Surface with Edges");
   showSurfaceWithEdges->getValueChangedCallbacks().add(
     this,&MooseViewer::changeRepresentationCallback);
+  GLMotif::ToggleButton* showVolume=new GLMotif::ToggleButton(
+    "ShowVolume",representation_RadioBox,"Volume");
+  showVolume->getValueChangedCallbacks().add(
+    this,&MooseViewer::changeRepresentationCallback);
 
-  representation_RadioBox->setSelectionMode(GLMotif::RadioBox::ATMOST_ONE);
+  representation_RadioBox->setSelectionMode(GLMotif::RadioBox::ALWAYS_ONE);
   representation_RadioBox->setSelectedToggle(showSurface);
 
   representationMenu->manageChild();
@@ -622,19 +632,66 @@ GLMotif::PopupWindow* MooseViewer::createRenderingDialog(void) {
     "RenderingDialogPopup", Vrui::getWidgetManager(), "Rendering Dialog");
   GLMotif::RowColumn * dialog = new GLMotif::RowColumn(
     "RenderingDialog", dialogPopup, false);
-  dialog->setOrientation(GLMotif::RowColumn::HORIZONTAL);
+  dialog->setOrientation(GLMotif::RowColumn::VERTICAL);
+  dialog->setPacking(GLMotif::RowColumn::PACK_GRID);
 
   /* Create opacity slider */
+  GLMotif::RowColumn * opacityRow = new GLMotif::RowColumn(
+    "OpacityRow", dialog, false);
+  opacityRow->setOrientation(GLMotif::RowColumn::HORIZONTAL);
+  opacityRow->setPacking(GLMotif::RowColumn::PACK_GRID);
+  GLMotif::Label* opacityLabel = new GLMotif::Label(
+    "OpacityLabel", opacityRow, "Opacity");
   GLMotif::Slider* opacitySlider = new GLMotif::Slider(
-    "OpacitySlider", dialog, GLMotif::Slider::HORIZONTAL, ss.fontHeight*10.0f);
+    "OpacitySlider", opacityRow, GLMotif::Slider::HORIZONTAL,
+    ss.fontHeight*10.0f);
   opacitySlider->setValue(Opacity);
   opacitySlider->setValueRange(0.0, 1.0, 0.1);
   opacitySlider->getValueChangedCallbacks().add(
     this, &MooseViewer::opacitySliderCallback);
-  opacityValue = new GLMotif::TextField("OpacityValue", dialog, 6);
+  opacityValue = new GLMotif::TextField("OpacityValue", opacityRow, 6);
   opacityValue->setFieldWidth(6);
   opacityValue->setPrecision(3);
   opacityValue->setValue(Opacity);
+  opacityRow->manageChild();
+
+  /* Create Volume sampling options sliders */
+  GLMotif::RowColumn * radiusRow = new GLMotif::RowColumn(
+    "RadiusRow", dialog, false);
+  radiusRow->setOrientation(GLMotif::RowColumn::HORIZONTAL);
+  radiusRow->setPacking(GLMotif::RowColumn::PACK_GRID);
+  GLMotif::Label* radiusLabel = new GLMotif::Label(
+    "RadiusLabel", radiusRow, "Volume Sampling Radius");
+  GLMotif::Slider* radiusSlider = new GLMotif::Slider(
+    "RadiusSlider", radiusRow, GLMotif::Slider::HORIZONTAL,
+    ss.fontHeight*10.0f);
+  radiusSlider->setValue(GaussianSplatterRadius);
+  radiusSlider->setValueRange(0.0, 0.1, 0.01);
+  radiusSlider->getValueChangedCallbacks().add(
+    this, &MooseViewer::radiusSliderCallback);
+  radiusValue = new GLMotif::TextField("RadiusValue", radiusRow, 6);
+  radiusValue->setFieldWidth(6);
+  radiusValue->setPrecision(3);
+  radiusValue->setValue(GaussianSplatterRadius);
+  radiusRow->manageChild();
+
+  GLMotif::RowColumn * exponentRow = new GLMotif::RowColumn(
+    "ExponentRow", dialog, false);
+  exponentRow->setOrientation(GLMotif::RowColumn::HORIZONTAL);
+  exponentRow->setPacking(GLMotif::RowColumn::PACK_GRID);
+  GLMotif::Label* expLabel = new GLMotif::Label(
+    "ExpLabel", exponentRow, "Volume Sampling Exponent");
+  GLMotif::Slider* exponentSlider = new GLMotif::Slider(
+    "ExponentSlider", exponentRow, GLMotif::Slider::HORIZONTAL, ss.fontHeight*10.0f);
+  exponentSlider->setValue(GaussianSplatterExp);
+  exponentSlider->setValueRange(-5.0, 0.0, 1.0);
+  exponentSlider->getValueChangedCallbacks().add(
+    this, &MooseViewer::exponentSliderCallback);
+  exponentValue = new GLMotif::TextField("ExponentValue", exponentRow, 6);
+  exponentValue->setFieldWidth(6);
+  exponentValue->setPrecision(3);
+  exponentValue->setValue(GaussianSplatterExp);
+  exponentRow->manageChild();
 
   dialog->manageChild();
   return dialogPopup;
@@ -648,7 +705,7 @@ void MooseViewer::frame(void)
     /* Initialize the color editor */
     this->ColorEditor = new TransferFunction1D(this);
     this->ColorEditor->createTransferFunction1D(CINVERSE_RAINBOW,
-      CONSTANT_RAMP, 0.0, 1.0);
+      UP_RAMP, 0.0, 1.0);
     this->ColorEditor->getColorMapChangedCallbacks().add(
       this, &MooseViewer::colorMapChangedCallback);
     this->ColorEditor->getAlphaChangedCallbacks().add(this,
@@ -759,12 +816,16 @@ void MooseViewer::display(GLContextData& contextData) const
   /* Color by selected array */
   std::string selectedArray = this->getSelectedColorByArrayName();
   int selectedArrayType = -1;
-  double * dataRange = NULL;
+  double* dataRange = NULL;
   if (!selectedArray.empty())
     {
     dataItem->mapper->SelectColorArray(selectedArray.c_str());
 
     bool dataArrayFound = true;
+
+    vtkSmartPointer<vtkUnstructuredGrid> usg =
+      vtkUnstructuredGrid::SafeDownCast(vtkMultiBlockDataSet::SafeDownCast(
+          this->reader->GetOutput()->GetBlock(0))->GetBlock(0));
 
     dataItem->compositeFilter->Update();
     vtkSmartPointer<vtkDataArray> dataArray = vtkDataArray::SafeDownCast(
@@ -776,6 +837,11 @@ void MooseViewer::display(GLContextData& contextData) const
         dataItem->compositeFilter->GetOutput()->GetCellData(
           )->GetArray(selectedArray.c_str()));
       dataItem->mapper->SetScalarModeToUseCellFieldData();
+      vtkSmartPointer<vtkCellDataToPointData> cellToPoint =
+        vtkSmartPointer<vtkCellDataToPointData>::New();
+      cellToPoint->SetInputData(usg);
+      cellToPoint->Update();
+      usg = vtkUnstructuredGrid::SafeDownCast(cellToPoint->GetOutput());
       if (!dataArray)
         {
         std::cerr << "The selected array is neither PointDataArray"\
@@ -800,12 +866,31 @@ void MooseViewer::display(GLContextData& contextData) const
       dataItem->lut->SetTableRange(dataRange);
       }
 
+    usg->GetPointData()->SetActiveScalars(selectedArray.c_str());
+    dataItem->gaussian->SetInputData(usg);
+    dataItem->gaussian->SetModelBounds(usg->GetBounds());
+    dataItem->gaussian->SetRadius(this->GaussianSplatterRadius);
+    dataItem->gaussian->SetExponentFactor(this->GaussianSplatterExp);
+
+    dataItem->colorFunction->RemoveAllPoints();
+    dataItem->opacityFunction->RemoveAllPoints();
+    double dataRangeMax = dataRange ? dataRange[1] : 1.0;
+    double dataRangeMin = dataRange ? dataRange[0] : 0.0;
+    double step = (dataRangeMax - dataRangeMin)/255.0;
     for (int i = 0; i < 256; ++i)
       {
       dataItem->lut->SetTableValue(i,
         this->ColorMap[4*i + 0],
         this->ColorMap[4*i + 1],
         this->ColorMap[4*i + 2],
+        this->ColorMap[4*i + 3]);
+      dataItem->colorFunction->AddRGBPoint(
+        dataRangeMin + (double)(i*step),
+        this->ColorMap[4*i + 0],
+        this->ColorMap[4*i + 1],
+        this->ColorMap[4*i + 2]);
+      dataItem->opacityFunction->AddPoint(
+        dataRangeMin + (double)(i*step),
         this->ColorMap[4*i + 3]);
       }
     }
@@ -852,6 +937,17 @@ void MooseViewer::display(GLContextData& contextData) const
   else
     {
     dataItem->actor->VisibilityOff();
+    }
+  if (this->Volume)
+    {
+    if (!selectedArray.empty())
+      {
+      dataItem->actorVolume->VisibilityOn();
+      }
+    }
+  else
+    {
+    dataItem->actorVolume->VisibilityOff();
     }
 
   /* Contours */
@@ -931,6 +1027,22 @@ void MooseViewer::opacitySliderCallback(
 }
 
 //----------------------------------------------------------------------------
+void MooseViewer::radiusSliderCallback(
+  GLMotif::Slider::ValueChangedCallbackData* callBackData)
+{
+  this->GaussianSplatterRadius = static_cast<double>(callBackData->value);
+  radiusValue->setValue(callBackData->value);
+}
+
+//----------------------------------------------------------------------------
+void MooseViewer::exponentSliderCallback(
+  GLMotif::Slider::ValueChangedCallbackData* callBackData)
+{
+  this->GaussianSplatterExp = static_cast<double>(callBackData->value);
+  exponentValue->setValue(callBackData->value);
+}
+
+//----------------------------------------------------------------------------
 void MooseViewer::changeRepresentationCallback(
   GLMotif::ToggleButton::ValueChangedCallbackData* callBackData)
 {
@@ -938,22 +1050,35 @@ void MooseViewer::changeRepresentationCallback(
   if (strcmp(callBackData->toggle->getName(), "ShowSurface") == 0)
     {
     this->RepresentationType = 2;
+    this->Volume = false;
     }
   else if (strcmp(callBackData->toggle->getName(), "ShowSurfaceWithEdges") == 0)
     {
     this->RepresentationType = 3;
+    this->Volume = false;
     }
   else if (strcmp(callBackData->toggle->getName(), "ShowWireframe") == 0)
     {
     this->RepresentationType = 1;
+    this->Volume = false;
     }
   else if (strcmp(callBackData->toggle->getName(), "ShowPoints") == 0)
     {
     this->RepresentationType = 0;
+    this->Volume = false;
     }
   else if (strcmp(callBackData->toggle->getName(), "ShowNone") == 0)
     {
     this->RepresentationType = -1;
+    this->Volume = false;
+    }
+  else if (strcmp(callBackData->toggle->getName(), "ShowVolume") == 0)
+    {
+    this->Volume = callBackData->set;
+    if (this->Volume)
+      {
+      this->RepresentationType = -1;
+      }
     }
   else if (strcmp(callBackData->toggle->getName(), "ShowOutline") == 0)
     {

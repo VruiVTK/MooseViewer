@@ -11,11 +11,15 @@
 class ExternalVTKWidget;
 class vtkActor;
 class vtkAppendPolyData;
+class vtkColorTransferFunction;
 class vtkCompositeDataGeometryFilter;
 class vtkContourFilter;
+class vtkGaussianSplatter;
 class vtkLight;
 class vtkLookupTable;
+class vtkPiecewiseFunction;
 class vtkPolyDataMapper;
+class vtkVolume;
 
 struct MooseViewer::DataItem : public GLObject::DataItem
 {
@@ -33,6 +37,11 @@ public:
   vtkSmartPointer<vtkAppendPolyData> contours;
   vtkSmartPointer<vtkActor> contourActor;
   vtkSmartPointer<vtkPolyDataMapper> contourMapper;
+
+  vtkSmartPointer<vtkGaussianSplatter> gaussian;
+  vtkSmartPointer<vtkVolume> actorVolume;
+  vtkSmartPointer<vtkColorTransferFunction> colorFunction;
+  vtkSmartPointer<vtkPiecewiseFunction> opacityFunction;
 
   /* Constructor and destructor*/
   DataItem(void);

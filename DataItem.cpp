@@ -5,12 +5,18 @@
 #include <ExternalVTKWidget.h>
 #include <vtkActor.h>
 #include <vtkAppendPolyData.h>
+#include <vtkColorTransferFunction.h>
 #include <vtkCompositeDataGeometryFilter.h>
 #include <vtkContourFilter.h>
+#include <vtkGaussianSplatter.h>
 #include <vtkLight.h>
 #include <vtkLookupTable.h>
+#include <vtkPiecewiseFunction.h>
 #include <vtkPolyDataMapper.h>
 #include <vtkProperty.h>
+#include <vtkSmartVolumeMapper.h>
+#include <vtkVolume.h>
+#include <vtkVolumeProperty.h>
 
 //----------------------------------------------------------------------------
 MooseViewer::DataItem::DataItem(void)
@@ -64,6 +70,28 @@ MooseViewer::DataItem::DataItem(void)
   this->contourActor = vtkSmartPointer<vtkActor>::New();
   this->contourActor->SetMapper(this->contourMapper);
   this->externalVTKWidget->GetRenderer()->AddActor(this->contourActor);
+
+  this->gaussian = vtkSmartPointer<vtkGaussianSplatter>::New();
+  this->gaussian->ScalarWarpingOn();
+  this->gaussian->NormalWarpingOff();
+  this->gaussian->SetRadius(0.05);
+  this->gaussian->SetExponentFactor(-1);
+
+  vtkSmartPointer<vtkSmartVolumeMapper> mapperVolume =
+    vtkSmartPointer<vtkSmartVolumeMapper>::New();
+  mapperVolume->SetInputConnection(this->gaussian->GetOutputPort());
+  this->colorFunction = vtkSmartPointer<vtkColorTransferFunction>::New();
+  this->opacityFunction = vtkSmartPointer<vtkPiecewiseFunction>::New();
+  vtkSmartPointer<vtkVolumeProperty> volumeProperty =
+    vtkSmartPointer<vtkVolumeProperty>::New();
+  volumeProperty->SetColor(this->colorFunction);
+  volumeProperty->SetScalarOpacity(this->opacityFunction);
+  volumeProperty->SetInterpolationTypeToLinear();
+  volumeProperty->ShadeOff();
+  this->actorVolume = vtkSmartPointer<vtkVolume>::New();
+  this->actorVolume->SetMapper(mapperVolume);
+  this->actorVolume->SetProperty(volumeProperty);
+  this->externalVTKWidget->GetRenderer()->AddVolume(this->actorVolume);
 }
 
 //----------------------------------------------------------------------------

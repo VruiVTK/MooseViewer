@@ -124,6 +124,13 @@ private:
   bool ContourVisible;
   std::vector<double> ContourValues;
 
+  /* Volume visible */
+  bool Volume;
+  GLMotif::TextField* radiusValue;
+  GLMotif::TextField* exponentValue;
+  double GaussianSplatterRadius;
+  double GaussianSplatterExp;
+
   /* Constructors and destructors: */
 public:
   MooseViewer(int& argc,char**& argv);
@@ -164,6 +171,8 @@ public:
   /* Callback methods */
   void centerDisplayCallback(Misc::CallbackData* cbData);
   void opacitySliderCallback(GLMotif::Slider::ValueChangedCallbackData* cbData);
+  void radiusSliderCallback(GLMotif::Slider::ValueChangedCallbackData* cbData);
+  void exponentSliderCallback(GLMotif::Slider::ValueChangedCallbackData* cbData);
   void changeRepresentationCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
   void showRenderingDialogCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
   void showColorEditorDialogCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
