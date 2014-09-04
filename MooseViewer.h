@@ -126,10 +126,12 @@ private:
 
   /* Volume visible */
   bool Volume;
+  GLMotif::TextField* sampleValue;
   GLMotif::TextField* radiusValue;
   GLMotif::TextField* exponentValue;
   double GaussianSplatterRadius;
   double GaussianSplatterExp;
+  double GaussianSplatterDims;
 
   /* Constructors and destructors: */
 public:
@@ -171,6 +173,7 @@ public:
   /* Callback methods */
   void centerDisplayCallback(Misc::CallbackData* cbData);
   void opacitySliderCallback(GLMotif::Slider::ValueChangedCallbackData* cbData);
+  void sampleSliderCallback(GLMotif::Slider::ValueChangedCallbackData* cbData);
   void radiusSliderCallback(GLMotif::Slider::ValueChangedCallbackData* cbData);
   void exponentSliderCallback(GLMotif::Slider::ValueChangedCallbackData* cbData);
   void changeRepresentationCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);

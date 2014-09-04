@@ -39,6 +39,7 @@
 #include <vtkCubeSource.h>
 #include <vtkExodusIIReader.h>
 #include <vtkGaussianSplatter.h>
+#include <vtkImageData.h>
 #include <vtkLight.h>
 #include <vtkLookupTable.h>
 #include <vtkMultiBlockDataSet.h>
@@ -76,6 +77,7 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   FlashlightDirection(0),
   FlashlightPosition(0),
   FlashlightSwitch(0),
+  GaussianSplatterDims(30),
   GaussianSplatterExp(-1.0),
   GaussianSplatterRadius(0.01),
   IsPlaying(false),
@@ -87,6 +89,7 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   Outline(true),
   renderingDialog(NULL),
   RepresentationType(2),
+  sampleValue(NULL),
   variablesMenu(0),
   Volume(false)
 {
@@ -656,6 +659,27 @@ GLMotif::PopupWindow* MooseViewer::createRenderingDialog(void) {
   opacityRow->manageChild();
 
   /* Create Volume sampling options sliders */
+  GLMotif::RowColumn * sampleRow = new GLMotif::RowColumn(
+    "sampleRow", dialog, false);
+  sampleRow->setOrientation(GLMotif::RowColumn::HORIZONTAL);
+  sampleRow->setPacking(GLMotif::RowColumn::PACK_GRID);
+  GLMotif::Label* sampleLabel = new GLMotif::Label(
+    "SampleLabel", sampleRow, "Volume Sampling Dimensions");
+  GLMotif::Slider* sampleSlider = new GLMotif::Slider(
+    "SampleSlider", sampleRow, GLMotif::Slider::HORIZONTAL, ss.fontHeight*10.0f);
+  sampleSlider->setValue(GaussianSplatterExp);
+  sampleSlider->setValueRange(20, 200.0, 10.0);
+  sampleSlider->getValueChangedCallbacks().add(
+    this, &MooseViewer::sampleSliderCallback);
+  sampleValue = new GLMotif::TextField("SampleValue", sampleRow, 6);
+  sampleValue->setFieldWidth(6);
+  sampleValue->setPrecision(3);
+  std::stringstream stringstr;
+  stringstr << GaussianSplatterDims << " x " << GaussianSplatterDims <<
+    " x " << GaussianSplatterDims;
+  sampleValue->setString(stringstr.str().c_str());
+  sampleRow->manageChild();
+
   GLMotif::RowColumn * radiusRow = new GLMotif::RowColumn(
     "RadiusRow", dialog, false);
   radiusRow->setOrientation(GLMotif::RowColumn::HORIZONTAL);
@@ -684,7 +708,7 @@ GLMotif::PopupWindow* MooseViewer::createRenderingDialog(void) {
   GLMotif::Slider* exponentSlider = new GLMotif::Slider(
     "ExponentSlider", exponentRow, GLMotif::Slider::HORIZONTAL, ss.fontHeight*10.0f);
   exponentSlider->setValue(GaussianSplatterExp);
-  exponentSlider->setValueRange(-5.0, 0.0, 1.0);
+  exponentSlider->setValueRange(-5.0, 5.0, 1.0);
   exponentSlider->getValueChangedCallbacks().add(
     this, &MooseViewer::exponentSliderCallback);
   exponentValue = new GLMotif::TextField("ExponentValue", exponentRow, 6);
@@ -867,8 +891,13 @@ void MooseViewer::display(GLContextData& contextData) const
       }
 
     usg->GetPointData()->SetActiveScalars(selectedArray.c_str());
+    int imageExtent[6] = {0, this->GaussianSplatterDims-1,
+      0, this->GaussianSplatterDims-1, 0, this->GaussianSplatterDims-1};
+    dataItem->gaussian->GetOutput()->SetExtent(imageExtent);
     dataItem->gaussian->SetInputData(usg);
     dataItem->gaussian->SetModelBounds(usg->GetBounds());
+    dataItem->gaussian->SetSampleDimensions(this->GaussianSplatterDims,
+      this->GaussianSplatterDims, this->GaussianSplatterDims);
     dataItem->gaussian->SetRadius(this->GaussianSplatterRadius);
     dataItem->gaussian->SetExponentFactor(this->GaussianSplatterExp);
 
@@ -1024,6 +1053,17 @@ void MooseViewer::opacitySliderCallback(
 {
   this->Opacity = static_cast<double>(callBackData->value);
   opacityValue->setValue(callBackData->value);
+}
+
+//----------------------------------------------------------------------------
+void MooseViewer::sampleSliderCallback(
+  GLMotif::Slider::ValueChangedCallbackData* callBackData)
+{
+  this->GaussianSplatterDims = static_cast<double>(callBackData->value);
+  std::stringstream ss;
+  ss << GaussianSplatterDims << " x " << GaussianSplatterDims <<
+    " x " << GaussianSplatterDims;
+  sampleValue->setString(ss.str().c_str());
 }
 
 //----------------------------------------------------------------------------
