@@ -16,6 +16,8 @@ void printUsage(bool longForm = true)
     std::cout << "\nWhere:" << std::endl;
     std::cout << "\t-f <string>, -fileName <string>" << std::endl;
     std::cout << "\tName of ExodusII file to load using VTK.\n" << std::endl;
+    std::cout << "\t-r <digit>, -renderMode <digit>" << std::endl;
+    std::cout << "\tRender mode to request for vtkSmartVolumeMapper.\n" << std::endl;
     std::cout << "\t-h, -help" << std::endl;
     std::cout << "\tDisplay this usage information and exit." << std::endl;
     std::cout << "\nAdditionally, all the commandline switches that VRUI " <<
@@ -41,6 +43,7 @@ int main(int argc, char* argv[])
   try
     {
     std::string name;
+    int renderMode = -1;
     if(argc > 1)
       {
       /* Parse the command-line arguments */
@@ -49,6 +52,11 @@ int main(int argc, char* argv[])
         if(strcmp(argv[i], "-f")==0 || strcmp(argv[i], "-filename")==0)
           {
           name.assign(argv[i+1]);
+          ++i;
+          }
+        if(strcmp(argv[i], "-r")==0 || strcmp(argv[i], "-renderMode")==0)
+          {
+          renderMode = atoi(argv[i+1]);
           ++i;
           }
         if(strcmp(argv[i],"-h")==0 || strcmp(argv[i], "-help")==0)
@@ -70,6 +78,10 @@ int main(int argc, char* argv[])
     if(!name.empty())
       {
       application.setFileName(name.c_str());
+      }
+    if(renderMode != -1)
+      {
+      application.setRequestedRenderMode(renderMode);
       }
     application.run();
     return 0;

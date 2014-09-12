@@ -77,9 +77,9 @@ MooseViewer::DataItem::DataItem(void)
   this->gaussian->SetRadius(0.05);
   this->gaussian->SetExponentFactor(-1);
 
-  vtkSmartPointer<vtkSmartVolumeMapper> mapperVolume =
+  this->mapperVolume =
     vtkSmartPointer<vtkSmartVolumeMapper>::New();
-  mapperVolume->SetInputConnection(this->gaussian->GetOutputPort());
+  this->mapperVolume->SetInputConnection(this->gaussian->GetOutputPort());
   this->colorFunction = vtkSmartPointer<vtkColorTransferFunction>::New();
   this->opacityFunction = vtkSmartPointer<vtkPiecewiseFunction>::New();
   vtkSmartPointer<vtkVolumeProperty> volumeProperty =
@@ -89,7 +89,7 @@ MooseViewer::DataItem::DataItem(void)
   volumeProperty->SetInterpolationTypeToLinear();
   volumeProperty->ShadeOff();
   this->actorVolume = vtkSmartPointer<vtkVolume>::New();
-  this->actorVolume->SetMapper(mapperVolume);
+  this->actorVolume->SetMapper(this->mapperVolume);
   this->actorVolume->SetProperty(volumeProperty);
   this->externalVTKWidget->GetRenderer()->AddVolume(this->actorVolume);
 }

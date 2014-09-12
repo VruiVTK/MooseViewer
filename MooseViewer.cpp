@@ -49,6 +49,7 @@
 #include <vtkPointData.h>
 #include <vtkPolyDataMapper.h>
 #include <vtkProperty.h>
+#include <vtkSmartVolumeMapper.h>
 #include <vtkUnstructuredGrid.h>
 
 // MooseViewer includes
@@ -87,6 +88,7 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   Opacity(1.0),
   opacityValue(NULL),
   Outline(true),
+  RequestedRenderMode(3),
   renderingDialog(NULL),
   RepresentationType(2),
   sampleValue(NULL),
@@ -802,6 +804,8 @@ void MooseViewer::initContext(GLContextData& contextData) const
 
   dataOutline->SetInputConnection(dataItem->compositeFilter->GetOutputPort());
 
+  dataItem->mapperVolume->SetRequestedRenderMode(this->RequestedRenderMode);
+
   vtkNew<vtkPolyDataMapper> mapperOutline;
   mapperOutline->SetInputConnection(dataOutline->GetOutputPort());
   dataItem->actorOutline->SetMapper(mapperOutline.GetPointer());
@@ -848,8 +852,10 @@ void MooseViewer::display(GLContextData& contextData) const
     bool dataArrayFound = true;
 
     vtkSmartPointer<vtkUnstructuredGrid> usg =
+      vtkSmartPointer<vtkUnstructuredGrid>::New();
+    usg->DeepCopy(
       vtkUnstructuredGrid::SafeDownCast(vtkMultiBlockDataSet::SafeDownCast(
-          this->reader->GetOutput()->GetBlock(0))->GetBlock(0));
+          this->reader->GetOutput()->GetBlock(0))->GetBlock(0)));
 
     dataItem->compositeFilter->Update();
     vtkSmartPointer<vtkDataArray> dataArray = vtkDataArray::SafeDownCast(
@@ -865,7 +871,7 @@ void MooseViewer::display(GLContextData& contextData) const
         vtkSmartPointer<vtkCellDataToPointData>::New();
       cellToPoint->SetInputData(usg);
       cellToPoint->Update();
-      usg = vtkUnstructuredGrid::SafeDownCast(cellToPoint->GetOutput());
+      usg->DeepCopy(vtkUnstructuredGrid::SafeDownCast(cellToPoint->GetOutput()));
       if (!dataArray)
         {
         std::cerr << "The selected array is neither PointDataArray"\
@@ -1468,4 +1474,16 @@ void MooseViewer::contourValueChangedCallback(Misc::CallbackData* callBackData)
 void MooseViewer::setContourVisible(bool visible)
 {
   this->ContourVisible = visible;
+}
+
+//----------------------------------------------------------------------------
+void MooseViewer::setRequestedRenderMode(int mode)
+{
+  this->RequestedRenderMode = mode;
+}
+
+//----------------------------------------------------------------------------
+int MooseViewer::getRequestedRenderMode(void) const
+{
+  return this->RequestedRenderMode;
 }

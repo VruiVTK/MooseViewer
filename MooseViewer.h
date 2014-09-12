@@ -71,6 +71,9 @@ private:
   /* Name of file to load */
   char* FileName;
 
+  /* SmartVolumeMapper Requested RenderMode */
+  int RequestedRenderMode;
+
   /* Opacity value */
   double Opacity;
 
@@ -157,6 +160,10 @@ public:
   int * getFlashlightSwitch(void);
   double * getFlashlightPosition(void);
   double * getFlashlightDirection(void);
+
+  /* Methods to set/get the requested render mode */
+  void setRequestedRenderMode(int mode);
+  int getRequestedRenderMode(void) const;
 
   /* Contours */
   std::vector<double> getContourValues();

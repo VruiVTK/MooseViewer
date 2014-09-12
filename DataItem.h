@@ -19,6 +19,7 @@ class vtkLight;
 class vtkLookupTable;
 class vtkPiecewiseFunction;
 class vtkPolyDataMapper;
+class vtkSmartVolumeMapper;
 class vtkVolume;
 
 struct MooseViewer::DataItem : public GLObject::DataItem
@@ -40,6 +41,7 @@ public:
 
   vtkSmartPointer<vtkGaussianSplatter> gaussian;
   vtkSmartPointer<vtkVolume> actorVolume;
+  vtkSmartPointer<vtkSmartVolumeMapper> mapperVolume;
   vtkSmartPointer<vtkColorTransferFunction> colorFunction;
   vtkSmartPointer<vtkPiecewiseFunction> opacityFunction;
 
