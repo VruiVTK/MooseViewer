@@ -45,6 +45,16 @@ public:
   vtkSmartPointer<vtkColorTransferFunction> colorFunction;
   vtkSmartPointer<vtkPiecewiseFunction> opacityFunction;
 
+  vtkSmartPointer<vtkContourFilter> aContour;
+  vtkSmartPointer<vtkPolyDataMapper> aContourMapper;
+  vtkSmartPointer<vtkActor> actorAContour;
+  vtkSmartPointer<vtkContourFilter> bContour;
+  vtkSmartPointer<vtkPolyDataMapper> bContourMapper;
+  vtkSmartPointer<vtkActor> actorBContour;
+  vtkSmartPointer<vtkContourFilter> cContour;
+  vtkSmartPointer<vtkPolyDataMapper> cContourMapper;
+  vtkSmartPointer<vtkActor> actorCContour;
+
   /* Constructor and destructor*/
   DataItem(void);
   virtual ~DataItem(void);

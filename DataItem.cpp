@@ -92,6 +92,34 @@ MooseViewer::DataItem::DataItem(void)
   this->actorVolume->SetMapper(this->mapperVolume);
   this->actorVolume->SetProperty(volumeProperty);
   this->externalVTKWidget->GetRenderer()->AddVolume(this->actorVolume);
+
+  this->aContour = vtkSmartPointer<vtkContourFilter>::New();
+  this->aContour->ComputeScalarsOn();
+  this->aContourMapper = vtkSmartPointer<vtkPolyDataMapper>::New();
+  this->aContourMapper->SetInputConnection(this->aContour->GetOutputPort());
+  this->aContourMapper->SetColorModeToMapScalars();
+  this->aContourMapper->ScalarVisibilityOn();
+  this->actorAContour = vtkSmartPointer<vtkActor>::New();
+  this->actorAContour->SetMapper(this->aContourMapper);
+  this->externalVTKWidget->GetRenderer()->AddVolume(this->actorAContour);
+  this->bContour = vtkSmartPointer<vtkContourFilter>::New();
+  this->bContour->ComputeScalarsOn();
+  this->bContourMapper = vtkSmartPointer<vtkPolyDataMapper>::New();
+  this->bContourMapper->SetInputConnection(this->bContour->GetOutputPort());
+  this->bContourMapper->SetColorModeToMapScalars();
+  this->bContourMapper->ScalarVisibilityOn();
+  this->actorBContour = vtkSmartPointer<vtkActor>::New();
+  this->actorBContour->SetMapper(this->bContourMapper);
+  this->externalVTKWidget->GetRenderer()->AddVolume(this->actorBContour);
+  this->cContour = vtkSmartPointer<vtkContourFilter>::New();
+  this->cContour->ComputeScalarsOn();
+  this->cContourMapper = vtkSmartPointer<vtkPolyDataMapper>::New();
+  this->cContourMapper->SetInputConnection(this->cContour->GetOutputPort());
+  this->cContourMapper->SetColorModeToMapScalars();
+  this->cContourMapper->ScalarVisibilityOn();
+  this->actorCContour = vtkSmartPointer<vtkActor>::New();
+  this->actorCContour->SetMapper(this->cContourMapper);
+  this->externalVTKWidget->GetRenderer()->AddVolume(this->actorCContour);
 }
 
 //----------------------------------------------------------------------------

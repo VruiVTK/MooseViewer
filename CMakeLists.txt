@@ -55,6 +55,8 @@ SET(${PROJECT_NAME}_SRCS
   FlashlightLocator.h
   Gaussian.cpp
   Gaussian.h
+  Isosurfaces.cpp
+  Isosurfaces.h
   main.cpp
   MooseViewer.cpp
   MooseViewer.h
