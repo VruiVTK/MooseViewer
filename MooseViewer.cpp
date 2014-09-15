@@ -1103,7 +1103,8 @@ void MooseViewer::display(GLContextData& contextData) const
   /* Contours */
   if (this->ContourVisible)
     {
-    if (!selectedArray.empty() && (selectedArrayType >= 0) && dataRange)
+    if (!selectedArray.empty() && (selectedArrayType >= 0) && dataRange
+      && this->ContourValues.size())
       {
       vtkSmartPointer<vtkMultiBlockDataSet> mb =
         vtkMultiBlockDataSet::SafeDownCast(
