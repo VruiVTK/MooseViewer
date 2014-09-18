@@ -25,6 +25,7 @@
 #include <Vrui/Tool.h>
 #include <Vrui/ToolManager.h>
 #include <Vrui/Vrui.h>
+#include <Vrui/VRWindow.h>
 #include <Vrui/WindowProperties.h>
 
 // VTK includes
@@ -897,6 +898,9 @@ void MooseViewer::display(GLContextData& contextData) const
 
   /* Get context data item */
   DataItem* dataItem = contextData.retrieveDataItem<DataItem>(this);
+
+  dataItem->externalVTKWidget->GetRenderWindow()->SetSize(
+    const_cast<int*>(Vrui::getWindow(0)->getViewportSize()));
 
   /* Color by selected array */
   std::string selectedArray = this->getSelectedColorByArrayName();
