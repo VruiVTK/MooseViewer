@@ -168,6 +168,55 @@ void TransferFunction1D::createColorMap(const GLMotif::StyleSheet& styleSheet, G
 }
 
 /*
+ * createRangeSliders - Create range sliders
+ *
+ * parameter styleSheet - const GLMotif::StyleSheet&
+ * parameter colorMapDialog - GLMotif::RowColumn*&
+ * return - GLMotif::RowColumn*
+ */
+GLMotif::RowColumn* TransferFunction1D::createRangeSliders(const GLMotif::StyleSheet& styleSheet, GLMotif::RowColumn*& colorMapDialog) {
+  GLMotif::RowColumn* rangeSlidersBox = new GLMotif::RowColumn("RangeSliders", colorMapDialog, false);
+  rangeSlidersBox->setOrientation(GLMotif::RowColumn::HORIZONTAL);
+  GLMotif::RowColumn * minRow = new GLMotif::RowColumn(
+    "MinRow", rangeSlidersBox, false);
+  minRow->setOrientation(GLMotif::RowColumn::HORIZONTAL);
+  minRow->setPacking(GLMotif::RowColumn::PACK_TIGHT);
+  GLMotif::Label* minLabel = new GLMotif::Label(
+    "MinLabel", minRow, "Minimum");
+  minSlider = new GLMotif::Slider(
+    "MinSlider", minRow, GLMotif::Slider::HORIZONTAL,
+    styleSheet.fontHeight*10.0f);
+  minSlider->setValue(0);
+  minSlider->setValueRange(0.0, 255.0, 1);
+  minSlider->getValueChangedCallbacks().add(
+    this, &TransferFunction1D::rangeSliderCallback);
+  minValue = new GLMotif::TextField("MinValue", minRow, 6);
+  minValue->setFieldWidth(6);
+  minValue->setPrecision(3);
+  minValue->setValue(0);
+  minRow->manageChild();
+  GLMotif::RowColumn * maxRow = new GLMotif::RowColumn(
+    "MaxRow", rangeSlidersBox, false);
+  maxRow->setOrientation(GLMotif::RowColumn::HORIZONTAL);
+  maxRow->setPacking(GLMotif::RowColumn::PACK_TIGHT);
+  GLMotif::Label* maxLabel = new GLMotif::Label(
+    "MaxLabel", maxRow, "Maximum");
+  maxSlider = new GLMotif::Slider(
+    "MaxSlider", maxRow, GLMotif::Slider::HORIZONTAL,
+    styleSheet.fontHeight*10.0f);
+  maxSlider->setValue(255);
+  maxSlider->setValueRange(0.0, 255.0, 1);
+  maxSlider->getValueChangedCallbacks().add(
+    this, &TransferFunction1D::rangeSliderCallback);
+  maxValue = new GLMotif::TextField("MaxValue", maxRow, 6);
+  maxValue->setFieldWidth(6);
+  maxValue->setPrecision(3);
+  maxValue->setValue(255);
+  maxRow->manageChild();
+  return rangeSlidersBox;
+}
+
+/*
  * createColorMapDialog - Create color map dialog.
  *
  * parameter styleSheet - const GLMotif::StyleSheet&
@@ -177,6 +226,8 @@ void TransferFunction1D::createColorMapDialog(const GLMotif::StyleSheet& styleSh
     createColorMap(styleSheet, colorMapDialog);
     GLMotif::RowColumn* buttonBox = createButtonBox(colorMapDialog);
     buttonBox->manageChild();
+    GLMotif::RowColumn* rangeSliders = createRangeSliders(styleSheet, colorMapDialog);
+    rangeSliders->manageChild();
     createAlphaComponent(styleSheet, colorMapDialog);
     createColorPanel(styleSheet, colorMapDialog);
     GLMotif::RowColumn* colorEditor = createColorEditor(styleSheet, colorMapDialog);
@@ -468,4 +519,39 @@ void TransferFunction1D::setHistogram(float* hist)
 {
   this->alphaComponent->setHistogram(hist);
   this->alphaComponent->drawHistogram();
+}
+
+/*
+ * rangeSliderCallback - Method to update the slider value
+ */
+void TransferFunction1D::rangeSliderCallback(GLMotif::Slider::ValueChangedCallbackData* cbData)
+{
+  if (strcmp(cbData->slider->getName(), "MinSlider") == 0)
+    {
+    this->minValue->setValue(cbData->value);
+    mooseViewer->setScalarMinimum(cbData->value);
+    }
+  else if (strcmp(cbData->slider->getName(), "MaxSlider") == 0)
+    {
+    this->maxValue->setValue(cbData->value);
+    mooseViewer->setScalarMaximum(cbData->value);
+    }
+}
+
+/*
+ * setScalarRange - Method to update the scalar range
+ */
+void TransferFunction1D::setScalarRange(double* range)
+{
+  if (!range)
+    {
+    return;
+    }
+  double increment = (range[1] - range[0])/100.0;
+  this->minSlider->setValueRange(range[0], range[1], increment);
+  this->maxSlider->setValueRange(range[0], range[1], increment);
+  this->minSlider->setValue(range[0]);
+  this->minValue->setValue(range[0]);
+  this->maxSlider->setValue(range[1]);
+  this->maxValue->setValue(range[1]);
 }

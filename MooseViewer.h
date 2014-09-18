@@ -149,6 +149,9 @@ private:
   double GaussianSplatterExp;
   double GaussianSplatterDims;
 
+  /* Custom scalar range */
+  double* ScalarRange;
+
   /* Constructors and destructors: */
 public:
   MooseViewer(int& argc,char**& argv);
@@ -200,6 +203,9 @@ public:
   void showBIsosurface(bool BIsosurface);
   void showCIsosurface(bool CIsosurface);
 
+  /* Custom scalar range */
+  void setScalarMinimum(double min);
+  void setScalarMaximum(double max);
 
   /* Callback methods */
   void centerDisplayCallback(Misc::CallbackData* cbData);
@@ -222,6 +228,7 @@ public:
   void updateAlpha(void);
   void updateColorMap(void);
   void contourValueChangedCallback(Misc::CallbackData* callBackData);
+  void updateScalarRange(void);
 
   virtual void toolCreationCallback(Vrui::ToolManager::ToolCreationCallbackData* cbData);
   virtual void toolDestructionCallback(Vrui::ToolManager::ToolDestructionCallbackData* cbData);

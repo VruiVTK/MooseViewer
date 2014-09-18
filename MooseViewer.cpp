@@ -144,6 +144,10 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
     this->Histogram[j] = 0.0;
     }
 
+  this->ScalarRange = new double[2];
+  this->ScalarRange[0] = 0.0;
+  this->ScalarRange[1] = 255.0;
+
   /* Initialize the clipping planes */
   ClippingPlanes = new ClippingPlane[NumberOfClippingPlanes];
   for(int i = 0; i < NumberOfClippingPlanes; ++i)
@@ -188,6 +192,11 @@ MooseViewer::~MooseViewer(void)
   if(this->IsosurfaceColormap)
     {
     delete[] this->IsosurfaceColormap;
+    }
+  if(this->ScalarRange)
+    {
+    delete[] this->ScalarRange;
+    this->ScalarRange = NULL;
     }
 }
 
@@ -533,7 +542,7 @@ std::string MooseViewer::getSelectedColorByArrayName(void) const
   if (radioBox && (radioBox->getNumRows() > 0))
     {
     GLMotif::ToggleButton* selectedToggleButton =
-      radioBox->getSelectedToggle();
+      selectedToggleButton = radioBox->getSelectedToggle();
     if (selectedToggleButton)
       {
       selectedToggle.assign(selectedToggleButton->getString());
@@ -623,6 +632,7 @@ void MooseViewer::updateColorByVariablesMenu(void)
     selectedIndex = selectedIndex > 0 ? selectedIndex : 0;
     colorby_RadioBox->setSelectedToggle(selectedIndex);
     colorby_RadioBox->setSelectionMode(GLMotif::RadioBox::ALWAYS_ONE);
+    this->updateScalarRange();
     this->updateHistogram();
     }
 }
@@ -939,12 +949,14 @@ void MooseViewer::display(GLContextData& contextData) const
     if (dataArrayFound)
       {
       dataRange = dataArray->GetRange();
-      dataItem->mapper->SetScalarRange(dataRange);
-      dataItem->lut->SetTableRange(dataRange);
       dataItem->aContourMapper->SetScalarRange(dataRange);
       dataItem->bContourMapper->SetScalarRange(dataRange);
       dataItem->cContourMapper->SetScalarRange(dataRange);
       this->isosurfaceLUT->SetTableRange(dataRange);
+      dataRange[0] = this->ScalarRange[0];
+      dataRange[1] = this->ScalarRange[1];
+      dataItem->mapper->SetScalarRange(dataRange);
+      dataItem->lut->SetTableRange(dataRange);
       }
 
     usg->GetPointData()->SetActiveScalars(selectedArray.c_str());
@@ -1471,6 +1483,7 @@ void MooseViewer::changeColorByVariablesCallback(
     callBackData->toggle->setToggle(true);
     }
   this->updateHistogram();
+  this->updateScalarRange();
   Vrui::requestUpdate();
 }
 
@@ -1577,6 +1590,27 @@ void MooseViewer::updateHistogram(void)
 }
 
 //----------------------------------------------------------------------------
+void MooseViewer::updateScalarRange(void)
+{
+  int type = -1;
+  vtkSmartPointer<vtkDataArray> dataArray = this->getSelectedArray(type);
+  if (!dataArray || (type < 0))
+    {
+    return;
+    }
+
+  double * scalarRange = dataArray->GetRange();
+  if (fabs(scalarRange[1] - scalarRange[0]) < 1e-6)
+    {
+    return;
+    }
+
+  this->ScalarRange[0] = scalarRange[0];
+  this->ScalarRange[1] = scalarRange[1];
+  this->ColorEditor->setScalarRange(scalarRange);
+}
+
+//----------------------------------------------------------------------------
 void MooseViewer::showContoursDialogCallback(
   GLMotif::ToggleButton::ValueChangedCallbackData* callBackData)
 {
@@ -1670,3 +1704,22 @@ void MooseViewer::updateIsosurfaceColorMap(double* IsosurfaceColormap)
     }
 }
 
+//----------------------------------------------------------------------------
+void MooseViewer::setScalarMinimum(double min)
+{
+  if (min < this->ScalarRange[1])
+    {
+    this->ScalarRange[0] = min;
+    }
+  Vrui::requestUpdate();
+}
+
+//----------------------------------------------------------------------------
+void MooseViewer::setScalarMaximum(double max)
+{
+  if (max > this->ScalarRange[0])
+    {
+    this->ScalarRange[1] = max;
+    }
+  Vrui::requestUpdate();
+}
