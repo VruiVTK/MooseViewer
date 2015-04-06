@@ -899,9 +899,6 @@ void MooseViewer::display(GLContextData& contextData) const
   /* Get context data item */
   DataItem* dataItem = contextData.retrieveDataItem<DataItem>(this);
 
-  dataItem->externalVTKWidget->GetRenderWindow()->SetSize(
-    const_cast<int*>(Vrui::getWindow(0)->getViewportSize()));
-
   /* Color by selected array */
   std::string selectedArray = this->getSelectedColorByArrayName();
   int selectedArrayType = -1;
