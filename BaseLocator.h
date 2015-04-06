@@ -17,6 +17,7 @@ public:
 	virtual void highlightLocator(GLContextData& contextData) const;
 	virtual void glRenderAction(GLContextData& contextData) const;
 	virtual void glRenderActionTransparent(GLContextData& contextData) const;
+        virtual void getName(std::string& name) const; // Returns a descriptive name for the tool adapter
 private:
 	MooseViewer* application;
 };

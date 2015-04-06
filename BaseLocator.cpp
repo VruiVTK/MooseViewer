@@ -44,3 +44,7 @@ void BaseLocator::glRenderAction(GLContextData& glContextData) const {
  */
 void BaseLocator::glRenderActionTransparent(GLContextData& glContextData) const {
 } // end glRenderActionTransparent()
+
+void BaseLocator::getName(std::string& name) const
+{
+}
