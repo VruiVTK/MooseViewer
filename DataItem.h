@@ -11,10 +11,10 @@
 class ExternalVTKWidget;
 class vtkActor;
 class vtkAppendPolyData;
+class vtkCheckerboardSplatter;
 class vtkColorTransferFunction;
 class vtkCompositeDataGeometryFilter;
 class vtkContourFilter;
-class vtkGaussianSplatter;
 class vtkLight;
 class vtkLookupTable;
 class vtkPiecewiseFunction;
@@ -39,7 +39,7 @@ public:
   vtkSmartPointer<vtkActor> contourActor;
   vtkSmartPointer<vtkPolyDataMapper> contourMapper;
 
-  vtkSmartPointer<vtkGaussianSplatter> gaussian;
+  vtkSmartPointer<vtkCheckerboardSplatter> gaussian;
   vtkSmartPointer<vtkVolume> actorVolume;
   vtkSmartPointer<vtkSmartVolumeMapper> mapperVolume;
   vtkSmartPointer<vtkColorTransferFunction> colorFunction;

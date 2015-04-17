@@ -34,12 +34,12 @@
 #include <vtkAppendPolyData.h>
 #include <vtkCellData.h>
 #include <vtkCellDataToPointData.h>
+#include <vtkCheckerboardSplatter.h>
 #include <vtkColorTransferFunction.h>
 #include <vtkCompositeDataGeometryFilter.h>
 #include <vtkContourFilter.h>
 #include <vtkCubeSource.h>
 #include <vtkExodusIIReader.h>
-#include <vtkGaussianSplatter.h>
 #include <vtkImageData.h>
 #include <vtkLight.h>
 #include <vtkLookupTable.h>
@@ -968,7 +968,7 @@ void MooseViewer::display(GLContextData& contextData) const
     dataItem->gaussian->SetModelBounds(usg->GetBounds());
     dataItem->gaussian->SetSampleDimensions(this->GaussianSplatterDims,
       this->GaussianSplatterDims, this->GaussianSplatterDims);
-    dataItem->gaussian->SetRadius(this->GaussianSplatterRadius);
+    dataItem->gaussian->SetRadius(this->GaussianSplatterRadius*10);
     dataItem->gaussian->SetExponentFactor(this->GaussianSplatterExp);
 
     dataItem->colorFunction->RemoveAllPoints();

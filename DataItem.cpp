@@ -5,10 +5,10 @@
 #include <ExternalVTKWidget.h>
 #include <vtkActor.h>
 #include <vtkAppendPolyData.h>
+#include <vtkCheckerboardSplatter.h>
 #include <vtkColorTransferFunction.h>
 #include <vtkCompositeDataGeometryFilter.h>
 #include <vtkContourFilter.h>
-#include <vtkGaussianSplatter.h>
 #include <vtkLight.h>
 #include <vtkLookupTable.h>
 #include <vtkPiecewiseFunction.h>
@@ -72,7 +72,7 @@ MooseViewer::DataItem::DataItem(void)
   this->contourActor->SetMapper(this->contourMapper);
   ren->AddActor(this->contourActor);
 
-  this->gaussian = vtkSmartPointer<vtkGaussianSplatter>::New();
+  this->gaussian = vtkSmartPointer<vtkCheckerboardSplatter>::New();
   this->gaussian->ScalarWarpingOn();
   this->gaussian->NormalWarpingOff();
   this->gaussian->SetRadius(0.05);
