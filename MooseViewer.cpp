@@ -768,7 +768,7 @@ void MooseViewer::frame(void)
     /* Initialize the color editor */
     this->ColorEditor = new TransferFunction1D(this);
     this->ColorEditor->createTransferFunction1D(CINVERSE_RAINBOW,
-      CONSTANT_RAMP, 0.0, 1.0);
+      UP_RAMP, 0.0, 1.0);
     this->ColorEditor->getColorMapChangedCallbacks().add(
       this, &MooseViewer::colorMapChangedCallback);
     this->ColorEditor->getAlphaChangedCallbacks().add(this,
