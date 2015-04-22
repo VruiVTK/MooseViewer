@@ -5,29 +5,6 @@
 #include <sstream>
 #include <string>
 
-// OpenGL/Motif includes
-#include <GL/GLContextData.h>
-#include <GL/gl.h>
-#include <GLMotif/CascadeButton.h>
-#include <GLMotif/Menu.h>
-#include <GLMotif/Pager.h>
-#include <GLMotif/Popup.h>
-#include <GLMotif/PopupMenu.h>
-#include <GLMotif/RadioBox.h>
-#include <GLMotif/Separator.h>
-#include <GLMotif/StyleSheet.h>
-#include <GLMotif/SubMenu.h>
-#include <GLMotif/ToggleButton.h>
-#include <GLMotif/WidgetManager.h>
-
-// VRUI includes
-#include <Vrui/Application.h>
-#include <Vrui/Tool.h>
-#include <Vrui/ToolManager.h>
-#include <Vrui/Vrui.h>
-#include <Vrui/VRWindow.h>
-#include <Vrui/WindowProperties.h>
-
 // VTK includes
 #include <ExternalVTKWidget.h>
 #include <vtkActor.h>
@@ -52,6 +29,29 @@
 #include <vtkProperty.h>
 #include <vtkSmartVolumeMapper.h>
 #include <vtkUnstructuredGrid.h>
+
+// OpenGL/Motif includes
+#include <GL/GLContextData.h>
+#include <GL/gl.h>
+#include <GLMotif/CascadeButton.h>
+#include <GLMotif/Menu.h>
+#include <GLMotif/Pager.h>
+#include <GLMotif/Popup.h>
+#include <GLMotif/PopupMenu.h>
+#include <GLMotif/RadioBox.h>
+#include <GLMotif/Separator.h>
+#include <GLMotif/StyleSheet.h>
+#include <GLMotif/SubMenu.h>
+#include <GLMotif/ToggleButton.h>
+#include <GLMotif/WidgetManager.h>
+
+// VRUI includes
+#include <Vrui/Application.h>
+#include <Vrui/Tool.h>
+#include <Vrui/ToolManager.h>
+#include <Vrui/Vrui.h>
+#include <Vrui/VRWindow.h>
+#include <Vrui/WindowProperties.h>
 
 // MooseViewer includes
 #include "AnimationDialog.h"
