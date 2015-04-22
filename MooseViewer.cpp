@@ -5,6 +5,9 @@
 #include <sstream>
 #include <string>
 
+// Must come before any gl.h include
+#include <GL/glew.h>
+
 // VTK includes
 #include <ExternalVTKWidget.h>
 #include <vtkActor.h>
@@ -841,6 +844,14 @@ void MooseViewer::frame(void)
 //----------------------------------------------------------------------------
 void MooseViewer::initContext(GLContextData& contextData) const
 {
+  // The VTK OpenGL2 backend seems to require this:
+  GLenum glewInitResult = glewInit();
+  if (glewInitResult != GLEW_OK)
+    {
+    std::cerr << "Error: Could not initialize GLEW (glewInit() returned: "
+      << glewInitResult << ")." << std::endl;
+    }
+
   /* Create a new context data item */
   DataItem* dataItem = new DataItem();
   contextData.addDataItem(this, dataItem);
