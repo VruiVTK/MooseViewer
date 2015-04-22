@@ -3,7 +3,6 @@
 #include <iostream>
 #include <math.h>
 #include <sstream>
-#include <string>
 
 // Must come before any gl.h include
 #include <GL/glew.h>

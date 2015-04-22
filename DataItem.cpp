@@ -1,6 +1,3 @@
-// MooseViewer includes
-#include "DataItem.h"
-
 // VTK includes
 #include <ExternalVTKWidget.h>
 #include <vtkActor.h>
@@ -17,6 +14,9 @@
 #include <vtkSmartVolumeMapper.h>
 #include <vtkVolume.h>
 #include <vtkVolumeProperty.h>
+
+// MooseViewer includes
+#include "DataItem.h"
 
 //----------------------------------------------------------------------------
 MooseViewer::DataItem::DataItem(void)
