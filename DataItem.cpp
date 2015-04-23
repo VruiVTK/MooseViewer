@@ -5,7 +5,7 @@
 #include <vtkCheckerboardSplatter.h>
 #include <vtkColorTransferFunction.h>
 #include <vtkCompositeDataGeometryFilter.h>
-#include <vtkContourFilter.h>
+#include <vtkSMPContourGrid.h>
 #include <vtkLight.h>
 #include <vtkLookupTable.h>
 #include <vtkPiecewiseFunction.h>
@@ -14,6 +14,8 @@
 #include <vtkSmartVolumeMapper.h>
 #include <vtkVolume.h>
 #include <vtkVolumeProperty.h>
+#include <vtkSpanSpace.h>
+#include <vtkNew.h>
 
 // MooseViewer includes
 #include "DataItem.h"
@@ -94,8 +96,18 @@ MooseViewer::DataItem::DataItem(void)
   this->actorVolume->SetProperty(volumeProperty);
   ren->AddVolume(this->actorVolume);
 
-  this->aContour = vtkSmartPointer<vtkContourFilter>::New();
+  vtkNew<vtkSpanSpace> aSpanTree;
+  aSpanTree->SetResolution(100);
+  vtkNew<vtkSpanSpace> bSpanTree;
+  bSpanTree->SetResolution(100);
+  vtkNew<vtkSpanSpace> cSpanTree;
+  cSpanTree->SetResolution(100);
+  this->aContour = vtkSmartPointer<vtkSMPContourGrid>::New();
   this->aContour->ComputeScalarsOn();
+  this->aContour->UseScalarTreeOn();
+  this->aContour->GenerateTrianglesOff();
+  this->aContour->MergePiecesOn();
+  this->aContour->SetScalarTree(aSpanTree.GetPointer());
   this->aContourMapper = vtkSmartPointer<vtkPolyDataMapper>::New();
   this->aContourMapper->SetInputConnection(this->aContour->GetOutputPort());
   this->aContourMapper->SetColorModeToMapScalars();
@@ -103,8 +115,12 @@ MooseViewer::DataItem::DataItem(void)
   this->actorAContour = vtkSmartPointer<vtkActor>::New();
   this->actorAContour->SetMapper(this->aContourMapper);
   ren->AddVolume(this->actorAContour);
-  this->bContour = vtkSmartPointer<vtkContourFilter>::New();
+  this->bContour = vtkSmartPointer<vtkSMPContourGrid>::New();
   this->bContour->ComputeScalarsOn();
+  this->bContour->UseScalarTreeOn();
+  this->bContour->GenerateTrianglesOff();
+  this->bContour->MergePiecesOff();
+  this->bContour->SetScalarTree(bSpanTree.GetPointer());
   this->bContourMapper = vtkSmartPointer<vtkPolyDataMapper>::New();
   this->bContourMapper->SetInputConnection(this->bContour->GetOutputPort());
   this->bContourMapper->SetColorModeToMapScalars();
@@ -112,8 +128,12 @@ MooseViewer::DataItem::DataItem(void)
   this->actorBContour = vtkSmartPointer<vtkActor>::New();
   this->actorBContour->SetMapper(this->bContourMapper);
   ren->AddVolume(this->actorBContour);
-  this->cContour = vtkSmartPointer<vtkContourFilter>::New();
+  this->cContour = vtkSmartPointer<vtkSMPContourGrid>::New();
   this->cContour->ComputeScalarsOn();
+  this->cContour->UseScalarTreeOn();
+  this->cContour->GenerateTrianglesOff();
+  this->cContour->MergePiecesOff();
+  this->cContour->SetScalarTree(cSpanTree.GetPointer());
   this->cContourMapper = vtkSmartPointer<vtkPolyDataMapper>::New();
   this->cContourMapper->SetInputConnection(this->cContour->GetOutputPort());
   this->cContourMapper->SetColorModeToMapScalars();
