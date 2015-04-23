@@ -19,6 +19,7 @@ class vtkLookupTable;
 class vtkPiecewiseFunction;
 class vtkPolyDataMapper;
 class vtkSmartVolumeMapper;
+class vtkSMPContourGrid;
 class vtkTextActor;
 class vtkVolume;
 
@@ -44,13 +45,13 @@ public:
   vtkSmartPointer<vtkColorTransferFunction> colorFunction;
   vtkSmartPointer<vtkPiecewiseFunction> opacityFunction;
 
-  vtkSmartPointer<vtkContourFilter> aContour;
+  vtkSmartPointer<vtkSMPContourGrid> aContour;
   vtkSmartPointer<vtkPolyDataMapper> aContourMapper;
   vtkSmartPointer<vtkActor> actorAContour;
-  vtkSmartPointer<vtkContourFilter> bContour;
+  vtkSmartPointer<vtkSMPContourGrid> bContour;
   vtkSmartPointer<vtkPolyDataMapper> bContourMapper;
   vtkSmartPointer<vtkActor> actorBContour;
-  vtkSmartPointer<vtkContourFilter> cContour;
+  vtkSmartPointer<vtkSMPContourGrid> cContour;
   vtkSmartPointer<vtkPolyDataMapper> cContourMapper;
   vtkSmartPointer<vtkActor> actorCContour;
 

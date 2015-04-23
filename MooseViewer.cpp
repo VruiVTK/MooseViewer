@@ -16,7 +16,7 @@
 #include <vtkCheckerboardSplatter.h>
 #include <vtkColorTransferFunction.h>
 #include <vtkCompositeDataGeometryFilter.h>
-#include <vtkContourFilter.h>
+#include <vtkSMPContourGrid.h>
 #include <vtkCubeSource.h>
 #include <vtkExodusIIReader.h>
 #include <vtkImageData.h>
@@ -31,6 +31,7 @@
 #include <vtkSmartVolumeMapper.h>
 #include <vtkTextActor.h>
 #include <vtkUnstructuredGrid.h>
+#include <vtkSpanSpace.h>
 
 // OpenGL/Motif includes
 #include <GL/GLContextData.h>
@@ -1147,8 +1148,8 @@ void MooseViewer::display(GLContextData& contextData) const
       dataItem->aContour->SetInputArrayToProcess(0,0,0,
           vtkDataObject::FIELD_ASSOCIATION_POINTS, selectedArray.c_str());
       dataItem->aContour->SetValue(0, aIsosurfaceValue);
-      dataItem->aContour->GetOutput()->GetPointData()->SetActiveScalars(
-        selectedArray.c_str());
+//      dataItem->aContour->GetOutput()->GetPointData()->SetActiveScalars(
+//        selectedArray.c_str());
       dataItem->actorAContour->VisibilityOn();
       }
     }
@@ -1214,7 +1215,13 @@ void MooseViewer::display(GLContextData& contextData) const
         vtkNew<vtkCellDataToPointData> cellToPointData;
         cellToPointData->SetInputData(mb->GetBlock(i));
 
-        vtkNew<vtkContourFilter> contour;
+        vtkNew<vtkSpanSpace> spanTree;
+        spanTree->SetResolution(100);
+        vtkNew<vtkSMPContourGrid> contour;
+        contour->UseScalarTreeOn();
+        contour->GenerateTrianglesOff();
+        contour->MergePiecesOff();
+        contour->SetScalarTree(spanTree.GetPointer());
         contour->ComputeScalarsOn();
         contour->SetInputConnection(cellToPointData->GetOutputPort());
         contour->SetInputArrayToProcess(0,0,0,
