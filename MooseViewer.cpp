@@ -16,6 +16,8 @@
 #include <vtkCheckerboardSplatter.h>
 #include <vtkColorTransferFunction.h>
 #include <vtkCompositeDataGeometryFilter.h>
+#include <vtkCompositeDataIterator.h>
+#include <vtkCompositePolyDataMapper.h>
 #include <vtkSMPContourGrid.h>
 #include <vtkCubeSource.h>
 #include <vtkExodusIIReader.h>
@@ -1072,8 +1074,18 @@ void MooseViewer::display(GLContextData& contextData) const
       dataItem->aContour->SetInputArrayToProcess(0,0,0,
           vtkDataObject::FIELD_ASSOCIATION_POINTS, selectedArray.c_str());
       dataItem->aContour->SetValue(0, aIsosurfaceValue);
-//      dataItem->aContour->GetOutput()->GetPointData()->SetActiveScalars(
-//        selectedArray.c_str());
+      vtkMultiBlockDataSet *filterOutput = vtkMultiBlockDataSet::SafeDownCast(
+            dataItem->aContour->GetOutputDataObject(0));
+      assert(filterOutput);
+      vtkCompositeDataIterator *iter = filterOutput->NewIterator();
+      for (iter->GoToFirstItem(); !iter->IsDoneWithTraversal();
+           iter->GoToNextItem())
+        {
+        vtkPolyData *curPolyData =
+            vtkPolyData::SafeDownCast(iter->GetCurrentDataObject());
+        curPolyData->GetPointData()->SetActiveScalars(selectedArray.c_str());
+        }
+      iter->Delete();
       dataItem->actorAContour->VisibilityOn();
       }
     }
@@ -1093,8 +1105,17 @@ void MooseViewer::display(GLContextData& contextData) const
       dataItem->bContour->SetInputArrayToProcess(0,0,0,
           vtkDataObject::FIELD_ASSOCIATION_POINTS, selectedArray.c_str());
       dataItem->bContour->SetValue(0, bIsosurfaceValue);
-      dataItem->bContour->GetOutput()->GetPointData()->SetActiveScalars(
-        selectedArray.c_str());
+      vtkMultiBlockDataSet *filterOutput = vtkMultiBlockDataSet::SafeDownCast(
+            dataItem->bContour->GetOutputDataObject(0));
+      vtkCompositeDataIterator *iter = filterOutput->NewIterator();
+      for (iter->GoToFirstItem(); !iter->IsDoneWithTraversal();
+           iter->GoToNextItem())
+        {
+        vtkPolyData *curPolyData =
+            vtkPolyData::SafeDownCast(iter->GetCurrentDataObject());
+        curPolyData->GetPointData()->SetActiveScalars(selectedArray.c_str());
+        }
+      iter->Delete();
       dataItem->actorBContour->VisibilityOn();
       }
     }
@@ -1114,8 +1135,17 @@ void MooseViewer::display(GLContextData& contextData) const
       dataItem->cContour->SetInputArrayToProcess(0,0,0,
           vtkDataObject::FIELD_ASSOCIATION_POINTS, selectedArray.c_str());
       dataItem->cContour->SetValue(0, cIsosurfaceValue);
-      dataItem->cContour->GetOutput()->GetPointData()->SetActiveScalars(
-        selectedArray.c_str());
+      vtkMultiBlockDataSet *filterOutput = vtkMultiBlockDataSet::SafeDownCast(
+            dataItem->cContour->GetOutputDataObject(0));
+      vtkCompositeDataIterator *iter = filterOutput->NewIterator();
+      for (iter->GoToFirstItem(); !iter->IsDoneWithTraversal();
+           iter->GoToNextItem())
+        {
+        vtkPolyData *curPolyData =
+            vtkPolyData::SafeDownCast(iter->GetCurrentDataObject());
+        curPolyData->GetPointData()->SetActiveScalars(selectedArray.c_str());
+        }
+      iter->Delete();
       dataItem->actorCContour->VisibilityOn();
       }
     }

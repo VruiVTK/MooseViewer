@@ -5,6 +5,7 @@
 #include <vtkCheckerboardSplatter.h>
 #include <vtkColorTransferFunction.h>
 #include <vtkCompositeDataGeometryFilter.h>
+#include <vtkCompositePolyDataMapper.h>
 #include <vtkSMPContourGrid.h>
 #include <vtkLight.h>
 #include <vtkLookupTable.h>
@@ -65,7 +66,7 @@ MooseViewer::DataItem::DataItem(void)
   ren->SetOcclusionRatio(0.1);
 
   this->contours = vtkSmartPointer<vtkAppendPolyData>::New();
-  this->contourMapper = vtkSmartPointer<vtkPolyDataMapper>::New();
+  this->contourMapper = vtkSmartPointer<vtkCompositePolyDataMapper>::New();
   this->contourMapper->SetScalarVisibility(1);
   this->contourMapper->SetScalarModeToUsePointFieldData();
   this->contourMapper->SetColorModeToMapScalars();
@@ -106,9 +107,9 @@ MooseViewer::DataItem::DataItem(void)
   this->aContour->ComputeScalarsOn();
   this->aContour->UseScalarTreeOn();
   this->aContour->GenerateTrianglesOff();
-  this->aContour->MergePiecesOn();
+  this->aContour->MergePiecesOff();
   this->aContour->SetScalarTree(aSpanTree.GetPointer());
-  this->aContourMapper = vtkSmartPointer<vtkPolyDataMapper>::New();
+  this->aContourMapper = vtkSmartPointer<vtkCompositePolyDataMapper>::New();
   this->aContourMapper->SetInputConnection(this->aContour->GetOutputPort());
   this->aContourMapper->SetColorModeToMapScalars();
   this->aContourMapper->ScalarVisibilityOn();
@@ -121,7 +122,7 @@ MooseViewer::DataItem::DataItem(void)
   this->bContour->GenerateTrianglesOff();
   this->bContour->MergePiecesOff();
   this->bContour->SetScalarTree(bSpanTree.GetPointer());
-  this->bContourMapper = vtkSmartPointer<vtkPolyDataMapper>::New();
+  this->bContourMapper = vtkSmartPointer<vtkCompositePolyDataMapper>::New();
   this->bContourMapper->SetInputConnection(this->bContour->GetOutputPort());
   this->bContourMapper->SetColorModeToMapScalars();
   this->bContourMapper->ScalarVisibilityOn();
@@ -134,7 +135,7 @@ MooseViewer::DataItem::DataItem(void)
   this->cContour->GenerateTrianglesOff();
   this->cContour->MergePiecesOff();
   this->cContour->SetScalarTree(cSpanTree.GetPointer());
-  this->cContourMapper = vtkSmartPointer<vtkPolyDataMapper>::New();
+  this->cContourMapper = vtkSmartPointer<vtkCompositePolyDataMapper>::New();
   this->cContourMapper->SetInputConnection(this->cContour->GetOutputPort());
   this->cContourMapper->SetColorModeToMapScalars();
   this->cContourMapper->ScalarVisibilityOn();
