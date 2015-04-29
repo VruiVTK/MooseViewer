@@ -105,8 +105,9 @@ MooseViewer::DataItem::DataItem(void)
   this->aContour->SetScalarTree(aSpanTree.GetPointer());
   this->aContourMapper = vtkSmartPointer<vtkCompositePolyDataMapper>::New();
   this->aContourMapper->SetInputConnection(this->aContour->GetOutputPort());
-  this->aContourMapper->SetColorModeToMapScalars();
   this->aContourMapper->ScalarVisibilityOn();
+  this->aContourMapper->SetColorModeToMapScalars();
+  this->aContourMapper->SetScalarModeToUsePointData();
   this->actorAContour = vtkSmartPointer<vtkActor>::New();
   this->actorAContour->SetMapper(this->aContourMapper);
   ren->AddVolume(this->actorAContour);
@@ -118,8 +119,9 @@ MooseViewer::DataItem::DataItem(void)
   this->bContour->SetScalarTree(bSpanTree.GetPointer());
   this->bContourMapper = vtkSmartPointer<vtkCompositePolyDataMapper>::New();
   this->bContourMapper->SetInputConnection(this->bContour->GetOutputPort());
-  this->bContourMapper->SetColorModeToMapScalars();
   this->bContourMapper->ScalarVisibilityOn();
+  this->bContourMapper->SetColorModeToMapScalars();
+  this->bContourMapper->SetScalarModeToUsePointData();
   this->actorBContour = vtkSmartPointer<vtkActor>::New();
   this->actorBContour->SetMapper(this->bContourMapper);
   ren->AddVolume(this->actorBContour);
@@ -131,8 +133,9 @@ MooseViewer::DataItem::DataItem(void)
   this->cContour->SetScalarTree(cSpanTree.GetPointer());
   this->cContourMapper = vtkSmartPointer<vtkCompositePolyDataMapper>::New();
   this->cContourMapper->SetInputConnection(this->cContour->GetOutputPort());
-  this->cContourMapper->SetColorModeToMapScalars();
   this->cContourMapper->ScalarVisibilityOn();
+  this->cContourMapper->SetColorModeToMapScalars();
+  this->cContourMapper->SetScalarModeToUsePointData();
   this->actorCContour = vtkSmartPointer<vtkActor>::New();
   this->actorCContour->SetMapper(this->cContourMapper);
   ren->AddVolume(this->actorCContour);
