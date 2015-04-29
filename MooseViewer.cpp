@@ -909,6 +909,12 @@ void MooseViewer::display(GLContextData& contextData) const
   /* Make sure the reader M-time changes for each context */
   this->reader->Update();
 
+  /* Grab the reader's data set. */
+  vtkDataSet *inputDataSet =
+      vtkDataSet::SafeDownCast(
+        vtkMultiBlockDataSet::SafeDownCast(
+          this->reader->GetOutput()->GetBlock(0))->GetBlock(0));
+
   /* Get context data item */
   DataItem* dataItem = contextData.retrieveDataItem<DataItem>(this);
 
@@ -918,6 +924,8 @@ void MooseViewer::display(GLContextData& contextData) const
   double* dataRange = NULL;
   if (!selectedArray.empty())
     {
+    inputDataSet->GetPointData()->SetActiveScalars(selectedArray.c_str());
+
     dataItem->mapper->SelectColorArray(selectedArray.c_str());
 
     bool dataArrayFound = true;
@@ -1067,25 +1075,10 @@ void MooseViewer::display(GLContextData& contextData) const
     {
     if (!selectedArray.empty() && (selectedArrayType >= 0) && dataRange)
       {
-      dataItem->aContour->SetInputData(vtkMultiBlockDataSet::SafeDownCast(
-          this->reader->GetOutput()->GetBlock(0))->GetBlock(0));
+      dataItem->aContour->SetInputData(inputDataSet);
       double aIsosurfaceValue = (this->aIsosurface / 255.0)*
         (dataRange[1] - dataRange[0]) + dataRange[0];
-      dataItem->aContour->SetInputArrayToProcess(0,0,0,
-          vtkDataObject::FIELD_ASSOCIATION_POINTS, selectedArray.c_str());
       dataItem->aContour->SetValue(0, aIsosurfaceValue);
-      vtkMultiBlockDataSet *filterOutput = vtkMultiBlockDataSet::SafeDownCast(
-            dataItem->aContour->GetOutputDataObject(0));
-      assert(filterOutput);
-      vtkCompositeDataIterator *iter = filterOutput->NewIterator();
-      for (iter->GoToFirstItem(); !iter->IsDoneWithTraversal();
-           iter->GoToNextItem())
-        {
-        vtkPolyData *curPolyData =
-            vtkPolyData::SafeDownCast(iter->GetCurrentDataObject());
-        curPolyData->GetPointData()->SetActiveScalars(selectedArray.c_str());
-        }
-      iter->Delete();
       dataItem->actorAContour->VisibilityOn();
       }
     }
@@ -1098,24 +1091,10 @@ void MooseViewer::display(GLContextData& contextData) const
     {
     if (!selectedArray.empty() && (selectedArrayType >= 0) && dataRange)
       {
-      dataItem->bContour->SetInputData(vtkMultiBlockDataSet::SafeDownCast(
-          this->reader->GetOutput()->GetBlock(0))->GetBlock(0));
+      dataItem->bContour->SetInputData(inputDataSet);
       double bIsosurfaceValue = (this->bIsosurface / 255.0)*
         (dataRange[1] - dataRange[0]) + dataRange[0];
-      dataItem->bContour->SetInputArrayToProcess(0,0,0,
-          vtkDataObject::FIELD_ASSOCIATION_POINTS, selectedArray.c_str());
       dataItem->bContour->SetValue(0, bIsosurfaceValue);
-      vtkMultiBlockDataSet *filterOutput = vtkMultiBlockDataSet::SafeDownCast(
-            dataItem->bContour->GetOutputDataObject(0));
-      vtkCompositeDataIterator *iter = filterOutput->NewIterator();
-      for (iter->GoToFirstItem(); !iter->IsDoneWithTraversal();
-           iter->GoToNextItem())
-        {
-        vtkPolyData *curPolyData =
-            vtkPolyData::SafeDownCast(iter->GetCurrentDataObject());
-        curPolyData->GetPointData()->SetActiveScalars(selectedArray.c_str());
-        }
-      iter->Delete();
       dataItem->actorBContour->VisibilityOn();
       }
     }
@@ -1128,24 +1107,10 @@ void MooseViewer::display(GLContextData& contextData) const
     {
     if (!selectedArray.empty() && (selectedArrayType >= 0) && dataRange)
       {
-      dataItem->cContour->SetInputData(vtkMultiBlockDataSet::SafeDownCast(
-          this->reader->GetOutput()->GetBlock(0))->GetBlock(0));
+      dataItem->cContour->SetInputData(inputDataSet);
       double cIsosurfaceValue = (this->cIsosurface / 255.0)*
         (dataRange[1] - dataRange[0]) + dataRange[0];
-      dataItem->cContour->SetInputArrayToProcess(0,0,0,
-          vtkDataObject::FIELD_ASSOCIATION_POINTS, selectedArray.c_str());
       dataItem->cContour->SetValue(0, cIsosurfaceValue);
-      vtkMultiBlockDataSet *filterOutput = vtkMultiBlockDataSet::SafeDownCast(
-            dataItem->cContour->GetOutputDataObject(0));
-      vtkCompositeDataIterator *iter = filterOutput->NewIterator();
-      for (iter->GoToFirstItem(); !iter->IsDoneWithTraversal();
-           iter->GoToNextItem())
-        {
-        vtkPolyData *curPolyData =
-            vtkPolyData::SafeDownCast(iter->GetCurrentDataObject());
-        curPolyData->GetPointData()->SetActiveScalars(selectedArray.c_str());
-        }
-      iter->Delete();
       dataItem->actorCContour->VisibilityOn();
       }
     }
