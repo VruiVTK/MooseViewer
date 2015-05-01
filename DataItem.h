@@ -14,6 +14,7 @@ class vtkAppendPolyData;
 class vtkCheckerboardSplatter;
 class vtkColorTransferFunction;
 class vtkCompositeDataGeometryFilter;
+class vtkCompositePolyDataMapper;
 class vtkSMPContourGrid;
 class vtkLight;
 class vtkLookupTable;
@@ -37,7 +38,7 @@ public:
 
   vtkSmartPointer<vtkAppendPolyData> contours;
   vtkSmartPointer<vtkActor> contourActor;
-  vtkSmartPointer<vtkPolyDataMapper> contourMapper;
+  vtkSmartPointer<vtkCompositePolyDataMapper> contourMapper;
 
   vtkSmartPointer<vtkCheckerboardSplatter> gaussian;
   vtkSmartPointer<vtkVolume> actorVolume;
@@ -46,13 +47,13 @@ public:
   vtkSmartPointer<vtkPiecewiseFunction> opacityFunction;
 
   vtkSmartPointer<vtkSMPContourGrid> aContour;
-  vtkSmartPointer<vtkPolyDataMapper> aContourMapper;
+  vtkSmartPointer<vtkCompositePolyDataMapper> aContourMapper;
   vtkSmartPointer<vtkActor> actorAContour;
   vtkSmartPointer<vtkSMPContourGrid> bContour;
-  vtkSmartPointer<vtkPolyDataMapper> bContourMapper;
+  vtkSmartPointer<vtkCompositePolyDataMapper> bContourMapper;
   vtkSmartPointer<vtkActor> actorBContour;
   vtkSmartPointer<vtkSMPContourGrid> cContour;
-  vtkSmartPointer<vtkPolyDataMapper> cContourMapper;
+  vtkSmartPointer<vtkCompositePolyDataMapper> cContourMapper;
   vtkSmartPointer<vtkActor> actorCContour;
 
   /* Constructor and destructor*/
