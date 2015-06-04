@@ -63,8 +63,6 @@ SET(${PROJECT_NAME}_SRCS
   ControlPoint.h
   DataItem.cpp
   DataItem.h
-  FlashlightLocator.cpp
-  FlashlightLocator.h
   Gaussian.cpp
   Gaussian.h
   Isosurfaces.cpp

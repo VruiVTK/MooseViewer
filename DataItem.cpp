@@ -6,7 +6,6 @@
 #include <vtkColorTransferFunction.h>
 #include <vtkCompositeDataGeometryFilter.h>
 #include <vtkContourFilter.h>
-#include <vtkLight.h>
 #include <vtkLookupTable.h>
 #include <vtkPiecewiseFunction.h>
 #include <vtkPolyDataMapper.h>
@@ -34,14 +33,6 @@ MooseViewer::DataItem::DataItem(void)
   this->mapper->SetScalarVisibility(1);
   this->mapper->SetScalarModeToUsePointFieldData();
   this->actor->SetMapper(this->mapper);
-
-  this->flashlight = vtkSmartPointer<vtkLight>::New();
-  this->flashlight->SwitchOff();
-  this->flashlight->SetLightTypeToHeadlight();
-  this->flashlight->SetColor(0.0, 1.0, 1.0);
-  this->flashlight->SetConeAngle(10);
-  this->flashlight->SetPositional(true);
-  ren->AddLight(this->flashlight);
 
   this->actorOutline = vtkSmartPointer<vtkActor>::New();
   this->actorOutline->GetProperty()->SetColor(1.0, 1.0, 1.0);

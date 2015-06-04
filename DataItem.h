@@ -15,7 +15,6 @@ class vtkCheckerboardSplatter;
 class vtkColorTransferFunction;
 class vtkCompositeDataGeometryFilter;
 class vtkContourFilter;
-class vtkLight;
 class vtkLookupTable;
 class vtkPiecewiseFunction;
 class vtkPolyDataMapper;
@@ -33,7 +32,6 @@ public:
   vtkSmartPointer<vtkCompositeDataGeometryFilter> compositeFilter;
   vtkSmartPointer<vtkPolyDataMapper> mapper;
   vtkSmartPointer<vtkLookupTable> lut;
-  vtkSmartPointer<vtkLight> flashlight;
 
   vtkSmartPointer<vtkAppendPolyData> contours;
   vtkSmartPointer<vtkActor> contourActor;

@@ -20,7 +20,6 @@
 #include <vtkCubeSource.h>
 #include <vtkExodusIIReader.h>
 #include <vtkImageData.h>
-#include <vtkLight.h>
 #include <vtkLookupTable.h>
 #include <vtkMultiBlockDataSet.h>
 #include <vtkNew.h>
@@ -63,7 +62,6 @@
 #include "ColorMap.h"
 #include "Contours.h"
 #include "DataItem.h"
-#include "FlashlightLocator.h"
 #include "Isosurfaces.h"
 #include "MooseViewer.h"
 #include "ScalarWidget.h"
@@ -85,9 +83,6 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   ContourVisible(true),
   FileName(0),
   FirstFrame(true),
-  FlashlightDirection(0),
-  FlashlightPosition(0),
-  FlashlightSwitch(0),
   GaussianSplatterDims(30),
   GaussianSplatterExp(-1.0),
   GaussianSplatterRadius(0.01),
@@ -125,10 +120,6 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   this->variables.clear();
 
   this->DataBounds = new double[6];
-  this->FlashlightSwitch = new int[1];
-  this->FlashlightSwitch[0] = 0;
-  this->FlashlightPosition = new double[3];
-  this->FlashlightDirection = new double[3];
 
   /* Isosurfaces */
   this->IsosurfaceColormap = new double[4*256];
@@ -167,21 +158,6 @@ MooseViewer::~MooseViewer(void)
     {
     delete[] this->DataBounds;
     this->DataBounds = NULL;
-    }
-  if (this->FlashlightSwitch)
-    {
-    delete[] this->FlashlightSwitch;
-    this->FlashlightSwitch = NULL;
-    }
-  if (this->FlashlightPosition)
-    {
-    delete[] this->FlashlightPosition;
-    this->FlashlightPosition = NULL;
-    }
-  if (this->FlashlightDirection)
-    {
-    delete[] this->FlashlightDirection;
-    this->FlashlightDirection = NULL;
     }
   if (this->ColorMap)
     {
@@ -374,10 +350,6 @@ GLMotif::Popup * MooseViewer::createAnalysisToolsMenu(void)
   GLMotif::ToggleButton* showClippingPlane=new GLMotif::ToggleButton(
     "ClippingPlane",analysisTools_RadioBox,"Clipping Plane");
   showClippingPlane->getValueChangedCallbacks().add(
-    this,&MooseViewer::changeAnalysisToolsCallback);
-  GLMotif::ToggleButton* showFlashlight=new GLMotif::ToggleButton(
-    "Flashlight",analysisTools_RadioBox,"Flashlight");
-  showFlashlight->getValueChangedCallbacks().add(
     this,&MooseViewer::changeAnalysisToolsCallback);
 
   analysisTools_RadioBox->setSelectionMode(GLMotif::RadioBox::ALWAYS_ONE);
@@ -1004,17 +976,6 @@ void MooseViewer::display(GLContextData& contextData) const
       }
     }
 
-  if(this->FlashlightSwitch[0])
-    {
-    dataItem->flashlight->SetPosition(this->FlashlightPosition);
-    dataItem->flashlight->SetFocalPoint(this->FlashlightDirection);
-    dataItem->flashlight->SwitchOn();
-    }
-  else
-    {
-    dataItem->flashlight->SwitchOff();
-    }
-
   /* Enable/disable the outline */
   if (this->Outline)
     {
@@ -1279,10 +1240,6 @@ void MooseViewer::changeAnalysisToolsCallback(
   {
     this->analysisTool = 0;
   }
-  else if (strcmp(callBackData->toggle->getName(), "Flashlight") == 0)
-  {
-    this->analysisTool = 1;
-  }
 }
 
 //----------------------------------------------------------------------------
@@ -1395,13 +1352,6 @@ void MooseViewer::toolCreationCallback(
        * associate it with the new tool:
        */
       newLocator = new ClippingPlaneLocator(locatorTool, this);
-      }
-    else if (analysisTool == 1)
-      {
-      /* Create a flashlight locator object and
-       * associate it with the new tool:
-       */
-      newLocator = new FlashlightLocator(locatorTool, this);
       }
 
     /* Add new locator to list: */
@@ -1538,24 +1488,6 @@ void MooseViewer::updateColorMap(void)
 {
   this->ColorEditor->exportColorMap(this->ColorMap);
   Vrui::requestUpdate();
-}
-
-//----------------------------------------------------------------------------
-int * MooseViewer::getFlashlightSwitch(void)
-{
-  return this->FlashlightSwitch;
-}
-
-//----------------------------------------------------------------------------
-double * MooseViewer::getFlashlightPosition(void)
-{
-  return this->FlashlightPosition;
-}
-
-//----------------------------------------------------------------------------
-double * MooseViewer::getFlashlightDirection(void)
-{
-  return this->FlashlightDirection;
 }
 
 //----------------------------------------------------------------------------
