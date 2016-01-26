@@ -91,6 +91,8 @@ SET(${PROJECT_NAME}_SRCS
   SwatchesWidget.h
   TransferFunction1D.cpp
   TransferFunction1D.h
+  WidgetHints.cpp
+  WidgetHints.h
   )
 
 ADD_EXECUTABLE(${PROJECT_NAME} ${${PROJECT_NAME}_SRCS})

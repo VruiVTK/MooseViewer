@@ -37,6 +37,7 @@ class TransferFunction1D;
 class vtkDataArray;
 class vtkExodusIIReader;
 class vtkLookupTable;
+class WidgetHints;
 
 class MooseViewer:public Vrui::Application,public GLObject
 {
@@ -44,6 +45,10 @@ class MooseViewer:public Vrui::Application,public GLObject
   typedef std::vector<BaseLocator*> BaseLocatorList;
 private:
   struct DataItem;
+
+  /* Hints for widgets: */
+  std::string widgetHintsFile;
+  WidgetHints *widgetHints;
 
   /* Elements: */
   GLMotif::PopupMenu* mainMenu; // The program's main menu
@@ -157,12 +162,18 @@ public:
   MooseViewer(int& argc,char**& argv);
   virtual ~MooseViewer(void);
 
+  void Initialize();
+
   /* vtkExodusIIReader */
   vtkSmartPointer<vtkExodusIIReader> reader;
 
   /* Methods to set/get the filename to read */
   void setFileName(const char* name);
   const char* getFileName(void);
+
+  /* Methods to set/get the widget hints file */
+  void setWidgetHintsFile(const std::string &whFile);
+  const std::string& getWidgetHintsFile(void);
 
   /* Animation */
   bool IsPlaying;

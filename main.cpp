@@ -18,6 +18,8 @@ void printUsage(bool longForm = true)
     std::cout << "\tName of ExodusII file to load using VTK.\n" << std::endl;
     std::cout << "\t-r <digit>, -renderMode <digit>" << std::endl;
     std::cout << "\tRender mode to request for vtkSmartVolumeMapper.\n" << std::endl;
+    std::cout << "\t-widgetHints <path>" << std::endl;
+    std::cout << "\tPath to a JSON file providing widget hints.\n" << std::endl;
     std::cout << "\t-h, -help" << std::endl;
     std::cout << "\tDisplay this usage information and exit." << std::endl;
     std::cout << "\nAdditionally, all the commandline switches that VRUI " <<
@@ -44,6 +46,7 @@ int main(int argc, char* argv[])
     {
     std::string name;
     int renderMode = -1;
+    std::string widgetHints;
     if(argc > 1)
       {
       /* Parse the command-line arguments */
@@ -57,6 +60,11 @@ int main(int argc, char* argv[])
         if(strcmp(argv[i], "-r")==0 || strcmp(argv[i], "-renderMode")==0)
           {
           renderMode = atoi(argv[i+1]);
+          ++i;
+          }
+        if(strcmp(argv[i], "-widgetHints")==0)
+          {
+          widgetHints.assign(argv[i+1]);
           ++i;
           }
         if(strcmp(argv[i],"-h")==0 || strcmp(argv[i], "-help")==0)
@@ -75,6 +83,9 @@ int main(int argc, char* argv[])
       }
 
     MooseViewer application(argc, argv);
+    application.setWidgetHintsFile(widgetHints);
+    application.Initialize();
+
     if(!name.empty())
       {
       application.setFileName(name.c_str());
