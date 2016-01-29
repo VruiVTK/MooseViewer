@@ -91,6 +91,8 @@ SET(${PROJECT_NAME}_SRCS
   SwatchesWidget.h
   TransferFunction1D.cpp
   TransferFunction1D.h
+  VariablesDialog.cpp
+  VariablesDialog.h
   WidgetHints.cpp
   WidgetHints.h
   )
