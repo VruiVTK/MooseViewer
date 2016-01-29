@@ -38,17 +38,38 @@ ColorMap::ColorMap(const char* _name, GLMotif::Container* _parent, bool _manageC
 	if (_manageChild) manageChild();
 }
 
+namespace {
+template <typename T>
+void freeLinkedList(T *&first, T *&last)
+{
+  if (first && last)
+    {
+    T *current = first;
+    while (current != last)
+      {
+      T *next = current->right;
+      delete current;
+      current = next;
+      }
+    delete current;
+    first = NULL;
+    last = NULL;
+    }
+}
+} // end anon namespace
+
 /*
  * ~ColorMap - Destructor for the ColorMap class.
  */
-ColorMap::~ColorMap(void) {
-	delete controlPointColor;
-	ControlPoint* controlPointPtr=first->right;
-	while (controlPointPtr!=last) {
-		ControlPoint* next=controlPointPtr->right;
-		delete controlPointPtr;
-		controlPointPtr=next;
-	}
+ColorMap::~ColorMap(void)
+{
+  delete this->controlPointColor;
+
+  // BUG:
+  // This class leaks memory as first/last are overwritten without freeing the
+  // memory they manage. This will take heavy refactoring to resolve.
+
+  freeLinkedList(this->first, this->last);
 }
 
 /*
@@ -739,8 +760,14 @@ void ColorMap::setControlPointColor(RGBAColor rgbaColor) {
  *
  * parameter _rgbaColor - RGBAColor*
  */
-void ColorMap::setControlPointColor(RGBAColor* _rgbaColor) {
-	controlPointColor=_rgbaColor;
+void ColorMap::setControlPointColor(RGBAColor* _rgbaColor)
+{
+  if (this->controlPointColor)
+    {
+    delete this->controlPointColor;
+    }
+
+  this->controlPointColor = _rgbaColor;
 }
 
 /*

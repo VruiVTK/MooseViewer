@@ -79,7 +79,7 @@ private:
   std::set<std::string> variables;
 
   /* Name of file to load */
-  char* FileName;
+  std::string FileName;
 
   /* SmartVolumeMapper Requested RenderMode */
   int RequestedRenderMode;
@@ -171,8 +171,8 @@ public:
   vtkSmartPointer<vtkExodusIIReader> reader;
 
   /* Methods to set/get the filename to read */
-  void setFileName(const char* name);
-  const char* getFileName(void);
+  void setFileName(const std::string &name);
+  const std::string &getFileName(void);
 
   /* Methods to set/get the widget hints file */
   void setWidgetHintsFile(const std::string &whFile);

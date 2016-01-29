@@ -84,7 +84,6 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   colorByVariablesMenu(0),
   ContoursDialog(NULL),
   ContourVisible(true),
-  FileName(0),
   FirstFrame(true),
   GaussianSplatterDims(30),
   GaussianSplatterExp(-1.0),
@@ -119,30 +118,19 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
 //----------------------------------------------------------------------------
 MooseViewer::~MooseViewer(void)
 {
-  if (this->DataBounds)
-    {
-    delete[] this->DataBounds;
-    this->DataBounds = NULL;
-    }
-  if (this->ColorMap)
-    {
-    delete[] this->ColorMap;
-    this->ColorMap = NULL;
-    }
-  if(this->Histogram)
-    {
-    delete[] this->Histogram;
-    }
-  if(this->IsosurfaceColormap)
-    {
-    delete[] this->IsosurfaceColormap;
-    }
-  if(this->ScalarRange)
-    {
-    delete[] this->ScalarRange;
-    this->ScalarRange = NULL;
-    }
+  delete[] this->ColorMap;
+  delete[] this->ClippingPlanes;
+  delete[] this->DataBounds;
+  delete[] this->Histogram;
+  delete[] this->IsosurfaceColormap;
+  delete[] this->ScalarRange;
 
+  delete this->AnimationControl;
+  delete this->ColorEditor;
+  delete this->ContoursDialog;
+  delete this->isosurfacesDialog;
+  delete this->mainMenu;
+  delete this->renderingDialog;
   delete this->variablesDialog;
   delete this->widgetHints;
 }
@@ -206,20 +194,16 @@ void MooseViewer::Initialize()
 }
 
 //----------------------------------------------------------------------------
-void MooseViewer::setFileName(const char* name)
+void MooseViewer::setFileName(const std::string &name)
 {
-  if(this->FileName && name && (!strcmp(this->FileName, name)))
+  if (this->FileName == name)
     {
     return;
     }
-  if(this->FileName && name)
-    {
-    delete [] this->FileName;
-    }
-  this->FileName = new char[strlen(name) + 1];
-  strcpy(this->FileName, name);
 
-  this->reader->SetFileName(this->FileName);
+  this->FileName = name;
+
+  this->reader->SetFileName(this->FileName.c_str());
   this->reader->UpdateInformation();
   this->updateVariablesDialog();
   reader->GenerateObjectIdCellArrayOn();
@@ -228,7 +212,7 @@ void MooseViewer::setFileName(const char* name)
 }
 
 //----------------------------------------------------------------------------
-const char* MooseViewer::getFileName(void)
+const std::string& MooseViewer::getFileName(void)
 {
   return this->FileName;
 }
