@@ -29,6 +29,7 @@
 #include <vtkPolyDataMapper.h>
 #include <vtkProperty.h>
 #include <vtkSmartVolumeMapper.h>
+#include <vtkTextActor.h>
 #include <vtkUnstructuredGrid.h>
 
 // OpenGL/Motif includes
@@ -100,6 +101,7 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   RepresentationType(2),
   RequestedRenderMode(3),
   sampleValue(NULL),
+  ShowFPS(false),
   variablesDialog(0),
   Volume(false),
   widgetHints(new WidgetHints)
@@ -328,6 +330,14 @@ GLMotif::PopupMenu* MooseViewer::createMainMenu(void)
         new GLMotif::Button("CenterDisplayButton",mainMenu,"Center Display");
     centerDisplayButton->getSelectCallbacks().add(
           this, &MooseViewer::centerDisplayCallback);
+    }
+
+  if (this->widgetHints->isEnabled("ToggleFPS"))
+    {
+    GLMotif::Button* toggleFPSButton =
+        new GLMotif::Button("ToggleFPS",mainMenu,"Toggle FPS");
+    toggleFPSButton->getSelectCallbacks().add(
+          this, &MooseViewer::toggleFPSCallback);
     }
 
   if (this->widgetHints->isEnabled("Rendering"))
@@ -813,6 +823,8 @@ GLMotif::PopupWindow* MooseViewer::createRenderingDialog(void) {
 //----------------------------------------------------------------------------
 void MooseViewer::frame(void)
 {
+  this->FrameTimer.elapse();
+
   if(this->FirstFrame)
     {
     /* Initialize the color editor */
@@ -862,6 +874,20 @@ void MooseViewer::frame(void)
     /* Initialize Vrui navigation transformation: */
     centerDisplayCallback(0);
     this->FirstFrame = false;
+    }
+  else
+    {
+    const size_t FPSCacheSize = 64;
+    if (this->FrameTimes.size() < FPSCacheSize)
+      {
+      this->FrameTimes.push_back(this->FrameTimer.getTime());
+      }
+    else
+      {
+      std::rotate(this->FrameTimes.begin(), this->FrameTimes.begin() + 1,
+                  this->FrameTimes.end());
+      this->FrameTimes.back() = this->FrameTimer.getTime();
+      }
     }
   this->updateColorMap();
   this->updateAlpha();
@@ -956,6 +982,19 @@ void MooseViewer::display(GLContextData& contextData) const
 
   /* Get context data item */
   DataItem* dataItem = contextData.retrieveDataItem<DataItem>(this);
+
+  // Update framerate:
+  if (this->ShowFPS)
+    {
+    std::ostringstream fps;
+    fps << "FPS: " << this->GetFramesPerSecond();
+    dataItem->framerate->SetInput(fps.str().c_str());
+    dataItem->framerate->SetVisibility(1);
+    }
+  else
+    {
+    dataItem->framerate->SetVisibility(0);
+    }
 
   /* Color by selected array */
   std::string selectedArray = this->getSelectedColorByArrayName();
@@ -1216,6 +1255,12 @@ void MooseViewer::display(GLContextData& contextData) const
         ++clippingPlaneIndex;
       }
     }
+}
+
+//----------------------------------------------------------------------------
+void MooseViewer::toggleFPSCallback(Misc::CallbackData *cbData)
+{
+  this->ShowFPS = !this->ShowFPS;
 }
 
 //----------------------------------------------------------------------------
@@ -1636,6 +1681,17 @@ void MooseViewer::updateHistogram(void)
   this->ColorEditor->setHistogram(this->Histogram);
   this->ContoursDialog->setHistogram(this->Histogram);
   Vrui::requestUpdate();
+}
+
+//----------------------------------------------------------------------------
+double MooseViewer::GetFramesPerSecond() const
+{
+  double time = 0.0;
+  for (size_t i = 0; i < this->FrameTimes.size(); ++i)
+    {
+    time += this->FrameTimes[i];
+    }
+  return time > 1e-5 ? this->FrameTimes.size() / time : 0.;
 }
 
 //----------------------------------------------------------------------------

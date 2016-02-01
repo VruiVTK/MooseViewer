@@ -18,6 +18,8 @@ void printUsage(bool longForm = true)
     std::cout << "\tName of ExodusII file to load using VTK.\n" << std::endl;
     std::cout << "\t-r <digit>, -renderMode <digit>" << std::endl;
     std::cout << "\tRender mode to request for vtkSmartVolumeMapper.\n" << std::endl;
+    std::cout << "\t-showfps" << std::endl;
+    std::cout << "\tShow the FPS display by default.\n" << std::endl;
     std::cout << "\t-widgetHints <path>" << std::endl;
     std::cout << "\tPath to a JSON file providing widget hints.\n" << std::endl;
     std::cout << "\t-h, -help" << std::endl;
@@ -46,6 +48,7 @@ int main(int argc, char* argv[])
     {
     std::string name;
     int renderMode = -1;
+    bool showFPS = false;
     std::string widgetHints;
     if(argc > 1)
       {
@@ -61,6 +64,10 @@ int main(int argc, char* argv[])
           {
           renderMode = atoi(argv[i+1]);
           ++i;
+          }
+        if(strcmp(argv[i], "-showfps")==0)
+          {
+          showFPS = true;
           }
         if(strcmp(argv[i], "-widgetHints")==0)
           {
@@ -83,6 +90,7 @@ int main(int argc, char* argv[])
       }
 
     MooseViewer application(argc, argv);
+    application.setShowFPS(showFPS);
     application.setWidgetHintsFile(widgetHints);
     application.Initialize();
 
