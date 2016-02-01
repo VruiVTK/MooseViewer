@@ -24,7 +24,6 @@ SwatchesWidget::SwatchesWidget(const char* _name, GLMotif::Container* _parent, b
 	swatchSize[1] = defaultSwatchSize[1];
 	gap[0] = 1;
 	gap[1] = 1;
-	currentColor = new float[3];
 	marginWidth=0.0f;
 	preferredSize[0]=0.0f;
 	preferredSize[1]=0.0f;

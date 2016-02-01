@@ -6,6 +6,7 @@
 
 // Vrui includes
 #include <GL/GLObject.h>
+#include <GLMotif/ListBox.h>
 #include <GLMotif/PopupWindow.h>
 #include <GLMotif/RadioBox.h>
 #include <GLMotif/Slider.h>
@@ -18,6 +19,7 @@
 
 // STL includes
 #include <vector>
+#include <set>
 #include <string>
 
 /* Forward Declarations */
@@ -34,6 +36,7 @@ class ClippingPlane;
 class Contours;
 class Isosurfaces;
 class TransferFunction1D;
+class VariablesDialog;
 class vtkDataArray;
 class vtkExodusIIReader;
 class vtkLookupTable;
@@ -55,7 +58,6 @@ private:
   GLMotif::PopupMenu* createMainMenu(void);
   GLMotif::Popup* createRepresentationMenu(void);
   GLMotif::Popup* createAnalysisToolsMenu(void);
-  GLMotif::Popup* createVariablesMenu(void);
   GLMotif::Popup* createColorByVariablesMenu(void);
   GLMotif::Popup*  createColorMapSubMenu(void);
   GLMotif::PopupWindow* renderingDialog;
@@ -63,20 +65,21 @@ private:
   GLMotif::TextField* opacityValue;
 
   /* Update the menus */
-  void updateVariablesMenu(void);
+  void updateVariablesDialog(void);
   void updateColorByVariablesMenu(void);
   std::string getSelectedColorByArrayName(void) const;
   vtkSmartPointer<vtkDataArray> getSelectedArray(int & type) const;
 
-  /* Variables submenu */
-  GLMotif::SubMenu* variablesMenu;
+  /* Variables dialog */
+  VariablesDialog *variablesDialog;
+
   GLMotif::SubMenu* colorByVariablesMenu;
 
   /* Variables vector */
-  std::vector<std::string> variables;
+  std::set<std::string> variables;
 
   /* Name of file to load */
-  char* FileName;
+  std::string FileName;
 
   /* SmartVolumeMapper Requested RenderMode */
   int RequestedRenderMode;
@@ -168,8 +171,8 @@ public:
   vtkSmartPointer<vtkExodusIIReader> reader;
 
   /* Methods to set/get the filename to read */
-  void setFileName(const char* name);
-  const char* getFileName(void);
+  void setFileName(const std::string &name);
+  const std::string &getFileName(void);
 
   /* Methods to set/get the widget hints file */
   void setWidgetHintsFile(const std::string &whFile);
@@ -224,6 +227,7 @@ public:
   void sampleSliderCallback(GLMotif::Slider::ValueChangedCallbackData* cbData);
   void radiusSliderCallback(GLMotif::Slider::ValueChangedCallbackData* cbData);
   void exponentSliderCallback(GLMotif::Slider::ValueChangedCallbackData* cbData);
+  void showVariableDialogCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
   void changeRepresentationCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
   void showRenderingDialogCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
   void showColorEditorDialogCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
@@ -231,7 +235,7 @@ public:
   void showAnimationDialogCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
   void showIsosurfacesDialogCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
   void changeAnalysisToolsCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
-  void changeVariablesCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
+  void changeVariablesCallback(GLMotif::ListBox::SelectionChangedCallbackData* callBackData);
   void changeColorByVariablesCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
   void changeColorMapCallback(GLMotif::RadioBox::ValueChangedCallbackData* callBackData);
   void alphaChangedCallback(Misc::CallbackData* callBackData);

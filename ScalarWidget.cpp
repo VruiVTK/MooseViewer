@@ -92,18 +92,50 @@ ScalarWidget::ScalarWidget(const char* _name, GLMotif::Container* _parent, int _
         manageChild();
 } // end ScalarWidget()
 
+namespace {
+template <typename T>
+void freeLinkedList(T *&first, T *&last)
+{
+  if (first && last)
+    {
+    T *current = first;
+    while (current != last)
+      {
+      T *next = current->right;
+      delete current;
+      current = next;
+      }
+    delete current;
+    first = NULL;
+    last = NULL;
+    }
+}
+} // end anon namespace
+
 /*
  * ~ScalarWidget - Destructor for the ScalarWidget class.
  */
-ScalarWidget::~ScalarWidget(void) {
-    delete[] histogram;
-    delete[] opacities;
-    ScalarWidgetControlPoint* controlPointPtr = first->right;
-    while (controlPointPtr != last) {
-        ScalarWidgetControlPoint* next = controlPointPtr->right;
-        delete controlPointPtr;
-        controlPointPtr = next;
-    }
+ScalarWidget::~ScalarWidget(void)
+{
+  delete[] this->redHistogram;
+  delete[] this->redOpacities;
+  delete[] this->greenHistogram;
+  delete[] this->greenOpacities;
+  delete[] this->blueHistogram;
+  delete[] this->blueOpacities;
+  delete[] this->alphaHistogram;
+  delete[] this->alphaOpacities;
+
+  // BUG:
+  // This class still leaks memory due to unmanaged aliasing of
+  // this->first/last. The create(...) methods make it impossible to track all
+  // heap-allocated ScalarWidgetControlPoint instances. This will take some
+  // heavy refactoring to resolve.
+
+  freeLinkedList(this->redFirst, this->redLast);
+  freeLinkedList(this->greenFirst, this->greenLast);
+  freeLinkedList(this->blueFirst, this->blueLast);
+  freeLinkedList(this->alphaFirst, this->alphaLast);
 } // end ~ScalarWidget()
 
 /*

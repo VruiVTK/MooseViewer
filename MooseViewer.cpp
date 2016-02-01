@@ -41,6 +41,7 @@
 #include <GLMotif/PopupMenu.h>
 #include <GLMotif/RadioBox.h>
 #include <GLMotif/Separator.h>
+#include <GLMotif/ScrolledListBox.h>
 #include <GLMotif/StyleSheet.h>
 #include <GLMotif/SubMenu.h>
 #include <GLMotif/ToggleButton.h>
@@ -66,6 +67,7 @@
 #include "MooseViewer.h"
 #include "ScalarWidget.h"
 #include "TransferFunction1D.h"
+#include "VariablesDialog.h"
 #include "WidgetHints.h"
 
 //----------------------------------------------------------------------------
@@ -82,7 +84,6 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   colorByVariablesMenu(0),
   ContoursDialog(NULL),
   ContourVisible(true),
-  FileName(0),
   FirstFrame(true),
   GaussianSplatterDims(30),
   GaussianSplatterExp(-1.0),
@@ -99,7 +100,7 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   RepresentationType(2),
   RequestedRenderMode(3),
   sampleValue(NULL),
-  variablesMenu(0),
+  variablesDialog(0),
   Volume(false),
   widgetHints(new WidgetHints)
 {
@@ -117,29 +118,20 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
 //----------------------------------------------------------------------------
 MooseViewer::~MooseViewer(void)
 {
-  if (this->DataBounds)
-    {
-    delete[] this->DataBounds;
-    this->DataBounds = NULL;
-    }
-  if (this->ColorMap)
-    {
-    delete[] this->ColorMap;
-    this->ColorMap = NULL;
-    }
-  if(this->Histogram)
-    {
-    delete[] this->Histogram;
-    }
-  if(this->IsosurfaceColormap)
-    {
-    delete[] this->IsosurfaceColormap;
-    }
-  if(this->ScalarRange)
-    {
-    delete[] this->ScalarRange;
-    this->ScalarRange = NULL;
-    }
+  delete[] this->ColorMap;
+  delete[] this->ClippingPlanes;
+  delete[] this->DataBounds;
+  delete[] this->Histogram;
+  delete[] this->IsosurfaceColormap;
+  delete[] this->ScalarRange;
+
+  delete this->AnimationControl;
+  delete this->ColorEditor;
+  delete this->ContoursDialog;
+  delete this->isosurfacesDialog;
+  delete this->mainMenu;
+  delete this->renderingDialog;
+  delete this->variablesDialog;
   delete this->widgetHints;
 }
 
@@ -156,6 +148,11 @@ void MooseViewer::Initialize()
     }
 
   /* Create the user interface: */
+  this->variablesDialog = new VariablesDialog;
+  this->variablesDialog->getScrolledListBox()->getListBox()->
+      getSelectionChangedCallbacks().add(
+        this, &MooseViewer::changeVariablesCallback);
+
   renderingDialog = createRenderingDialog();
   mainMenu=createMainMenu();
   Vrui::setMainMenu(mainMenu);
@@ -197,29 +194,25 @@ void MooseViewer::Initialize()
 }
 
 //----------------------------------------------------------------------------
-void MooseViewer::setFileName(const char* name)
+void MooseViewer::setFileName(const std::string &name)
 {
-  if(this->FileName && name && (!strcmp(this->FileName, name)))
+  if (this->FileName == name)
     {
     return;
     }
-  if(this->FileName && name)
-    {
-    delete [] this->FileName;
-    }
-  this->FileName = new char[strlen(name) + 1];
-  strcpy(this->FileName, name);
 
-  this->reader->SetFileName(this->FileName);
+  this->FileName = name;
+
+  this->reader->SetFileName(this->FileName.c_str());
   this->reader->UpdateInformation();
-  this->updateVariablesMenu();
+  this->updateVariablesDialog();
   reader->GenerateObjectIdCellArrayOn();
   reader->GenerateGlobalElementIdArrayOn();
   reader->GenerateGlobalNodeIdArrayOn();
 }
 
 //----------------------------------------------------------------------------
-const char* MooseViewer::getFileName(void)
+const std::string& MooseViewer::getFileName(void)
 {
   return this->FileName;
 }
@@ -252,9 +245,11 @@ GLMotif::PopupMenu* MooseViewer::createMainMenu(void)
 
   if (this->widgetHints->isEnabled("Variables"))
     {
-    GLMotif::CascadeButton* variablesCascade =
-        new GLMotif::CascadeButton("VariablesCascade", mainMenu, "Variables");
-    variablesCascade->setPopup(createVariablesMenu());
+    GLMotif::ToggleButton *showVariablesDialog =
+        new GLMotif::ToggleButton("ShowVariablesDialog", mainMenu, "Variables");
+    showVariablesDialog->setToggle(false);
+    showVariablesDialog->getValueChangedCallbacks().add(
+          this, &MooseViewer::showVariableDialogCallback);
     }
 
   if (this->widgetHints->isEnabled("ColorBy"))
@@ -489,20 +484,6 @@ GLMotif::Popup * MooseViewer::createAnalysisToolsMenu(void)
 }
 
 //----------------------------------------------------------------------------
-GLMotif::Popup* MooseViewer::createVariablesMenu(void)
-{
-  const GLMotif::StyleSheet* ss = Vrui::getWidgetManager()->getStyleSheet();
-
-  GLMotif::Popup* variablesMenuPopup =
-    new GLMotif::Popup("variablesMenuPopup", Vrui::getWidgetManager());
-  this->variablesMenu = new GLMotif::SubMenu(
-    "variablesMenu", variablesMenuPopup, false);
-
-  this->variablesMenu->manageChild();
-  return variablesMenuPopup;
-}
-
-//----------------------------------------------------------------------------
 GLMotif::Popup* MooseViewer::createColorByVariablesMenu(void)
 {
   const GLMotif::StyleSheet* ss = Vrui::getWidgetManager()->getStyleSheet();
@@ -517,123 +498,28 @@ GLMotif::Popup* MooseViewer::createColorByVariablesMenu(void)
 }
 
 //----------------------------------------------------------------------------
-void MooseViewer::updateVariablesMenu(void)
+void MooseViewer::updateVariablesDialog(void)
 {
-  /* Clear the menu first */
-  int i;
-  for (i = this->variablesMenu->getNumRows(); i >= 0; --i)
+  // Build sorted list of variables:
+  std::set<std::string> vars;
+  vars.insert(this->reader->GetPedigreeNodeIdArrayName());
+  vars.insert(this->reader->GetObjectIdArrayName());
+  vars.insert(this->reader->GetPedigreeElementIdArrayName());
+  for (int i = 0; i < this->reader->GetNumberOfPointResultArrays(); ++i)
     {
-    variablesMenu->removeWidgets(i);
+    vars.insert(this->reader->GetPointResultArrayName(i));
+    }
+  for (int i = 0; i < this->reader->GetNumberOfElementResultArrays(); ++i)
+    {
+    vars.insert(this->reader->GetElementResultArrayName(i));
     }
 
-  const GLMotif::StyleSheet* ss = Vrui::getWidgetManager()->getStyleSheet();
-
-  GLMotif::Label* pointArraysLabel = new GLMotif::Label(
-    "Point_Arrays", variablesMenu, "Point Arrays");
-  GLMotif::ToggleButton* nodeIdbutton = new GLMotif::ToggleButton(
-    this->reader->GetPedigreeNodeIdArrayName(),
-    variablesMenu, "Pedigree Node Ids");
-  nodeIdbutton->getValueChangedCallbacks().add(
-    this, &MooseViewer::changeVariablesCallback);
-  nodeIdbutton->setToggle(false);
-
-  GLMotif::Pager* pointsPager = NULL;
-  int currentPage = -1;
-  for (i = 0; i < this->reader->GetNumberOfPointResultArrays(); ++i)
+  // Add to dialog:
+  this->variablesDialog->clearAllVariables();
+  typedef std::set<std::string>::const_iterator IterT;
+  for (IterT it = vars.begin(), itEnd = vars.end(); it != itEnd; ++it)
     {
-    GLMotif::Container* pointArraysContainer;
-    if (this->reader->GetNumberOfPointResultArrays() > 8)
-      {
-      if (!pointsPager)
-        {
-        pointsPager = new GLMotif::Pager("PointsPager", variablesMenu, true);
-        }
-      int newPage = static_cast<int> (i / 8);
-      if (currentPage != newPage)
-        {
-        currentPage = newPage;
-        std::stringstream ss;
-        ss << "PointsMenu" << currentPage;
-        GLMotif::Menu* menu = new GLMotif::Menu(
-          ss.str().c_str(), pointsPager, true);
-        pointArraysContainer = menu;
-        }
-      }
-    else
-      {
-      pointArraysContainer = variablesMenu;
-      }
-    GLMotif::ToggleButton* button = new GLMotif::ToggleButton(
-      this->reader->GetPointResultArrayName(i),
-      pointArraysContainer, this->reader->GetPointResultArrayName(i));
-    button->getValueChangedCallbacks().add(
-      this, &MooseViewer::changeVariablesCallback);
-    button->setToggle(false);
-    }
-
-  GLMotif::Separator * pointsep = new GLMotif::Separator(
-    "Points_Separator", variablesMenu, GLMotif::Separator::HORIZONTAL,
-    ss->menuButtonBorderWidth, GLMotif::Separator::RAISED);
-
-  GLMotif::Label* elementArraysLabel = new GLMotif::Label(
-    "Element_Arrays", variablesMenu, "Element Arrays");
-
-  GLMotif::ToggleButton* objectIdbutton = new GLMotif::ToggleButton(
-    this->reader->GetObjectIdArrayName(),
-    variablesMenu, "Object Ids");
-  objectIdbutton->getValueChangedCallbacks().add(
-    this, &MooseViewer::changeVariablesCallback);
-  objectIdbutton->setToggle(false);
-
-  GLMotif::ToggleButton* elementIdbutton = new GLMotif::ToggleButton(
-    this->reader->GetPedigreeElementIdArrayName(),
-    variablesMenu, "Pedigree Element Ids");
-  elementIdbutton->getValueChangedCallbacks().add(
-    this, &MooseViewer::changeVariablesCallback);
-  elementIdbutton->setToggle(false);
-
-  GLMotif::Pager* elementsPager = NULL;
-  currentPage = -1;
-  for (i = 0; i < this->reader->GetNumberOfElementResultArrays(); ++i)
-    {
-    GLMotif::Container* elementArraysContainer;
-    if (this->reader->GetNumberOfElementResultArrays() > 8)
-      {
-      if (!elementsPager)
-        {
-        elementsPager =
-          new GLMotif::Pager("ElementsPager", variablesMenu, true);
-        }
-      int newPage = static_cast<int>(i / 8);
-      if( currentPage != newPage)
-        {
-        currentPage = newPage;
-        std::stringstream ss;
-        ss << "ElementsMenu" << currentPage;
-        GLMotif::Menu* menu = new GLMotif::Menu(
-          ss.str().c_str(), elementsPager, true);
-        elementArraysContainer = menu;
-        }
-      }
-    else
-      {
-      elementArraysContainer = variablesMenu;
-      }
-    GLMotif::ToggleButton* button = new GLMotif::ToggleButton(
-      this->reader->GetElementResultArrayName(i),
-      elementArraysContainer, this->reader->GetElementResultArrayName(i));
-    button->getValueChangedCallbacks().add(
-      this, &MooseViewer::changeVariablesCallback);
-    button->setToggle(false);
-
-    if (pointsPager)
-      {
-      pointsPager->setCurrentChildIndex(0);
-      }
-    if (elementsPager)
-      {
-      elementsPager->setCurrentChildIndex(0);
-      }
+    this->variablesDialog->addVariable(*it);
     }
 }
 
@@ -712,24 +598,24 @@ void MooseViewer::updateColorByVariablesMenu(void)
 
   if (this->variables.size() > 0)
     {
-    std::sort(this->variables.begin(), this->variables.end());
     GLMotif::RadioBox* colorby_RadioBox =
       new GLMotif::RadioBox("Color RadioBox",colorByVariablesMenu,true);
 
     int selectedIndex = -1;
 
-    for (i = 0; i < this->variables.size(); ++i)
+    typedef std::set<std::string>::const_iterator IterT;
+    for (IterT it = this->variables.begin(), itEnd = this->variables.end();
+         it != itEnd; ++it)
       {
       GLMotif::ToggleButton* button = new GLMotif::ToggleButton(
-        this->variables[i].c_str(),
-        colorby_RadioBox, this->variables[i].c_str());
+        it->c_str(), colorby_RadioBox, it->c_str());
       button->getValueChangedCallbacks().add(
         this, &MooseViewer::changeColorByVariablesCallback);
       button->setToggle(false);
-      if ( !selectedToggle.empty() && (selectedIndex < 0) &&
-        (selectedToggle.compare(this->variables[i]) == 0))
+      if (!selectedToggle.empty() && (selectedIndex < 0) &&
+          (selectedToggle.compare(*it) == 0))
         {
-        selectedIndex = i;
+        selectedIndex = std::distance(this->variables.begin(), it);
         }
       }
 
@@ -1379,6 +1265,24 @@ void MooseViewer::exponentSliderCallback(
 }
 
 //----------------------------------------------------------------------------
+void MooseViewer::showVariableDialogCallback(
+    GLMotif::ToggleButton::ValueChangedCallbackData *callBackData)
+{
+  GLMotif::WidgetManager *mgr = Vrui::getWidgetManager();
+
+  if (callBackData->set)
+    {
+    GLMotif::WidgetManager::Transformation xform =
+        mgr->calcWidgetTransformation(mainMenu);
+    mgr->popupPrimaryWidget(this->variablesDialog, xform);
+    }
+  else
+    {
+    mgr->popdownWidget(this->variablesDialog);
+    }
+}
+
+//----------------------------------------------------------------------------
 void MooseViewer::changeRepresentationCallback(
   GLMotif::ToggleButton::ValueChangedCallbackData* callBackData)
 {
@@ -1575,10 +1479,30 @@ void MooseViewer::toolDestructionCallback(
 
 //----------------------------------------------------------------------------
 void MooseViewer::changeVariablesCallback(
-  GLMotif::ToggleButton::ValueChangedCallbackData* callBackData)
+    GLMotif::ListBox::SelectionChangedCallbackData *callBackData)
 {
-  std::string nameStr = std::string(callBackData->toggle->getName());
-  int setter = callBackData->set ? 1 : 0;
+  bool enable;
+  switch (callBackData->reason)
+    {
+    case GLMotif::ListBox::SelectionChangedCallbackData::SELECTION_CLEARED:
+      // Nothing should call selectionCleared, handle this if that changes:
+      std::cerr << "Unhandled SELECTION_CLEARED event." << std::endl;
+      return;
+    default:
+      std::cerr << "Unrecognized variable change reason: "
+                << callBackData->reason << std::endl;
+      return;
+    case GLMotif::ListBox::SelectionChangedCallbackData::NUMITEMS_CHANGED:
+      return; // don't care
+    case GLMotif::ListBox::SelectionChangedCallbackData::ITEM_SELECTED:
+      enable = true;
+      break;
+    case GLMotif::ListBox::SelectionChangedCallbackData::ITEM_DESELECTED:
+      enable = false;
+      break;
+    }
+
+  std::string array(callBackData->listBox->getItem(callBackData->item));
 
   int numPointResultArrays = this->reader->GetNumberOfPointResultArrays();
   int numElementResultArrays = this->reader->GetNumberOfElementResultArrays();
@@ -1586,10 +1510,9 @@ void MooseViewer::changeVariablesCallback(
   int i;
   for (i = 0; i < numPointResultArrays; ++i)
     {
-    if (nameStr.compare(std::string(
-          this->reader->GetPointResultArrayName(i))) == 0)
+    if (array == this->reader->GetPointResultArrayName(i))
       {
-      this->reader->SetPointResultArrayStatus(nameStr.c_str(), setter);
+      this->reader->SetPointResultArrayStatus(array.c_str(), enable ? 1 : 0);
       break;
       }
     }
@@ -1597,31 +1520,24 @@ void MooseViewer::changeVariablesCallback(
     {
     for (i = 0; i < numElementResultArrays; ++i)
       {
-      if (nameStr.compare(std::string(
-            this->reader->GetElementResultArrayName(i))) == 0)
+      if (array == this->reader->GetElementResultArrayName(i))
         {
-        this->reader->SetElementResultArrayStatus(nameStr.c_str(), setter);
+        this->reader->SetElementResultArrayStatus(array.c_str(),
+                                                  enable ? 1 : 0);
         break;
         }
       }
     }
 
-  std::vector< std::string >::iterator iter;
-  for (iter = this->variables.begin(); iter != this->variables.end(); ++iter)
+  if (enable)
     {
-    if ((*iter).compare(nameStr) == 0)
-      {
-      break;
-      }
-    }
-  if (iter == this->variables.end())
-    {
-    variables.push_back(nameStr);
+    this->variables.insert(array);
     }
   else
     {
-    this->variables.erase(iter);
+    this->variables.erase(array);
     }
+
   this->updateColorByVariablesMenu();
 }
 

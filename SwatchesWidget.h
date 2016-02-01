@@ -74,7 +74,7 @@ private:
 	bool isSelected;
 	GLfloat marginWidth;
 	GLMotif::Vector preferredSize;
-	float* currentColor;
+	float currentColor[3];
 	int numberOfColumns;
 	int numberOfRows;
 	double preferredSwatchSize[2];
