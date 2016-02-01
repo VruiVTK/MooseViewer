@@ -12,6 +12,7 @@
 #include <GLMotif/Slider.h>
 #include <GLMotif/TextField.h>
 #include <GLMotif/ToggleButton.h>
+#include <Misc/Timer.h>
 #include <Vrui/Application.h>
 
 // VTK includes
@@ -160,6 +161,11 @@ private:
   /* Custom scalar range */
   double* ScalarRange;
 
+  bool ShowFPS;
+  Misc::Timer FrameTimer;
+  std::vector<double> FrameTimes;
+  double GetFramesPerSecond() const;
+
   /* Constructors and destructors: */
 public:
   MooseViewer(int& argc,char**& argv);
@@ -177,6 +183,9 @@ public:
   /* Methods to set/get the widget hints file */
   void setWidgetHintsFile(const std::string &whFile);
   const std::string& getWidgetHintsFile(void);
+
+  void setShowFPS(bool show) { this->ShowFPS = show; }
+  bool getShowFPS() const { return this->ShowFPS; }
 
   /* Animation */
   bool IsPlaying;
@@ -222,6 +231,7 @@ public:
   void setScalarMaximum(double max);
 
   /* Callback methods */
+  void toggleFPSCallback(Misc::CallbackData* cbData);
   void centerDisplayCallback(Misc::CallbackData* cbData);
   void opacitySliderCallback(GLMotif::Slider::ValueChangedCallbackData* cbData);
   void sampleSliderCallback(GLMotif::Slider::ValueChangedCallbackData* cbData);

@@ -11,6 +11,8 @@
 #include <vtkPolyDataMapper.h>
 #include <vtkProperty.h>
 #include <vtkSmartVolumeMapper.h>
+#include <vtkTextActor.h>
+#include <vtkTextProperty.h>
 #include <vtkVolume.h>
 #include <vtkVolumeProperty.h>
 
@@ -112,6 +114,16 @@ MooseViewer::DataItem::DataItem(void)
   this->actorCContour = vtkSmartPointer<vtkActor>::New();
   this->actorCContour->SetMapper(this->cContourMapper);
   ren->AddVolume(this->actorCContour);
+
+  this->framerate = vtkSmartPointer<vtkTextActor>::New();
+  this->framerate->GetTextProperty()->SetJustificationToLeft();
+  this->framerate->GetTextProperty()->SetVerticalJustificationToTop();
+  this->framerate->GetTextProperty()->SetFontSize(12);
+  this->framerate->SetTextScaleModeToViewport();
+  vtkCoordinate *fpsCoord = this->framerate->GetPositionCoordinate();
+  fpsCoord->SetCoordinateSystemToNormalizedDisplay();
+  fpsCoord->SetValue(0, 0.999);
+  ren->AddActor2D(this->framerate);
 }
 
 //----------------------------------------------------------------------------

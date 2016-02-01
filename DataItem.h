@@ -19,6 +19,7 @@ class vtkLookupTable;
 class vtkPiecewiseFunction;
 class vtkPolyDataMapper;
 class vtkSmartVolumeMapper;
+class vtkTextActor;
 class vtkVolume;
 
 struct MooseViewer::DataItem : public GLObject::DataItem
@@ -52,6 +53,8 @@ public:
   vtkSmartPointer<vtkContourFilter> cContour;
   vtkSmartPointer<vtkPolyDataMapper> cContourMapper;
   vtkSmartPointer<vtkActor> actorCContour;
+
+  vtkSmartPointer<vtkTextActor> framerate;
 
   /* Constructor and destructor*/
   DataItem(void);
