@@ -66,6 +66,7 @@
 #include "MooseViewer.h"
 #include "ScalarWidget.h"
 #include "TransferFunction1D.h"
+#include "WidgetHints.h"
 
 //----------------------------------------------------------------------------
 MooseViewer::MooseViewer(int& argc,char**& argv)
@@ -99,7 +100,8 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   RequestedRenderMode(3),
   sampleValue(NULL),
   variablesMenu(0),
-  Volume(false)
+  Volume(false),
+  widgetHints(new WidgetHints)
 {
   /* Set Window properties:
    * Since the application requires translucency, GLX_ALPHA_SIZE is set to 1 at
@@ -110,6 +112,48 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   Vrui::WindowProperties properties;
   properties.setColorBufferSize(0,1);
   Vrui::requestWindowProperties(properties);
+}
+
+//----------------------------------------------------------------------------
+MooseViewer::~MooseViewer(void)
+{
+  if (this->DataBounds)
+    {
+    delete[] this->DataBounds;
+    this->DataBounds = NULL;
+    }
+  if (this->ColorMap)
+    {
+    delete[] this->ColorMap;
+    this->ColorMap = NULL;
+    }
+  if(this->Histogram)
+    {
+    delete[] this->Histogram;
+    }
+  if(this->IsosurfaceColormap)
+    {
+    delete[] this->IsosurfaceColormap;
+    }
+  if(this->ScalarRange)
+    {
+    delete[] this->ScalarRange;
+    this->ScalarRange = NULL;
+    }
+  delete this->widgetHints;
+}
+
+//----------------------------------------------------------------------------
+void MooseViewer::Initialize()
+{
+  if (!this->widgetHintsFile.empty())
+    {
+    this->widgetHints->loadFile(this->widgetHintsFile);
+    }
+  else
+    {
+    this->widgetHints->reset();
+    }
 
   /* Create the user interface: */
   renderingDialog = createRenderingDialog();
@@ -149,34 +193,7 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
     ClippingPlanes[i].setAllocated(false);
     ClippingPlanes[i].setActive(false);
     }
-}
 
-//----------------------------------------------------------------------------
-MooseViewer::~MooseViewer(void)
-{
-  if (this->DataBounds)
-    {
-    delete[] this->DataBounds;
-    this->DataBounds = NULL;
-    }
-  if (this->ColorMap)
-    {
-    delete[] this->ColorMap;
-    this->ColorMap = NULL;
-    }
-  if(this->Histogram)
-    {
-    delete[] this->Histogram;
-    }
-  if(this->IsosurfaceColormap)
-    {
-    delete[] this->IsosurfaceColormap;
-    }
-  if(this->ScalarRange)
-    {
-    delete[] this->ScalarRange;
-    this->ScalarRange = NULL;
-    }
 }
 
 //----------------------------------------------------------------------------
@@ -208,81 +225,138 @@ const char* MooseViewer::getFileName(void)
 }
 
 //----------------------------------------------------------------------------
+void MooseViewer::setWidgetHintsFile(const std::string &whFile)
+{
+  this->widgetHintsFile = whFile;
+}
+
+//----------------------------------------------------------------------------
+const std::string& MooseViewer::getWidgetHintsFile()
+{
+  return this->widgetHintsFile;
+}
+
+//----------------------------------------------------------------------------
 GLMotif::PopupMenu* MooseViewer::createMainMenu(void)
 {
+  if (!this->widgetHints->isEnabled("MainMenu"))
+    {
+    std::cerr << "Ignoring hint to hide MainMenu." << std::endl;
+    }
+  this->widgetHints->pushGroup("MainMenu");
+
   GLMotif::PopupMenu* mainMenuPopup =
     new GLMotif::PopupMenu("MainMenuPopup",Vrui::getWidgetManager());
   mainMenuPopup->setTitle("Main Menu");
   GLMotif::Menu* mainMenu = new GLMotif::Menu("MainMenu",mainMenuPopup,false);
 
-  GLMotif::CascadeButton* variablesCascade =
-    new GLMotif::CascadeButton("VariablesCascade", mainMenu, "Variables");
-  variablesCascade->setPopup(createVariablesMenu());
+  if (this->widgetHints->isEnabled("Variables"))
+    {
+    GLMotif::CascadeButton* variablesCascade =
+        new GLMotif::CascadeButton("VariablesCascade", mainMenu, "Variables");
+    variablesCascade->setPopup(createVariablesMenu());
+    }
 
-  GLMotif::CascadeButton* colorByVariablesCascade =
-    new GLMotif::CascadeButton("colorByVariablesCascade", mainMenu, "Color By");
-  colorByVariablesCascade->setPopup(createColorByVariablesMenu());
+  if (this->widgetHints->isEnabled("ColorBy"))
+    {
+    GLMotif::CascadeButton* colorByVariablesCascade =
+        new GLMotif::CascadeButton("colorByVariablesCascade", mainMenu,
+                                   "Color By");
+    colorByVariablesCascade->setPopup(createColorByVariablesMenu());
+    }
 
-  GLMotif::CascadeButton * colorMapSubCascade =
-    new GLMotif::CascadeButton("ColorMapSubCascade", mainMenu, "Color Map");
-  colorMapSubCascade->setPopup(createColorMapSubMenu());
+  if (this->widgetHints->isEnabled("ColorMap"))
+    {
+    GLMotif::CascadeButton * colorMapSubCascade =
+        new GLMotif::CascadeButton("ColorMapSubCascade", mainMenu, "Color Map");
+    colorMapSubCascade->setPopup(createColorMapSubMenu());
+    }
 
-   GLMotif::ToggleButton * showColorEditorDialog =
-     new GLMotif::ToggleButton("ShowColorEditorDialog", mainMenu,
-    "Color Editor");
-  showColorEditorDialog->setToggle(false);
-  showColorEditorDialog->getValueChangedCallbacks().add(
-    this, &MooseViewer::showColorEditorDialogCallback);
+  if (this->widgetHints->isEnabled("ColorEditor"))
+    {
+    GLMotif::ToggleButton * showColorEditorDialog =
+        new GLMotif::ToggleButton("ShowColorEditorDialog", mainMenu,
+                                  "Color Editor");
+    showColorEditorDialog->setToggle(false);
+    showColorEditorDialog->getValueChangedCallbacks().add(
+          this, &MooseViewer::showColorEditorDialogCallback);
+    }
 
-   GLMotif::ToggleButton * showAnimationDialog =
-     new GLMotif::ToggleButton("ShowAnimationDialog", mainMenu,
-    "Animation");
-  showAnimationDialog->setToggle(false);
-  showAnimationDialog->getValueChangedCallbacks().add(
-    this, &MooseViewer::showAnimationDialogCallback);
+  if (this->widgetHints->isEnabled("Animation"))
+    {
+    GLMotif::ToggleButton * showAnimationDialog =
+        new GLMotif::ToggleButton("ShowAnimationDialog", mainMenu,
+                                  "Animation");
+    showAnimationDialog->setToggle(false);
+    showAnimationDialog->getValueChangedCallbacks().add(
+          this, &MooseViewer::showAnimationDialogCallback);
+    }
 
-  GLMotif::CascadeButton* representationCascade =
-    new GLMotif::CascadeButton("RepresentationCascade", mainMenu,
-    "Representation");
-  representationCascade->setPopup(createRepresentationMenu());
+  if (this->widgetHints->isEnabled("Representation"))
+    {
+    GLMotif::CascadeButton* representationCascade =
+        new GLMotif::CascadeButton("RepresentationCascade", mainMenu,
+                                   "Representation");
+    representationCascade->setPopup(createRepresentationMenu());
+    }
 
-  GLMotif::CascadeButton* analysisToolsCascade =
-    new GLMotif::CascadeButton("AnalysisToolsCascade", mainMenu,
-    "Analysis Tools");
-  analysisToolsCascade->setPopup(createAnalysisToolsMenu());
+  if (this->widgetHints->isEnabled("AnalysisTools"))
+    {
+    GLMotif::CascadeButton* analysisToolsCascade =
+        new GLMotif::CascadeButton("AnalysisToolsCascade", mainMenu,
+                                   "Analysis Tools");
+    analysisToolsCascade->setPopup(createAnalysisToolsMenu());
+    }
 
-  GLMotif::ToggleButton * showContoursDialog = new GLMotif::ToggleButton(
-    "ShowContoursDialog", mainMenu, "Contours");
-  showContoursDialog->setToggle(false);
-  showContoursDialog->getValueChangedCallbacks().add(this,
-    &MooseViewer::showContoursDialogCallback);
+  if (this->widgetHints->isEnabled("Contours"))
+    {
+    GLMotif::ToggleButton * showContoursDialog = new GLMotif::ToggleButton(
+          "ShowContoursDialog", mainMenu, "Contours");
+    showContoursDialog->setToggle(false);
+    showContoursDialog->getValueChangedCallbacks().add(
+          this, &MooseViewer::showContoursDialogCallback);
+    }
 
-  GLMotif::ToggleButton * showIsosurfacesDialog =
-    new GLMotif::ToggleButton("ShowIsosurfacesDialog", mainMenu,
-    "Isosurfaces");
-  showIsosurfacesDialog->setToggle(false);
-  showIsosurfacesDialog->getValueChangedCallbacks().add(
-    this, &MooseViewer::showIsosurfacesDialogCallback);
+  if (this->widgetHints->isEnabled("Isosurfaces"))
+    {
+    GLMotif::ToggleButton * showIsosurfacesDialog =
+        new GLMotif::ToggleButton("ShowIsosurfacesDialog", mainMenu,
+                                  "Isosurfaces");
+    showIsosurfacesDialog->setToggle(false);
+    showIsosurfacesDialog->getValueChangedCallbacks().add(
+          this, &MooseViewer::showIsosurfacesDialogCallback);
+    }
 
-  GLMotif::Button* centerDisplayButton =
-    new GLMotif::Button("CenterDisplayButton",mainMenu,"Center Display");
-  centerDisplayButton->getSelectCallbacks().add(
-    this,&MooseViewer::centerDisplayCallback);
+  if (this->widgetHints->isEnabled("CenterDisplay"))
+    {
+    GLMotif::Button* centerDisplayButton =
+        new GLMotif::Button("CenterDisplayButton",mainMenu,"Center Display");
+    centerDisplayButton->getSelectCallbacks().add(
+          this, &MooseViewer::centerDisplayCallback);
+    }
 
-  GLMotif::ToggleButton * showRenderingDialog =
-    new GLMotif::ToggleButton("ShowRenderingDialog", mainMenu,
-    "Rendering");
-  showRenderingDialog->setToggle(false);
-  showRenderingDialog->getValueChangedCallbacks().add(
-    this, &MooseViewer::showRenderingDialogCallback);
+  if (this->widgetHints->isEnabled("Rendering"))
+    {
+    GLMotif::ToggleButton * showRenderingDialog =
+        new GLMotif::ToggleButton("ShowRenderingDialog", mainMenu,
+                                  "Rendering");
+    showRenderingDialog->setToggle(false);
+    showRenderingDialog->getValueChangedCallbacks().add(
+          this, &MooseViewer::showRenderingDialogCallback);
+    }
 
   mainMenu->manageChild();
+
+  this->widgetHints->popGroup();
+
   return mainMenuPopup;
 }
 
 //----------------------------------------------------------------------------
 GLMotif::Popup* MooseViewer::createRepresentationMenu(void)
 {
+  this->widgetHints->pushGroup("Representation");
+
   const GLMotif::StyleSheet* ss = Vrui::getWidgetManager()->getStyleSheet();
 
   GLMotif::Popup* representationMenuPopup =
@@ -290,53 +364,92 @@ GLMotif::Popup* MooseViewer::createRepresentationMenu(void)
   GLMotif::SubMenu* representationMenu = new GLMotif::SubMenu(
     "representationMenu", representationMenuPopup, false);
 
-  GLMotif::ToggleButton* showOutline=new GLMotif::ToggleButton(
-    "ShowOutline",representationMenu,"Outline");
-  showOutline->getValueChangedCallbacks().add(
-    this,&MooseViewer::changeRepresentationCallback);
-  showOutline->setToggle(true);
+  if (this->widgetHints->isEnabled("Outline"))
+    {
+    GLMotif::ToggleButton* showOutline=new GLMotif::ToggleButton(
+          "ShowOutline",representationMenu,"Outline");
+    showOutline->getValueChangedCallbacks().add(
+          this,&MooseViewer::changeRepresentationCallback);
+    showOutline->setToggle(true);
+    }
 
-  GLMotif::Label* representation_Label = new GLMotif::Label(
-    "Representations", representationMenu,"Representations:");
+  if (this->widgetHints->isEnabled("Representations"))
+    {
+    GLMotif::Label* representation_Label = new GLMotif::Label(
+          "Representations", representationMenu,"Representations:");
+    }
 
   GLMotif::RadioBox* representation_RadioBox =
     new GLMotif::RadioBox("Representation RadioBox",representationMenu,true);
 
-  GLMotif::ToggleButton* showNone=new GLMotif::ToggleButton(
-    "ShowNone",representation_RadioBox,"None");
-  showNone->getValueChangedCallbacks().add(
-    this,&MooseViewer::changeRepresentationCallback);
-  GLMotif::ToggleButton* showPoints=new GLMotif::ToggleButton(
-    "ShowPoints",representation_RadioBox,"Points");
-  showPoints->getValueChangedCallbacks().add(
-    this,&MooseViewer::changeRepresentationCallback);
-  GLMotif::ToggleButton* showWireframe=new GLMotif::ToggleButton(
-    "ShowWireframe",representation_RadioBox,"Wireframe");
-  showWireframe->getValueChangedCallbacks().add(
-    this,&MooseViewer::changeRepresentationCallback);
-  GLMotif::ToggleButton* showSurface=new GLMotif::ToggleButton(
-    "ShowSurface",representation_RadioBox,"Surface");
-  showSurface->getValueChangedCallbacks().add(
-    this,&MooseViewer::changeRepresentationCallback);
-  GLMotif::ToggleButton* showSurfaceWithEdges=new GLMotif::ToggleButton(
-    "ShowSurfaceWithEdges",representation_RadioBox,"Surface with Edges");
-  showSurfaceWithEdges->getValueChangedCallbacks().add(
-    this,&MooseViewer::changeRepresentationCallback);
-  GLMotif::ToggleButton* showVolume=new GLMotif::ToggleButton(
-    "ShowVolume",representation_RadioBox,"Volume");
-  showVolume->getValueChangedCallbacks().add(
-    this,&MooseViewer::changeRepresentationCallback);
+  // Set to the default selected option. If left NULL, the first representation
+  // is chosen.
+  GLMotif::ToggleButton *selected = NULL;
+
+  if (this->widgetHints->isEnabled("None"))
+    {
+    GLMotif::ToggleButton* showNone=new GLMotif::ToggleButton(
+          "ShowNone",representation_RadioBox,"None");
+    showNone->getValueChangedCallbacks().add(
+          this,&MooseViewer::changeRepresentationCallback);
+    }
+  if (this->widgetHints->isEnabled("Points"))
+    {
+    GLMotif::ToggleButton* showPoints=new GLMotif::ToggleButton(
+          "ShowPoints",representation_RadioBox,"Points");
+    showPoints->getValueChangedCallbacks().add(
+          this,&MooseViewer::changeRepresentationCallback);
+    }
+  if (this->widgetHints->isEnabled("Wireframe"))
+    {
+    GLMotif::ToggleButton* showWireframe=new GLMotif::ToggleButton(
+          "ShowWireframe",representation_RadioBox,"Wireframe");
+    showWireframe->getValueChangedCallbacks().add(
+          this,&MooseViewer::changeRepresentationCallback);
+    }
+  if (this->widgetHints->isEnabled("Surface"))
+    {
+    GLMotif::ToggleButton* showSurface=new GLMotif::ToggleButton(
+          "ShowSurface",representation_RadioBox,"Surface");
+    showSurface->getValueChangedCallbacks().add(
+          this,&MooseViewer::changeRepresentationCallback);
+    selected = showSurface;
+    }
+  if (this->widgetHints->isEnabled("SurfaceWithEdges"))
+    {
+    GLMotif::ToggleButton* showSurfaceWithEdges=new GLMotif::ToggleButton(
+          "ShowSurfaceWithEdges",representation_RadioBox,"Surface with Edges");
+    showSurfaceWithEdges->getValueChangedCallbacks().add(
+          this,&MooseViewer::changeRepresentationCallback);
+    }
+  if (this->widgetHints->isEnabled("Volume"))
+    {
+    GLMotif::ToggleButton* showVolume=new GLMotif::ToggleButton(
+          "ShowVolume",representation_RadioBox,"Volume");
+    showVolume->getValueChangedCallbacks().add(
+          this,&MooseViewer::changeRepresentationCallback);
+    }
 
   representation_RadioBox->setSelectionMode(GLMotif::RadioBox::ALWAYS_ONE);
-  representation_RadioBox->setSelectedToggle(showSurface);
+  if (selected != NULL)
+    {
+    representation_RadioBox->setSelectedToggle(selected);
+    }
+  else
+    {
+    representation_RadioBox->setSelectedToggle(0);
+    }
 
   representationMenu->manageChild();
+  this->widgetHints->popGroup();
   return representationMenuPopup;
 }
 
 //----------------------------------------------------------------------------
 GLMotif::Popup * MooseViewer::createAnalysisToolsMenu(void)
 {
+  this->widgetHints->pushGroup("AnalysisTools");
+
   const GLMotif::StyleSheet* ss = Vrui::getWidgetManager()->getStyleSheet();
 
   GLMotif::Popup * analysisToolsMenuPopup = new GLMotif::Popup(
@@ -347,15 +460,31 @@ GLMotif::Popup * MooseViewer::createAnalysisToolsMenu(void)
   GLMotif::RadioBox * analysisTools_RadioBox = new GLMotif::RadioBox(
     "analysisTools", analysisToolsMenu, true);
 
-  GLMotif::ToggleButton* showClippingPlane=new GLMotif::ToggleButton(
-    "ClippingPlane",analysisTools_RadioBox,"Clipping Plane");
-  showClippingPlane->getValueChangedCallbacks().add(
-    this,&MooseViewer::changeAnalysisToolsCallback);
+  // Set to the default selected option. If left NULL, the first representation
+  // is chosen.
+  GLMotif::ToggleButton *selected = NULL;
+
+  if (this->widgetHints->isEnabled("ClippingPlane"))
+    {
+    GLMotif::ToggleButton* showClippingPlane=new GLMotif::ToggleButton(
+          "ClippingPlane",analysisTools_RadioBox,"Clipping Plane");
+    showClippingPlane->getValueChangedCallbacks().add(
+          this,&MooseViewer::changeAnalysisToolsCallback);
+    selected = showClippingPlane;
+    }
 
   analysisTools_RadioBox->setSelectionMode(GLMotif::RadioBox::ALWAYS_ONE);
-  analysisTools_RadioBox->setSelectedToggle(showClippingPlane);
+  if (selected != NULL)
+    {
+    analysisTools_RadioBox->setSelectedToggle(selected);
+    }
+  else
+    {
+    analysisTools_RadioBox->setSelectedToggle(0);
+    }
 
   analysisToolsMenu->manageChild();
+  this->widgetHints->popGroup();
   return analysisToolsMenuPopup;
 }
 
@@ -615,29 +744,90 @@ void MooseViewer::updateColorByVariablesMenu(void)
 //----------------------------------------------------------------------------
 GLMotif::Popup* MooseViewer::createColorMapSubMenu(void)
 {
+  this->widgetHints->pushGroup("ColorMap");
+
   GLMotif::Popup * colorMapSubMenuPopup = new GLMotif::Popup(
     "ColorMapSubMenuPopup", Vrui::getWidgetManager());
   GLMotif::RadioBox* colorMaps = new GLMotif::RadioBox(
     "ColorMaps", colorMapSubMenuPopup, false);
   colorMaps->setSelectionMode(GLMotif::RadioBox::ALWAYS_ONE);
-  colorMaps->addToggle("Full Rainbow");
-  colorMaps->addToggle("Inverse Full Rainbow");
-  colorMaps->addToggle("Rainbow");
-  colorMaps->addToggle("Inverse Rainbow");
-  colorMaps->addToggle("Cold to Hot");
-  colorMaps->addToggle("Hot to Cold");
-  colorMaps->addToggle("Black to White");
-  colorMaps->addToggle("White to Black");
-  colorMaps->addToggle("HSB Hues");
-  colorMaps->addToggle("Inverse HSB Hues");
-  colorMaps->addToggle("Davinci");
-  colorMaps->addToggle("Inverse Davinci");
-  colorMaps->addToggle("Seismic");
-  colorMaps->addToggle("Inverse Seismic");
-  colorMaps->setSelectedToggle(3);
+
+  // This needs to end up pointing at InverseRainbow if enabled, or the first
+  // map otherwise:
+  int selectedToggle = 0;
+
+  if (this->widgetHints->isEnabled("FullRainbow"))
+    {
+    ++selectedToggle;
+    colorMaps->addToggle("Full Rainbow");
+    }
+  if (this->widgetHints->isEnabled("InverseFullRainbow"))
+    {
+    ++selectedToggle;
+    colorMaps->addToggle("Inverse Full Rainbow");
+    }
+  if (this->widgetHints->isEnabled("Rainbow"))
+    {
+    ++selectedToggle;
+    colorMaps->addToggle("Rainbow");
+    }
+  if (this->widgetHints->isEnabled("InverseRainbow"))
+    {
+    colorMaps->addToggle("Inverse Rainbow");
+    }
+  else
+    {
+    selectedToggle = 0;
+    }
+  if (this->widgetHints->isEnabled("ColdToHot"))
+    {
+    colorMaps->addToggle("Cold to Hot");
+    }
+  if (this->widgetHints->isEnabled("HotToCold"))
+    {
+    colorMaps->addToggle("Hot to Cold");
+    }
+  if (this->widgetHints->isEnabled("BlackToWhite"))
+    {
+    colorMaps->addToggle("Black to White");
+    }
+  if (this->widgetHints->isEnabled("WhiteToBlack"))
+    {
+    colorMaps->addToggle("White to Black");
+    }
+  if (this->widgetHints->isEnabled("HSBHues"))
+    {
+    colorMaps->addToggle("HSB Hues");
+    }
+  if (this->widgetHints->isEnabled("InverseHSBHues"))
+    {
+    colorMaps->addToggle("Inverse HSB Hues");
+    }
+  if (this->widgetHints->isEnabled("Davinci"))
+    {
+    colorMaps->addToggle("Davinci");
+    }
+  if (this->widgetHints->isEnabled("InverseDavinci"))
+    {
+    colorMaps->addToggle("Inverse Davinci");
+    }
+  if (this->widgetHints->isEnabled("Seismic"))
+    {
+    colorMaps->addToggle("Seismic");
+    }
+  if (this->widgetHints->isEnabled("InverseSeismic"))
+    {
+    colorMaps->addToggle("Inverse Seismic");
+    }
+
+  colorMaps->setSelectedToggle(selectedToggle);
   colorMaps->getValueChangedCallbacks().add(this,
     &MooseViewer::changeColorMapCallback);
+
   colorMaps->manageChild();
+
+  this->widgetHints->popGroup();
+
   return colorMapSubMenuPopup;
 } // end createColorMapSubMenu()
 

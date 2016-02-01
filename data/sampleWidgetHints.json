@@ -1,0 +1,12 @@
+{
+    "MainMenu" : {
+        "ColorMap" : {
+            "enabled" : true,
+            "InverseRainbow" : { "enabled":false },
+            "HotToCold" : { "enabled":false },
+            "HSBHues" : { "enabled":false }
+        },
+        "Contours" : { "enabled":false },
+        "Isosurfaces" : { "enabled":false }
+    }
+}
