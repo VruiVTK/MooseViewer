@@ -1,7 +1,6 @@
 // VTK includes
 #include <ExternalVTKWidget.h>
 #include <vtkActor.h>
-#include <vtkAppendPolyData.h>
 #include <vtkCheckerboardSplatter.h>
 #include <vtkColorTransferFunction.h>
 #include <vtkCompositeDataGeometryFilter.h>
@@ -12,12 +11,10 @@
 #include <vtkPolyDataMapper.h>
 #include <vtkProperty.h>
 #include <vtkSmartVolumeMapper.h>
-#include <vtkSMPContourGrid.h>
 #include <vtkTextActor.h>
 #include <vtkTextProperty.h>
 #include <vtkVolume.h>
 #include <vtkVolumeProperty.h>
-#include <vtkSpanSpace.h>
 #include <vtkNew.h>
 
 // MooseViewer includes
@@ -80,55 +77,6 @@ MooseViewer::DataItem::DataItem(void)
   this->actorVolume->SetMapper(this->mapperVolume);
   this->actorVolume->SetProperty(volumeProperty);
   this->renderer->AddVolume(this->actorVolume);
-
-  vtkNew<vtkSpanSpace> aSpanTree;
-  aSpanTree->SetResolution(100);
-  vtkNew<vtkSpanSpace> bSpanTree;
-  bSpanTree->SetResolution(100);
-  vtkNew<vtkSpanSpace> cSpanTree;
-  cSpanTree->SetResolution(100);
-  this->aContour = vtkSmartPointer<vtkSMPContourGrid>::New();
-  this->aContour->ComputeScalarsOn();
-  this->aContour->UseScalarTreeOn();
-  this->aContour->GenerateTrianglesOff();
-  this->aContour->MergePiecesOff();
-  this->aContour->SetScalarTree(aSpanTree.GetPointer());
-  this->aContourMapper = vtkSmartPointer<vtkCompositePolyDataMapper>::New();
-  this->aContourMapper->SetInputConnection(this->aContour->GetOutputPort());
-  this->aContourMapper->ScalarVisibilityOn();
-  this->aContourMapper->SetColorModeToMapScalars();
-  this->aContourMapper->SetScalarModeToUsePointData();
-  this->actorAContour = vtkSmartPointer<vtkActor>::New();
-  this->actorAContour->SetMapper(this->aContourMapper);
-  this->renderer->AddVolume(this->actorAContour);
-  this->bContour = vtkSmartPointer<vtkSMPContourGrid>::New();
-  this->bContour->ComputeScalarsOn();
-  this->bContour->UseScalarTreeOn();
-  this->bContour->GenerateTrianglesOff();
-  this->bContour->MergePiecesOff();
-  this->bContour->SetScalarTree(bSpanTree.GetPointer());
-  this->bContourMapper = vtkSmartPointer<vtkCompositePolyDataMapper>::New();
-  this->bContourMapper->SetInputConnection(this->bContour->GetOutputPort());
-  this->bContourMapper->ScalarVisibilityOn();
-  this->bContourMapper->SetColorModeToMapScalars();
-  this->bContourMapper->SetScalarModeToUsePointData();
-  this->actorBContour = vtkSmartPointer<vtkActor>::New();
-  this->actorBContour->SetMapper(this->bContourMapper);
-  this->renderer->AddVolume(this->actorBContour);
-  this->cContour = vtkSmartPointer<vtkSMPContourGrid>::New();
-  this->cContour->ComputeScalarsOn();
-  this->cContour->UseScalarTreeOn();
-  this->cContour->GenerateTrianglesOff();
-  this->cContour->MergePiecesOff();
-  this->cContour->SetScalarTree(cSpanTree.GetPointer());
-  this->cContourMapper = vtkSmartPointer<vtkCompositePolyDataMapper>::New();
-  this->cContourMapper->SetInputConnection(this->cContour->GetOutputPort());
-  this->cContourMapper->ScalarVisibilityOn();
-  this->cContourMapper->SetColorModeToMapScalars();
-  this->cContourMapper->SetScalarModeToUsePointData();
-  this->actorCContour = vtkSmartPointer<vtkActor>::New();
-  this->actorCContour->SetMapper(this->cContourMapper);
-  this->renderer->AddVolume(this->actorCContour);
 
   this->framerate = vtkSmartPointer<vtkTextActor>::New();
   this->framerate->GetTextProperty()->SetJustificationToLeft();

@@ -10,7 +10,6 @@
 // Forward declarations
 class ExternalVTKWidget;
 class vtkActor;
-class vtkAppendPolyData;
 class vtkCheckerboardSplatter;
 class vtkColorTransferFunction;
 class vtkCompositeDataGeometryFilter;
@@ -20,7 +19,6 @@ class vtkLookupTable;
 class vtkPiecewiseFunction;
 class vtkPolyDataMapper;
 class vtkSmartVolumeMapper;
-class vtkSMPContourGrid;
 class vtkTextActor;
 class vtkVolume;
 
@@ -42,16 +40,6 @@ public:
   vtkSmartPointer<vtkSmartVolumeMapper> mapperVolume;
   vtkSmartPointer<vtkColorTransferFunction> colorFunction;
   vtkSmartPointer<vtkPiecewiseFunction> opacityFunction;
-
-  vtkSmartPointer<vtkSMPContourGrid> aContour;
-  vtkSmartPointer<vtkCompositePolyDataMapper> aContourMapper;
-  vtkSmartPointer<vtkActor> actorAContour;
-  vtkSmartPointer<vtkSMPContourGrid> bContour;
-  vtkSmartPointer<vtkCompositePolyDataMapper> bContourMapper;
-  vtkSmartPointer<vtkActor> actorBContour;
-  vtkSmartPointer<vtkSMPContourGrid> cContour;
-  vtkSmartPointer<vtkCompositePolyDataMapper> cContourMapper;
-  vtkSmartPointer<vtkActor> actorCContour;
 
   vtkSmartPointer<vtkTextActor> framerate;
 
