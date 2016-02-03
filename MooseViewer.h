@@ -35,8 +35,8 @@ class AnimationDialog;
 class BaseLocator;
 class ClippingPlane;
 class Contours;
-class Isosurfaces;
 class TransferFunction1D;
+class UnstructuredContourObject;
 class VariablesDialog;
 class vtkDataArray;
 class vtkExodusIIReader;
@@ -49,6 +49,8 @@ class MooseViewer:public Vrui::Application,public GLObject
   typedef std::vector<BaseLocator*> BaseLocatorList;
 private:
   struct DataItem;
+
+  UnstructuredContourObject *m_contours;
 
   /* Hints for widgets: */
   std::string widgetHintsFile;
@@ -69,6 +71,9 @@ private:
   void updateVariablesDialog(void);
   void updateColorByVariablesMenu(void);
   std::string getSelectedColorByArrayName(void) const;
+
+  // Note: this should only be used during testing/debugging. Internally,
+  // it executes a composite geometry filter...
   vtkSmartPointer<vtkDataArray> getSelectedArray(int & type) const;
 
   /* Variables dialog */
@@ -138,17 +143,6 @@ private:
   bool ContourVisible;
   std::vector<double> ContourValues;
 
-  /* Isosurfaces dialog */
-  float aIsosurface;
-  float bIsosurface;
-  float cIsosurface;
-  bool AIsosurface;
-  bool BIsosurface;
-  bool CIsosurface;
-  double* IsosurfaceColormap;
-  vtkSmartPointer<vtkLookupTable> isosurfaceLUT;
-  Isosurfaces* isosurfacesDialog;
-
   /* Volume visible */
   bool Volume;
   GLMotif::TextField* sampleValue;
@@ -216,16 +210,6 @@ public:
   virtual void display(GLContextData& contextData) const;
   virtual void frame(void);
 
-  /* Isosurface */
-  void setIsosurfaceColorMapChanged(bool SliceColorMapChanged);
-  void updateIsosurfaceColorMap(double* SliceColormap);
-  void setAIsosurface(float aIsosurface);
-  void setBIsosurface(float bIsosurface);
-  void setCIsosurface(float cIsosurface);
-  void showAIsosurface(bool AIsosurface);
-  void showBIsosurface(bool BIsosurface);
-  void showCIsosurface(bool CIsosurface);
-
   /* Custom scalar range */
   void setScalarMinimum(double min);
   void setScalarMaximum(double max);
@@ -243,7 +227,6 @@ public:
   void showColorEditorDialogCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
   void showContoursDialogCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
   void showAnimationDialogCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
-  void showIsosurfacesDialogCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
   void changeAnalysisToolsCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
   void changeVariablesCallback(GLMotif::ListBox::SelectionChangedCallbackData* callBackData);
   void changeColorByVariablesCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);

@@ -44,6 +44,7 @@ INCLUDE(InstallRequiredSystemLibraries)
 SET(${PROJECT_NAME}_SRCS
   AnimationDialog.cpp
   AnimationDialog.h
+  ArrayLocator.h
   BaseLocator.cpp
   BaseLocator.h
   ClippingPlane.cpp
@@ -66,8 +67,6 @@ SET(${PROJECT_NAME}_SRCS
   DataItem.h
   Gaussian.cpp
   Gaussian.h
-  Isosurfaces.cpp
-  Isosurfaces.h
   main.cpp
   MooseViewer.cpp
   MooseViewer.h
@@ -91,6 +90,8 @@ SET(${PROJECT_NAME}_SRCS
   SwatchesWidget.h
   TransferFunction1D.cpp
   TransferFunction1D.h
+  UnstructuredContourObject.cpp
+  UnstructuredContourObject.h
   VariablesDialog.cpp
   VariablesDialog.h
   WidgetHints.cpp

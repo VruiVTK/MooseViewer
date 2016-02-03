@@ -10,11 +10,11 @@
 // Forward declarations
 class ExternalVTKWidget;
 class vtkActor;
-class vtkAppendPolyData;
 class vtkCheckerboardSplatter;
 class vtkColorTransferFunction;
 class vtkCompositeDataGeometryFilter;
-class vtkContourFilter;
+class vtkCompositePolyDataMapper;
+class vtkExternalOpenGLRenderer;
 class vtkLookupTable;
 class vtkPiecewiseFunction;
 class vtkPolyDataMapper;
@@ -28,31 +28,18 @@ struct MooseViewer::DataItem : public GLObject::DataItem
 public:
   /* VTK components */
   vtkSmartPointer<ExternalVTKWidget> externalVTKWidget;
+  vtkSmartPointer<vtkExternalOpenGLRenderer> renderer;
   vtkSmartPointer<vtkActor> actor;
   vtkSmartPointer<vtkActor> actorOutline;
   vtkSmartPointer<vtkCompositeDataGeometryFilter> compositeFilter;
   vtkSmartPointer<vtkPolyDataMapper> mapper;
   vtkSmartPointer<vtkLookupTable> lut;
 
-  vtkSmartPointer<vtkAppendPolyData> contours;
-  vtkSmartPointer<vtkActor> contourActor;
-  vtkSmartPointer<vtkPolyDataMapper> contourMapper;
-
   vtkSmartPointer<vtkCheckerboardSplatter> gaussian;
   vtkSmartPointer<vtkVolume> actorVolume;
   vtkSmartPointer<vtkSmartVolumeMapper> mapperVolume;
   vtkSmartPointer<vtkColorTransferFunction> colorFunction;
   vtkSmartPointer<vtkPiecewiseFunction> opacityFunction;
-
-  vtkSmartPointer<vtkContourFilter> aContour;
-  vtkSmartPointer<vtkPolyDataMapper> aContourMapper;
-  vtkSmartPointer<vtkActor> actorAContour;
-  vtkSmartPointer<vtkContourFilter> bContour;
-  vtkSmartPointer<vtkPolyDataMapper> bContourMapper;
-  vtkSmartPointer<vtkActor> actorBContour;
-  vtkSmartPointer<vtkContourFilter> cContour;
-  vtkSmartPointer<vtkPolyDataMapper> cContourMapper;
-  vtkSmartPointer<vtkActor> actorCContour;
 
   vtkSmartPointer<vtkTextActor> framerate;
 

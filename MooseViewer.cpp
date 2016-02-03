@@ -16,7 +16,9 @@
 #include <vtkCheckerboardSplatter.h>
 #include <vtkColorTransferFunction.h>
 #include <vtkCompositeDataGeometryFilter.h>
-#include <vtkContourFilter.h>
+#include <vtkCompositeDataIterator.h>
+#include <vtkCompositePolyDataMapper.h>
+#include <vtkSMPContourGrid.h>
 #include <vtkCubeSource.h>
 #include <vtkExodusIIReader.h>
 #include <vtkImageData.h>
@@ -31,6 +33,7 @@
 #include <vtkSmartVolumeMapper.h>
 #include <vtkTextActor.h>
 #include <vtkUnstructuredGrid.h>
+#include <vtkSpanSpace.h>
 
 // OpenGL/Motif includes
 #include <GL/GLContextData.h>
@@ -58,29 +61,24 @@
 
 // MooseViewer includes
 #include "AnimationDialog.h"
+#include "ArrayLocator.h"
 #include "BaseLocator.h"
 #include "ClippingPlane.h"
 #include "ClippingPlaneLocator.h"
 #include "ColorMap.h"
 #include "Contours.h"
 #include "DataItem.h"
-#include "Isosurfaces.h"
 #include "MooseViewer.h"
 #include "ScalarWidget.h"
 #include "TransferFunction1D.h"
+#include "UnstructuredContourObject.h"
 #include "VariablesDialog.h"
 #include "WidgetHints.h"
 
 //----------------------------------------------------------------------------
 MooseViewer::MooseViewer(int& argc,char**& argv)
   :Vrui::Application(argc,argv),
-  aIsosurface(0),
-  AIsosurface(false),
   analysisTool(0),
-  bIsosurface(0),
-  BIsosurface(false),
-  cIsosurface(0),
-  CIsosurface(false),
   ClippingPlanes(NULL),
   colorByVariablesMenu(0),
   ContoursDialog(NULL),
@@ -89,10 +87,10 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   GaussianSplatterDims(30),
   GaussianSplatterExp(-1.0),
   GaussianSplatterRadius(0.01),
-  isosurfacesDialog(NULL),
   IsPlaying(false),
   Loop(false),
   mainMenu(NULL),
+  m_contours(new UnstructuredContourObject),
   NumberOfClippingPlanes(6),
   Opacity(1.0),
   opacityValue(NULL),
@@ -115,6 +113,10 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   Vrui::WindowProperties properties;
   properties.setColorBufferSize(0,1);
   Vrui::requestWindowProperties(properties);
+
+  // Children must be initialized before MooseViewer so that syncContext will
+  // work.
+  this->dependsOn(m_contours);
 }
 
 //----------------------------------------------------------------------------
@@ -124,14 +126,13 @@ MooseViewer::~MooseViewer(void)
   delete[] this->ClippingPlanes;
   delete[] this->DataBounds;
   delete[] this->Histogram;
-  delete[] this->IsosurfaceColormap;
   delete[] this->ScalarRange;
 
   delete this->AnimationControl;
   delete this->ColorEditor;
   delete this->ContoursDialog;
-  delete this->isosurfacesDialog;
   delete this->mainMenu;
+  delete this->m_contours;
   delete this->renderingDialog;
   delete this->variablesDialog;
   delete this->widgetHints;
@@ -163,13 +164,6 @@ void MooseViewer::Initialize()
   this->variables.clear();
 
   this->DataBounds = new double[6];
-
-  /* Isosurfaces */
-  this->IsosurfaceColormap = new double[4*256];
-
-  this->isosurfaceLUT = vtkSmartPointer<vtkLookupTable>::New();
-  this->isosurfaceLUT->SetNumberOfColors(256);
-  this->isosurfaceLUT->Build();
 
   /* Color Map */
   this->ColorMap = new double[4*256];
@@ -312,16 +306,6 @@ GLMotif::PopupMenu* MooseViewer::createMainMenu(void)
     showContoursDialog->setToggle(false);
     showContoursDialog->getValueChangedCallbacks().add(
           this, &MooseViewer::showContoursDialogCallback);
-    }
-
-  if (this->widgetHints->isEnabled("Isosurfaces"))
-    {
-    GLMotif::ToggleButton * showIsosurfacesDialog =
-        new GLMotif::ToggleButton("ShowIsosurfacesDialog", mainMenu,
-                                  "Isosurfaces");
-    showIsosurfacesDialog->setToggle(false);
-    showIsosurfacesDialog->getValueChangedCallbacks().add(
-          this, &MooseViewer::showIsosurfacesDialogCallback);
     }
 
   if (this->widgetHints->isEnabled("CenterDisplay"))
@@ -838,18 +822,6 @@ void MooseViewer::frame(void)
     updateColorMap();
     updateAlpha();
 
-    /* Isosurfaces */
-    this->isosurfacesDialog = new Isosurfaces(
-      this->IsosurfaceColormap, this);
-    this->isosurfacesDialog->setIsosurfacesColorMap(
-      CINVERSE_RAINBOW, 0.0, 1.0);
-    this->isosurfacesDialog->exportIsosurfacesColorMap(
-      this->IsosurfaceColormap);
-    this->updateIsosurfaceColorMap(this->IsosurfaceColormap);
-    this->aIsosurface = 0.0;
-    this->bIsosurface = 0.0;
-    this->cIsosurface = 0.0;
-
     /* Contours */
     this->ContoursDialog = new Contours(this);
     this->ContoursDialog->getAlphaChangedCallbacks().add(this,
@@ -889,6 +861,27 @@ void MooseViewer::frame(void)
       this->FrameTimes.back() = this->FrameTimer.getTime();
       }
     }
+
+  // Get scalar array metadata.
+  std::string arrayName = this->getSelectedColorByArrayName();
+  ArrayLocator locator(this->reader->GetOutput(), arrayName);
+
+  // Convert contour values from [0, 255] to scalar range:
+  // TODO this would be nice to have handled already by the widget or callback.
+  std::vector<double> scaledContourValues(this->ContourValues);
+  for (std::vector<double>::iterator it = scaledContourValues.begin(),
+       itEnd = scaledContourValues.end(); it != itEnd; ++it)
+    {
+    *it = (*it/255.) * (locator.Range[1] - locator.Range[0]) + locator.Range[0];
+    }
+
+  // Setup child GLObjects:
+  this->m_contours->setVisible(this->ContourVisible);
+  this->m_contours->setInput(reader->GetOutput());
+  this->m_contours->setColorByArrayName(arrayName);
+  this->m_contours->setContourValues(scaledContourValues);
+  this->m_contours->update(locator);
+
   this->updateColorMap();
   this->updateAlpha();
   if (this->IsPlaying)
@@ -929,6 +922,9 @@ void MooseViewer::initContext(GLContextData& contextData) const
   DataItem* dataItem = new DataItem();
   contextData.addDataItem(this, dataItem);
 
+  m_contours->initRenderer(contextData, dataItem->renderer);
+  m_contours->setLookupTable(contextData, dataItem->lut);
+
   vtkNew<vtkOutlineFilter> dataOutline;
 
   dataItem->compositeFilter->SetInputConnection(this->reader->GetOutputPort());
@@ -943,15 +939,6 @@ void MooseViewer::initContext(GLContextData& contextData) const
   mapperOutline->SetInputConnection(dataOutline->GetOutputPort());
   dataItem->actorOutline->SetMapper(mapperOutline.GetPointer());
   dataItem->actorOutline->GetProperty()->SetColor(1,1,1);
-
-  dataItem->aContour->SetValue(0, this->aIsosurface);
-  dataItem->aContourMapper->SetLookupTable(this->isosurfaceLUT);
-
-  dataItem->bContour->SetValue(0, this->bIsosurface);
-  dataItem->bContourMapper->SetLookupTable(this->isosurfaceLUT);
-
-  dataItem->cContour->SetValue(0, this->cIsosurface);
-  dataItem->cContourMapper->SetLookupTable(this->isosurfaceLUT);
 }
 
 //----------------------------------------------------------------------------
@@ -977,8 +964,11 @@ void MooseViewer::display(GLContextData& contextData) const
       }
     }
 
-  /* Make sure the reader M-time changes for each context */
-  this->reader->Update();
+  /* Grab the reader's data set. */
+  vtkDataSet *inputDataSet =
+      vtkDataSet::SafeDownCast(
+        vtkMultiBlockDataSet::SafeDownCast(
+          this->reader->GetOutput()->GetBlock(0))->GetBlock(0));
 
   /* Get context data item */
   DataItem* dataItem = contextData.retrieveDataItem<DataItem>(this);
@@ -1002,6 +992,10 @@ void MooseViewer::display(GLContextData& contextData) const
   double* dataRange = NULL;
   if (!selectedArray.empty())
     {
+    // TODO This is screwing up the mtimes. This should be set on the filters
+    // that need it.
+//    inputDataSet->GetPointData()->SetActiveScalars(selectedArray.c_str());
+
     dataItem->mapper->SelectColorArray(selectedArray.c_str());
 
     bool dataArrayFound = true;
@@ -1047,10 +1041,6 @@ void MooseViewer::display(GLContextData& contextData) const
     if (dataArrayFound)
       {
       dataRange = dataArray->GetRange();
-      dataItem->aContourMapper->SetScalarRange(dataRange);
-      dataItem->bContourMapper->SetScalarRange(dataRange);
-      dataItem->cContourMapper->SetScalarRange(dataRange);
-      this->isosurfaceLUT->SetTableRange(dataRange);
       dataRange[0] = this->ScalarRange[0];
       dataRange[1] = this->ScalarRange[1];
       dataItem->mapper->SetScalarRange(dataRange);
@@ -1135,110 +1125,8 @@ void MooseViewer::display(GLContextData& contextData) const
     dataItem->actorVolume->VisibilityOff();
     }
 
-  /* Isosurfaces */
-  if (this->AIsosurface)
-    {
-    if (!selectedArray.empty() && (selectedArrayType >= 0) && dataRange)
-      {
-      dataItem->aContour->SetInputData(vtkMultiBlockDataSet::SafeDownCast(
-          this->reader->GetOutput()->GetBlock(0))->GetBlock(0));
-      double aIsosurfaceValue = (this->aIsosurface / 255.0)*
-        (dataRange[1] - dataRange[0]) + dataRange[0];
-      dataItem->aContour->SetInputArrayToProcess(0,0,0,
-          vtkDataObject::FIELD_ASSOCIATION_POINTS, selectedArray.c_str());
-      dataItem->aContour->SetValue(0, aIsosurfaceValue);
-      dataItem->aContour->GetOutput()->GetPointData()->SetActiveScalars(
-        selectedArray.c_str());
-      dataItem->actorAContour->VisibilityOn();
-      }
-    }
-  else
-    {
-    dataItem->actorAContour->VisibilityOff();
-    }
-
-  if (this->BIsosurface)
-    {
-    if (!selectedArray.empty() && (selectedArrayType >= 0) && dataRange)
-      {
-      dataItem->bContour->SetInputData(vtkMultiBlockDataSet::SafeDownCast(
-          this->reader->GetOutput()->GetBlock(0))->GetBlock(0));
-      double bIsosurfaceValue = (this->bIsosurface / 255.0)*
-        (dataRange[1] - dataRange[0]) + dataRange[0];
-      dataItem->bContour->SetInputArrayToProcess(0,0,0,
-          vtkDataObject::FIELD_ASSOCIATION_POINTS, selectedArray.c_str());
-      dataItem->bContour->SetValue(0, bIsosurfaceValue);
-      dataItem->bContour->GetOutput()->GetPointData()->SetActiveScalars(
-        selectedArray.c_str());
-      dataItem->actorBContour->VisibilityOn();
-      }
-    }
-  else
-    {
-    dataItem->actorBContour->VisibilityOff();
-    }
-
-  if (this->CIsosurface)
-    {
-    if (!selectedArray.empty() && (selectedArrayType >= 0) && dataRange)
-      {
-      dataItem->cContour->SetInputData(vtkMultiBlockDataSet::SafeDownCast(
-          this->reader->GetOutput()->GetBlock(0))->GetBlock(0));
-      double cIsosurfaceValue = (this->cIsosurface / 255.0)*
-        (dataRange[1] - dataRange[0]) + dataRange[0];
-      dataItem->cContour->SetInputArrayToProcess(0,0,0,
-          vtkDataObject::FIELD_ASSOCIATION_POINTS, selectedArray.c_str());
-      dataItem->cContour->SetValue(0, cIsosurfaceValue);
-      dataItem->cContour->GetOutput()->GetPointData()->SetActiveScalars(
-        selectedArray.c_str());
-      dataItem->actorCContour->VisibilityOn();
-      }
-    }
-  else
-    {
-    dataItem->actorCContour->VisibilityOff();
-    }
-
   /* Contours */
-  if (this->ContourVisible)
-    {
-    if (!selectedArray.empty() && (selectedArrayType >= 0) && dataRange
-      && this->ContourValues.size())
-      {
-      vtkSmartPointer<vtkMultiBlockDataSet> mb =
-        vtkMultiBlockDataSet::SafeDownCast(
-          this->reader->GetOutput()->GetBlock(0));
-      dataItem->contours->RemoveAllInputConnections(0);
-      for (int i = 0; i < mb->GetNumberOfBlocks(); ++i)
-        {
-        vtkNew<vtkCellDataToPointData> cellToPointData;
-        cellToPointData->SetInputData(mb->GetBlock(i));
-
-        vtkNew<vtkContourFilter> contour;
-        contour->ComputeScalarsOn();
-        contour->SetInputConnection(cellToPointData->GetOutputPort());
-        contour->SetInputArrayToProcess(0,0,0,
-          vtkDataObject::FIELD_ASSOCIATION_POINTS, selectedArray.c_str());
-        contour->SetNumberOfContours(this->ContourValues.size());
-        for (int c = 0; c < this->ContourValues.size(); ++c)
-          {
-          double val = (this->ContourValues.at(c) / 255.0)*
-            (dataRange[1] - dataRange[0]) + dataRange[0];
-          contour->SetValue(c, val);
-          }
-        dataItem->contours->AddInputConnection(0, contour->GetOutputPort());
-        }
-      dataItem->contourMapper->SetInputConnection(
-        dataItem->contours->GetOutputPort());
-      dataItem->contourMapper->SetScalarRange(dataRange);
-      dataItem->contourMapper->SelectColorArray(selectedArray.c_str());
-      dataItem->contourActor->VisibilityOn();
-      }
-    }
-  else
-    {
-    dataItem->contourActor->VisibilityOff();
-    }
+  m_contours->syncContext(contextData);
 
   /* Render the scene */
   dataItem->externalVTKWidget->GetRenderWindow()->Render();
@@ -1441,24 +1329,6 @@ void MooseViewer::showAnimationDialogCallback(
       {
       /* Close the transfer function dialog: */
       Vrui::popdownPrimaryWidget(this->AnimationControl);
-    }
-  }
-}
-
-//----------------------------------------------------------------------------
-void MooseViewer::showIsosurfacesDialogCallback(
-  GLMotif::ToggleButton::ValueChangedCallbackData* callBackData)
-{
-  /* open/close isosurfaces dialog based on which toggle button changed state: */
-  if (strcmp(callBackData->toggle->getName(), "ShowIsosurfacesDialog") == 0) {
-    if (callBackData->set) {
-      /* Open the isosurfaces dialog at the same position as the main menu: */
-      Vrui::getWidgetManager()->popupPrimaryWidget(
-        isosurfacesDialog, Vrui::getWidgetManager(
-          )->calcWidgetTransformation(mainMenu));
-    } else {
-      /* Close the isosurfaces dialog: */
-      Vrui::popdownPrimaryWidget(isosurfacesDialog);
     }
   }
 }
@@ -1759,54 +1629,6 @@ void MooseViewer::setRequestedRenderMode(int mode)
 int MooseViewer::getRequestedRenderMode(void) const
 {
   return this->RequestedRenderMode;
-}
-
-//----------------------------------------------------------------------------
-void MooseViewer::setAIsosurface(float aIsosurface)
-{
-  this->aIsosurface = aIsosurface;
-}
-
-//----------------------------------------------------------------------------
-void MooseViewer::setBIsosurface(float bIsosurface)
-{
-  this->bIsosurface = bIsosurface;
-}
-
-//----------------------------------------------------------------------------
-void MooseViewer::setCIsosurface(float cIsosurface)
-{
-  this->cIsosurface = cIsosurface;
-}
-
-//----------------------------------------------------------------------------
-void MooseViewer::showAIsosurface(bool AIsosurface)
-{
-  this->AIsosurface = AIsosurface;
-}
-
-//----------------------------------------------------------------------------
-void MooseViewer::showBIsosurface(bool BIsosurface)
-{
-  this->BIsosurface = BIsosurface;
-}
-
-//----------------------------------------------------------------------------
-void MooseViewer::showCIsosurface(bool CIsosurface)
-{
-  this->CIsosurface = CIsosurface;
-}
-
-//----------------------------------------------------------------------------
-void MooseViewer::updateIsosurfaceColorMap(double* IsosurfaceColormap)
-{
-  this->IsosurfaceColormap = IsosurfaceColormap;
-  for (int i=0;i<256;i++)
-    {
-    this->isosurfaceLUT->SetTableValue(i,
-      this->IsosurfaceColormap[4*i + 0],this->IsosurfaceColormap[4*i + 1],
-      this->IsosurfaceColormap[4*i + 2], 1.0);
-    }
 }
 
 //----------------------------------------------------------------------------
