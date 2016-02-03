@@ -61,6 +61,7 @@
 
 // MooseViewer includes
 #include "AnimationDialog.h"
+#include "ArrayLocator.h"
 #include "BaseLocator.h"
 #include "ClippingPlane.h"
 #include "ClippingPlaneLocator.h"
@@ -71,6 +72,7 @@
 #include "MooseViewer.h"
 #include "ScalarWidget.h"
 #include "TransferFunction1D.h"
+#include "UnstructuredContourObject.h"
 #include "VariablesDialog.h"
 #include "WidgetHints.h"
 
@@ -96,6 +98,7 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   IsPlaying(false),
   Loop(false),
   mainMenu(NULL),
+  m_contours(new UnstructuredContourObject),
   NumberOfClippingPlanes(6),
   Opacity(1.0),
   opacityValue(NULL),
@@ -118,6 +121,10 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   Vrui::WindowProperties properties;
   properties.setColorBufferSize(0,1);
   Vrui::requestWindowProperties(properties);
+
+  // Children must be initialized before MooseViewer so that syncContext will
+  // work.
+  this->dependsOn(m_contours);
 }
 
 //----------------------------------------------------------------------------
@@ -135,6 +142,7 @@ MooseViewer::~MooseViewer(void)
   delete this->ContoursDialog;
   delete this->isosurfacesDialog;
   delete this->mainMenu;
+  delete this->m_contours;
   delete this->renderingDialog;
   delete this->variablesDialog;
   delete this->widgetHints;
@@ -892,6 +900,27 @@ void MooseViewer::frame(void)
       this->FrameTimes.back() = this->FrameTimer.getTime();
       }
     }
+
+  // Get scalar array metadata.
+  std::string arrayName = this->getSelectedColorByArrayName();
+  ArrayLocator locator(this->reader->GetOutput(), arrayName);
+
+  // Convert contour values from [0, 255] to scalar range:
+  // TODO this would be nice to have handled already by the widget or callback.
+  std::vector<double> scaledContourValues(this->ContourValues);
+  for (std::vector<double>::iterator it = scaledContourValues.begin(),
+       itEnd = scaledContourValues.end(); it != itEnd; ++it)
+    {
+    *it = (*it/255.) * (locator.Range[1] - locator.Range[0]) + locator.Range[0];
+    }
+
+  // Setup child GLObjects:
+  this->m_contours->setVisible(this->ContourVisible);
+  this->m_contours->setInput(reader->GetOutput());
+  this->m_contours->setColorByArrayName(arrayName);
+  this->m_contours->setContourValues(scaledContourValues);
+  this->m_contours->update(locator);
+
   this->updateColorMap();
   this->updateAlpha();
   if (this->IsPlaying)
@@ -931,6 +960,9 @@ void MooseViewer::initContext(GLContextData& contextData) const
   /* Create a new context data item */
   DataItem* dataItem = new DataItem();
   contextData.addDataItem(this, dataItem);
+
+  m_contours->initRenderer(contextData, dataItem->renderer);
+  m_contours->setLookupTable(contextData, dataItem->lut);
 
   vtkNew<vtkOutlineFilter> dataOutline;
 
@@ -980,9 +1012,6 @@ void MooseViewer::display(GLContextData& contextData) const
       }
     }
 
-  /* Make sure the reader M-time changes for each context */
-  this->reader->Update();
-
   /* Grab the reader's data set. */
   vtkDataSet *inputDataSet =
       vtkDataSet::SafeDownCast(
@@ -1011,7 +1040,9 @@ void MooseViewer::display(GLContextData& contextData) const
   double* dataRange = NULL;
   if (!selectedArray.empty())
     {
-    inputDataSet->GetPointData()->SetActiveScalars(selectedArray.c_str());
+    // TODO This is screwing up the mtimes. This should be set on the filters
+    // that need it.
+//    inputDataSet->GetPointData()->SetActiveScalars(selectedArray.c_str());
 
     dataItem->mapper->SelectColorArray(selectedArray.c_str());
 
@@ -1196,51 +1227,7 @@ void MooseViewer::display(GLContextData& contextData) const
     }
 
   /* Contours */
-  if (this->ContourVisible)
-    {
-    if (!selectedArray.empty() && (selectedArrayType >= 0) && dataRange
-      && this->ContourValues.size())
-      {
-      vtkSmartPointer<vtkMultiBlockDataSet> mb =
-        vtkMultiBlockDataSet::SafeDownCast(
-          this->reader->GetOutput()->GetBlock(0));
-      dataItem->contours->RemoveAllInputConnections(0);
-      for (int i = 0; i < mb->GetNumberOfBlocks(); ++i)
-        {
-        vtkNew<vtkCellDataToPointData> cellToPointData;
-        cellToPointData->SetInputData(mb->GetBlock(i));
-
-        vtkNew<vtkSpanSpace> spanTree;
-        spanTree->SetResolution(100);
-        vtkNew<vtkSMPContourGrid> contour;
-        contour->UseScalarTreeOn();
-        contour->GenerateTrianglesOff();
-        contour->MergePiecesOff();
-        contour->SetScalarTree(spanTree.GetPointer());
-        contour->ComputeScalarsOn();
-        contour->SetInputConnection(cellToPointData->GetOutputPort());
-        contour->SetInputArrayToProcess(0,0,0,
-          vtkDataObject::FIELD_ASSOCIATION_POINTS, selectedArray.c_str());
-        contour->SetNumberOfContours(this->ContourValues.size());
-        for (int c = 0; c < this->ContourValues.size(); ++c)
-          {
-          double val = (this->ContourValues.at(c) / 255.0)*
-            (dataRange[1] - dataRange[0]) + dataRange[0];
-          contour->SetValue(c, val);
-          }
-        dataItem->contours->AddInputConnection(0, contour->GetOutputPort());
-        }
-      dataItem->contourMapper->SetInputConnection(
-        dataItem->contours->GetOutputPort());
-      dataItem->contourMapper->SetScalarRange(dataRange);
-      dataItem->contourMapper->SelectColorArray(selectedArray.c_str());
-      dataItem->contourActor->VisibilityOn();
-      }
-    }
-  else
-    {
-    dataItem->contourActor->VisibilityOff();
-    }
+  m_contours->syncContext(contextData);
 
   /* Render the scene */
   dataItem->externalVTKWidget->GetRenderWindow()->Render();

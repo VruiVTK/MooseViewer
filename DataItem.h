@@ -15,6 +15,7 @@ class vtkCheckerboardSplatter;
 class vtkColorTransferFunction;
 class vtkCompositeDataGeometryFilter;
 class vtkCompositePolyDataMapper;
+class vtkExternalOpenGLRenderer;
 class vtkLookupTable;
 class vtkPiecewiseFunction;
 class vtkPolyDataMapper;
@@ -29,15 +30,12 @@ struct MooseViewer::DataItem : public GLObject::DataItem
 public:
   /* VTK components */
   vtkSmartPointer<ExternalVTKWidget> externalVTKWidget;
+  vtkSmartPointer<vtkExternalOpenGLRenderer> renderer;
   vtkSmartPointer<vtkActor> actor;
   vtkSmartPointer<vtkActor> actorOutline;
   vtkSmartPointer<vtkCompositeDataGeometryFilter> compositeFilter;
   vtkSmartPointer<vtkPolyDataMapper> mapper;
   vtkSmartPointer<vtkLookupTable> lut;
-
-  vtkSmartPointer<vtkAppendPolyData> contours;
-  vtkSmartPointer<vtkActor> contourActor;
-  vtkSmartPointer<vtkCompositePolyDataMapper> contourMapper;
 
   vtkSmartPointer<vtkCheckerboardSplatter> gaussian;
   vtkSmartPointer<vtkVolume> actorVolume;

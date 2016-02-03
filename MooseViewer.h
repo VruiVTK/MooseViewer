@@ -37,6 +37,7 @@ class ClippingPlane;
 class Contours;
 class Isosurfaces;
 class TransferFunction1D;
+class UnstructuredContourObject;
 class VariablesDialog;
 class vtkDataArray;
 class vtkExodusIIReader;
@@ -49,6 +50,8 @@ class MooseViewer:public Vrui::Application,public GLObject
   typedef std::vector<BaseLocator*> BaseLocatorList;
 private:
   struct DataItem;
+
+  UnstructuredContourObject *m_contours;
 
   /* Hints for widgets: */
   std::string widgetHintsFile;
@@ -69,6 +72,9 @@ private:
   void updateVariablesDialog(void);
   void updateColorByVariablesMenu(void);
   std::string getSelectedColorByArrayName(void) const;
+
+  // Note: this should only be used during testing/debugging. Internally,
+  // it executes a composite geometry filter...
   vtkSmartPointer<vtkDataArray> getSelectedArray(int & type) const;
 
   /* Variables dialog */

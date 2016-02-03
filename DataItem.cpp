@@ -30,8 +30,8 @@ MooseViewer::DataItem::DataItem(void)
   this->externalVTKWidget = vtkSmartPointer<ExternalVTKWidget>::New();
   this->actor = vtkSmartPointer<vtkActor>::New();
   this->actor->GetProperty()->SetEdgeColor(1.0, 1.0, 1.0);
-  vtkRenderer* ren = this->externalVTKWidget->AddRenderer();
-  ren->AddActor(this->actor);
+  this->renderer = this->externalVTKWidget->AddRenderer();
+  this->renderer->AddActor(this->actor);
 
   this->compositeFilter = vtkSmartPointer<vtkCompositeDataGeometryFilter>::New();
   this->mapper = vtkSmartPointer<vtkPolyDataMapper>::New();
@@ -42,7 +42,7 @@ MooseViewer::DataItem::DataItem(void)
 
   this->actorOutline = vtkSmartPointer<vtkActor>::New();
   this->actorOutline->GetProperty()->SetColor(1.0, 1.0, 1.0);
-  ren->AddActor(this->actorOutline);
+  this->renderer->AddActor(this->actorOutline);
 
   this->lut = vtkSmartPointer<vtkLookupTable>::New();
   this->lut->SetNumberOfColors(256);
@@ -55,19 +55,9 @@ MooseViewer::DataItem::DataItem(void)
 //  this->externalVTKWidget->GetRenderWindow()->SetMultiSamples(0);
 
   /* Use depth peeling to enable transparency */
-  ren->SetUseDepthPeeling(1);
-  ren->SetMaximumNumberOfPeels(4);
-  ren->SetOcclusionRatio(0.1);
-
-  this->contours = vtkSmartPointer<vtkAppendPolyData>::New();
-  this->contourMapper = vtkSmartPointer<vtkCompositePolyDataMapper>::New();
-  this->contourMapper->SetScalarVisibility(1);
-  this->contourMapper->SetScalarModeToUsePointFieldData();
-  this->contourMapper->SetColorModeToMapScalars();
-  this->contourMapper->SetLookupTable(this->lut);
-  this->contourActor = vtkSmartPointer<vtkActor>::New();
-  this->contourActor->SetMapper(this->contourMapper);
-  ren->AddActor(this->contourActor);
+  this->renderer->SetUseDepthPeeling(1);
+  this->renderer->SetMaximumNumberOfPeels(4);
+  this->renderer->SetOcclusionRatio(0.1);
 
   this->gaussian = vtkSmartPointer<vtkCheckerboardSplatter>::New();
   this->gaussian->ScalarWarpingOn();
@@ -89,7 +79,7 @@ MooseViewer::DataItem::DataItem(void)
   this->actorVolume = vtkSmartPointer<vtkVolume>::New();
   this->actorVolume->SetMapper(this->mapperVolume);
   this->actorVolume->SetProperty(volumeProperty);
-  ren->AddVolume(this->actorVolume);
+  this->renderer->AddVolume(this->actorVolume);
 
   vtkNew<vtkSpanSpace> aSpanTree;
   aSpanTree->SetResolution(100);
@@ -110,7 +100,7 @@ MooseViewer::DataItem::DataItem(void)
   this->aContourMapper->SetScalarModeToUsePointData();
   this->actorAContour = vtkSmartPointer<vtkActor>::New();
   this->actorAContour->SetMapper(this->aContourMapper);
-  ren->AddVolume(this->actorAContour);
+  this->renderer->AddVolume(this->actorAContour);
   this->bContour = vtkSmartPointer<vtkSMPContourGrid>::New();
   this->bContour->ComputeScalarsOn();
   this->bContour->UseScalarTreeOn();
@@ -124,7 +114,7 @@ MooseViewer::DataItem::DataItem(void)
   this->bContourMapper->SetScalarModeToUsePointData();
   this->actorBContour = vtkSmartPointer<vtkActor>::New();
   this->actorBContour->SetMapper(this->bContourMapper);
-  ren->AddVolume(this->actorBContour);
+  this->renderer->AddVolume(this->actorBContour);
   this->cContour = vtkSmartPointer<vtkSMPContourGrid>::New();
   this->cContour->ComputeScalarsOn();
   this->cContour->UseScalarTreeOn();
@@ -138,7 +128,7 @@ MooseViewer::DataItem::DataItem(void)
   this->cContourMapper->SetScalarModeToUsePointData();
   this->actorCContour = vtkSmartPointer<vtkActor>::New();
   this->actorCContour->SetMapper(this->cContourMapper);
-  ren->AddVolume(this->actorCContour);
+  this->renderer->AddVolume(this->actorCContour);
 
   this->framerate = vtkSmartPointer<vtkTextActor>::New();
   this->framerate->GetTextProperty()->SetJustificationToLeft();
@@ -148,7 +138,7 @@ MooseViewer::DataItem::DataItem(void)
   vtkCoordinate *fpsCoord = this->framerate->GetPositionCoordinate();
   fpsCoord->SetCoordinateSystemToNormalizedDisplay();
   fpsCoord->SetValue(0, 0.999);
-  ren->AddActor2D(this->framerate);
+  this->renderer->AddActor2D(this->framerate);
 }
 
 //----------------------------------------------------------------------------
