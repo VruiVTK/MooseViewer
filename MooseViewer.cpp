@@ -67,11 +67,12 @@
 #include "ClippingPlaneLocator.h"
 #include "ColorMap.h"
 #include "Contours.h"
-#include "DataItem.h"
 #include "MooseViewer.h"
+#include "mvApplicationState.h"
+#include "mvContextState.h"
+#include "mvContours.h"
 #include "ScalarWidget.h"
 #include "TransferFunction1D.h"
-#include "UnstructuredContourObject.h"
 #include "VariablesDialog.h"
 #include "WidgetHints.h"
 
@@ -82,7 +83,6 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   ClippingPlanes(NULL),
   colorByVariablesMenu(0),
   ContoursDialog(NULL),
-  ContourVisible(true),
   FirstFrame(true),
   GaussianSplatterDims(30),
   GaussianSplatterExp(-1.0),
@@ -90,7 +90,6 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   IsPlaying(false),
   Loop(false),
   mainMenu(NULL),
-  m_contours(new UnstructuredContourObject),
   NumberOfClippingPlanes(6),
   Opacity(1.0),
   opacityValue(NULL),
@@ -101,8 +100,7 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   sampleValue(NULL),
   ShowFPS(false),
   variablesDialog(0),
-  Volume(false),
-  widgetHints(new WidgetHints)
+  Volume(false)
 {
   /* Set Window properties:
    * Since the application requires translucency, GLX_ALPHA_SIZE is set to 1 at
@@ -114,9 +112,14 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   properties.setColorBufferSize(0,1);
   Vrui::requestWindowProperties(properties);
 
-  // Children must be initialized before MooseViewer so that syncContext will
+  // mvLGObjects must be initialized before MooseViewer so that syncContext will
   // work.
-  this->dependsOn(m_contours);
+  typedef mvApplicationState::Objects::const_iterator Iter;
+  for (Iter it = m_state.objects().begin(), itEnd = m_state.objects().end();
+       it != itEnd; ++it)
+    {
+    this->dependsOn(*it);
+    }
 }
 
 //----------------------------------------------------------------------------
@@ -132,10 +135,8 @@ MooseViewer::~MooseViewer(void)
   delete this->ColorEditor;
   delete this->ContoursDialog;
   delete this->mainMenu;
-  delete this->m_contours;
   delete this->renderingDialog;
   delete this->variablesDialog;
-  delete this->widgetHints;
 }
 
 //----------------------------------------------------------------------------
@@ -143,11 +144,11 @@ void MooseViewer::Initialize()
 {
   if (!this->widgetHintsFile.empty())
     {
-    this->widgetHints->loadFile(this->widgetHintsFile);
+    m_state.widgetHints().loadFile(this->widgetHintsFile);
     }
   else
     {
-    this->widgetHints->reset();
+    m_state.widgetHints().reset();
     }
 
   /* Create the user interface: */
@@ -160,7 +161,6 @@ void MooseViewer::Initialize()
   mainMenu=createMainMenu();
   Vrui::setMainMenu(mainMenu);
 
-  this->reader = vtkSmartPointer<vtkExodusIIReader>::New();
   this->variables.clear();
 
   this->DataBounds = new double[6];
@@ -199,12 +199,12 @@ void MooseViewer::setFileName(const std::string &name)
 
   this->FileName = name;
 
-  this->reader->SetFileName(this->FileName.c_str());
-  this->reader->UpdateInformation();
+  m_state.reader().SetFileName(this->FileName.c_str());
+  m_state.reader().UpdateInformation();
   this->updateVariablesDialog();
-  reader->GenerateObjectIdCellArrayOn();
-  reader->GenerateGlobalElementIdArrayOn();
-  reader->GenerateGlobalNodeIdArrayOn();
+  m_state.reader().GenerateObjectIdCellArrayOn();
+  m_state.reader().GenerateGlobalElementIdArrayOn();
+  m_state.reader().GenerateGlobalNodeIdArrayOn();
 }
 
 //----------------------------------------------------------------------------
@@ -228,18 +228,18 @@ const std::string& MooseViewer::getWidgetHintsFile()
 //----------------------------------------------------------------------------
 GLMotif::PopupMenu* MooseViewer::createMainMenu(void)
 {
-  if (!this->widgetHints->isEnabled("MainMenu"))
+  if (!m_state.widgetHints().isEnabled("MainMenu"))
     {
     std::cerr << "Ignoring hint to hide MainMenu." << std::endl;
     }
-  this->widgetHints->pushGroup("MainMenu");
+  m_state.widgetHints().pushGroup("MainMenu");
 
   GLMotif::PopupMenu* mainMenuPopup =
     new GLMotif::PopupMenu("MainMenuPopup",Vrui::getWidgetManager());
   mainMenuPopup->setTitle("Main Menu");
   GLMotif::Menu* mainMenu = new GLMotif::Menu("MainMenu",mainMenuPopup,false);
 
-  if (this->widgetHints->isEnabled("Variables"))
+  if (m_state.widgetHints().isEnabled("Variables"))
     {
     GLMotif::ToggleButton *showVariablesDialog =
         new GLMotif::ToggleButton("ShowVariablesDialog", mainMenu, "Variables");
@@ -248,7 +248,7 @@ GLMotif::PopupMenu* MooseViewer::createMainMenu(void)
           this, &MooseViewer::showVariableDialogCallback);
     }
 
-  if (this->widgetHints->isEnabled("ColorBy"))
+  if (m_state.widgetHints().isEnabled("ColorBy"))
     {
     GLMotif::CascadeButton* colorByVariablesCascade =
         new GLMotif::CascadeButton("colorByVariablesCascade", mainMenu,
@@ -256,14 +256,14 @@ GLMotif::PopupMenu* MooseViewer::createMainMenu(void)
     colorByVariablesCascade->setPopup(createColorByVariablesMenu());
     }
 
-  if (this->widgetHints->isEnabled("ColorMap"))
+  if (m_state.widgetHints().isEnabled("ColorMap"))
     {
     GLMotif::CascadeButton * colorMapSubCascade =
         new GLMotif::CascadeButton("ColorMapSubCascade", mainMenu, "Color Map");
     colorMapSubCascade->setPopup(createColorMapSubMenu());
     }
 
-  if (this->widgetHints->isEnabled("ColorEditor"))
+  if (m_state.widgetHints().isEnabled("ColorEditor"))
     {
     GLMotif::ToggleButton * showColorEditorDialog =
         new GLMotif::ToggleButton("ShowColorEditorDialog", mainMenu,
@@ -273,7 +273,7 @@ GLMotif::PopupMenu* MooseViewer::createMainMenu(void)
           this, &MooseViewer::showColorEditorDialogCallback);
     }
 
-  if (this->widgetHints->isEnabled("Animation"))
+  if (m_state.widgetHints().isEnabled("Animation"))
     {
     GLMotif::ToggleButton * showAnimationDialog =
         new GLMotif::ToggleButton("ShowAnimationDialog", mainMenu,
@@ -283,7 +283,7 @@ GLMotif::PopupMenu* MooseViewer::createMainMenu(void)
           this, &MooseViewer::showAnimationDialogCallback);
     }
 
-  if (this->widgetHints->isEnabled("Representation"))
+  if (m_state.widgetHints().isEnabled("Representation"))
     {
     GLMotif::CascadeButton* representationCascade =
         new GLMotif::CascadeButton("RepresentationCascade", mainMenu,
@@ -291,7 +291,7 @@ GLMotif::PopupMenu* MooseViewer::createMainMenu(void)
     representationCascade->setPopup(createRepresentationMenu());
     }
 
-  if (this->widgetHints->isEnabled("AnalysisTools"))
+  if (m_state.widgetHints().isEnabled("AnalysisTools"))
     {
     GLMotif::CascadeButton* analysisToolsCascade =
         new GLMotif::CascadeButton("AnalysisToolsCascade", mainMenu,
@@ -299,7 +299,7 @@ GLMotif::PopupMenu* MooseViewer::createMainMenu(void)
     analysisToolsCascade->setPopup(createAnalysisToolsMenu());
     }
 
-  if (this->widgetHints->isEnabled("Contours"))
+  if (m_state.widgetHints().isEnabled("Contours"))
     {
     GLMotif::ToggleButton * showContoursDialog = new GLMotif::ToggleButton(
           "ShowContoursDialog", mainMenu, "Contours");
@@ -308,7 +308,7 @@ GLMotif::PopupMenu* MooseViewer::createMainMenu(void)
           this, &MooseViewer::showContoursDialogCallback);
     }
 
-  if (this->widgetHints->isEnabled("CenterDisplay"))
+  if (m_state.widgetHints().isEnabled("CenterDisplay"))
     {
     GLMotif::Button* centerDisplayButton =
         new GLMotif::Button("CenterDisplayButton",mainMenu,"Center Display");
@@ -316,7 +316,7 @@ GLMotif::PopupMenu* MooseViewer::createMainMenu(void)
           this, &MooseViewer::centerDisplayCallback);
     }
 
-  if (this->widgetHints->isEnabled("ToggleFPS"))
+  if (m_state.widgetHints().isEnabled("ToggleFPS"))
     {
     GLMotif::Button* toggleFPSButton =
         new GLMotif::Button("ToggleFPS",mainMenu,"Toggle FPS");
@@ -324,7 +324,7 @@ GLMotif::PopupMenu* MooseViewer::createMainMenu(void)
           this, &MooseViewer::toggleFPSCallback);
     }
 
-  if (this->widgetHints->isEnabled("Rendering"))
+  if (m_state.widgetHints().isEnabled("Rendering"))
     {
     GLMotif::ToggleButton * showRenderingDialog =
         new GLMotif::ToggleButton("ShowRenderingDialog", mainMenu,
@@ -336,7 +336,7 @@ GLMotif::PopupMenu* MooseViewer::createMainMenu(void)
 
   mainMenu->manageChild();
 
-  this->widgetHints->popGroup();
+  m_state.widgetHints().popGroup();
 
   return mainMenuPopup;
 }
@@ -344,7 +344,7 @@ GLMotif::PopupMenu* MooseViewer::createMainMenu(void)
 //----------------------------------------------------------------------------
 GLMotif::Popup* MooseViewer::createRepresentationMenu(void)
 {
-  this->widgetHints->pushGroup("Representation");
+  m_state.widgetHints().pushGroup("Representation");
 
   const GLMotif::StyleSheet* ss = Vrui::getWidgetManager()->getStyleSheet();
 
@@ -353,7 +353,7 @@ GLMotif::Popup* MooseViewer::createRepresentationMenu(void)
   GLMotif::SubMenu* representationMenu = new GLMotif::SubMenu(
     "representationMenu", representationMenuPopup, false);
 
-  if (this->widgetHints->isEnabled("Outline"))
+  if (m_state.widgetHints().isEnabled("Outline"))
     {
     GLMotif::ToggleButton* showOutline=new GLMotif::ToggleButton(
           "ShowOutline",representationMenu,"Outline");
@@ -362,7 +362,7 @@ GLMotif::Popup* MooseViewer::createRepresentationMenu(void)
     showOutline->setToggle(true);
     }
 
-  if (this->widgetHints->isEnabled("Representations"))
+  if (m_state.widgetHints().isEnabled("Representations"))
     {
     GLMotif::Label* representation_Label = new GLMotif::Label(
           "Representations", representationMenu,"Representations:");
@@ -375,28 +375,28 @@ GLMotif::Popup* MooseViewer::createRepresentationMenu(void)
   // is chosen.
   GLMotif::ToggleButton *selected = NULL;
 
-  if (this->widgetHints->isEnabled("None"))
+  if (m_state.widgetHints().isEnabled("None"))
     {
     GLMotif::ToggleButton* showNone=new GLMotif::ToggleButton(
           "ShowNone",representation_RadioBox,"None");
     showNone->getValueChangedCallbacks().add(
           this,&MooseViewer::changeRepresentationCallback);
     }
-  if (this->widgetHints->isEnabled("Points"))
+  if (m_state.widgetHints().isEnabled("Points"))
     {
     GLMotif::ToggleButton* showPoints=new GLMotif::ToggleButton(
           "ShowPoints",representation_RadioBox,"Points");
     showPoints->getValueChangedCallbacks().add(
           this,&MooseViewer::changeRepresentationCallback);
     }
-  if (this->widgetHints->isEnabled("Wireframe"))
+  if (m_state.widgetHints().isEnabled("Wireframe"))
     {
     GLMotif::ToggleButton* showWireframe=new GLMotif::ToggleButton(
           "ShowWireframe",representation_RadioBox,"Wireframe");
     showWireframe->getValueChangedCallbacks().add(
           this,&MooseViewer::changeRepresentationCallback);
     }
-  if (this->widgetHints->isEnabled("Surface"))
+  if (m_state.widgetHints().isEnabled("Surface"))
     {
     GLMotif::ToggleButton* showSurface=new GLMotif::ToggleButton(
           "ShowSurface",representation_RadioBox,"Surface");
@@ -404,14 +404,14 @@ GLMotif::Popup* MooseViewer::createRepresentationMenu(void)
           this,&MooseViewer::changeRepresentationCallback);
     selected = showSurface;
     }
-  if (this->widgetHints->isEnabled("SurfaceWithEdges"))
+  if (m_state.widgetHints().isEnabled("SurfaceWithEdges"))
     {
     GLMotif::ToggleButton* showSurfaceWithEdges=new GLMotif::ToggleButton(
           "ShowSurfaceWithEdges",representation_RadioBox,"Surface with Edges");
     showSurfaceWithEdges->getValueChangedCallbacks().add(
           this,&MooseViewer::changeRepresentationCallback);
     }
-  if (this->widgetHints->isEnabled("Volume"))
+  if (m_state.widgetHints().isEnabled("Volume"))
     {
     GLMotif::ToggleButton* showVolume=new GLMotif::ToggleButton(
           "ShowVolume",representation_RadioBox,"Volume");
@@ -430,14 +430,14 @@ GLMotif::Popup* MooseViewer::createRepresentationMenu(void)
     }
 
   representationMenu->manageChild();
-  this->widgetHints->popGroup();
+  m_state.widgetHints().popGroup();
   return representationMenuPopup;
 }
 
 //----------------------------------------------------------------------------
 GLMotif::Popup * MooseViewer::createAnalysisToolsMenu(void)
 {
-  this->widgetHints->pushGroup("AnalysisTools");
+  m_state.widgetHints().pushGroup("AnalysisTools");
 
   const GLMotif::StyleSheet* ss = Vrui::getWidgetManager()->getStyleSheet();
 
@@ -453,7 +453,7 @@ GLMotif::Popup * MooseViewer::createAnalysisToolsMenu(void)
   // is chosen.
   GLMotif::ToggleButton *selected = NULL;
 
-  if (this->widgetHints->isEnabled("ClippingPlane"))
+  if (m_state.widgetHints().isEnabled("ClippingPlane"))
     {
     GLMotif::ToggleButton* showClippingPlane=new GLMotif::ToggleButton(
           "ClippingPlane",analysisTools_RadioBox,"Clipping Plane");
@@ -473,7 +473,7 @@ GLMotif::Popup * MooseViewer::createAnalysisToolsMenu(void)
     }
 
   analysisToolsMenu->manageChild();
-  this->widgetHints->popGroup();
+  m_state.widgetHints().popGroup();
   return analysisToolsMenuPopup;
 }
 
@@ -496,16 +496,16 @@ void MooseViewer::updateVariablesDialog(void)
 {
   // Build sorted list of variables:
   std::set<std::string> vars;
-  vars.insert(this->reader->GetPedigreeNodeIdArrayName());
-  vars.insert(this->reader->GetObjectIdArrayName());
-  vars.insert(this->reader->GetPedigreeElementIdArrayName());
-  for (int i = 0; i < this->reader->GetNumberOfPointResultArrays(); ++i)
+  vars.insert(m_state.reader().GetPedigreeNodeIdArrayName());
+  vars.insert(m_state.reader().GetObjectIdArrayName());
+  vars.insert(m_state.reader().GetPedigreeElementIdArrayName());
+  for (int i = 0; i < m_state.reader().GetNumberOfPointResultArrays(); ++i)
     {
-    vars.insert(this->reader->GetPointResultArrayName(i));
+    vars.insert(m_state.reader().GetPointResultArrayName(i));
     }
-  for (int i = 0; i < this->reader->GetNumberOfElementResultArrays(); ++i)
+  for (int i = 0; i < m_state.reader().GetNumberOfElementResultArrays(); ++i)
     {
-    vars.insert(this->reader->GetElementResultArrayName(i));
+    vars.insert(m_state.reader().GetElementResultArrayName(i));
     }
 
   // Add to dialog:
@@ -547,7 +547,7 @@ vtkSmartPointer<vtkDataArray> MooseViewer::getSelectedArray(int & type) const
 
   vtkSmartPointer<vtkCompositeDataGeometryFilter> compositeFilter =
     vtkSmartPointer<vtkCompositeDataGeometryFilter>::New();
-  compositeFilter->SetInputConnection(this->reader->GetOutputPort());
+  compositeFilter->SetInputConnection(m_state.reader().GetOutputPort());
   compositeFilter->Update();
 
   dataArray = vtkDataArray::SafeDownCast(
@@ -624,7 +624,7 @@ void MooseViewer::updateColorByVariablesMenu(void)
 //----------------------------------------------------------------------------
 GLMotif::Popup* MooseViewer::createColorMapSubMenu(void)
 {
-  this->widgetHints->pushGroup("ColorMap");
+  m_state.widgetHints().pushGroup("ColorMap");
 
   GLMotif::Popup * colorMapSubMenuPopup = new GLMotif::Popup(
     "ColorMapSubMenuPopup", Vrui::getWidgetManager());
@@ -636,22 +636,22 @@ GLMotif::Popup* MooseViewer::createColorMapSubMenu(void)
   // map otherwise:
   int selectedToggle = 0;
 
-  if (this->widgetHints->isEnabled("FullRainbow"))
+  if (m_state.widgetHints().isEnabled("FullRainbow"))
     {
     ++selectedToggle;
     colorMaps->addToggle("Full Rainbow");
     }
-  if (this->widgetHints->isEnabled("InverseFullRainbow"))
+  if (m_state.widgetHints().isEnabled("InverseFullRainbow"))
     {
     ++selectedToggle;
     colorMaps->addToggle("Inverse Full Rainbow");
     }
-  if (this->widgetHints->isEnabled("Rainbow"))
+  if (m_state.widgetHints().isEnabled("Rainbow"))
     {
     ++selectedToggle;
     colorMaps->addToggle("Rainbow");
     }
-  if (this->widgetHints->isEnabled("InverseRainbow"))
+  if (m_state.widgetHints().isEnabled("InverseRainbow"))
     {
     colorMaps->addToggle("Inverse Rainbow");
     }
@@ -659,43 +659,43 @@ GLMotif::Popup* MooseViewer::createColorMapSubMenu(void)
     {
     selectedToggle = 0;
     }
-  if (this->widgetHints->isEnabled("ColdToHot"))
+  if (m_state.widgetHints().isEnabled("ColdToHot"))
     {
     colorMaps->addToggle("Cold to Hot");
     }
-  if (this->widgetHints->isEnabled("HotToCold"))
+  if (m_state.widgetHints().isEnabled("HotToCold"))
     {
     colorMaps->addToggle("Hot to Cold");
     }
-  if (this->widgetHints->isEnabled("BlackToWhite"))
+  if (m_state.widgetHints().isEnabled("BlackToWhite"))
     {
     colorMaps->addToggle("Black to White");
     }
-  if (this->widgetHints->isEnabled("WhiteToBlack"))
+  if (m_state.widgetHints().isEnabled("WhiteToBlack"))
     {
     colorMaps->addToggle("White to Black");
     }
-  if (this->widgetHints->isEnabled("HSBHues"))
+  if (m_state.widgetHints().isEnabled("HSBHues"))
     {
     colorMaps->addToggle("HSB Hues");
     }
-  if (this->widgetHints->isEnabled("InverseHSBHues"))
+  if (m_state.widgetHints().isEnabled("InverseHSBHues"))
     {
     colorMaps->addToggle("Inverse HSB Hues");
     }
-  if (this->widgetHints->isEnabled("Davinci"))
+  if (m_state.widgetHints().isEnabled("Davinci"))
     {
     colorMaps->addToggle("Davinci");
     }
-  if (this->widgetHints->isEnabled("InverseDavinci"))
+  if (m_state.widgetHints().isEnabled("InverseDavinci"))
     {
     colorMaps->addToggle("Inverse Davinci");
     }
-  if (this->widgetHints->isEnabled("Seismic"))
+  if (m_state.widgetHints().isEnabled("Seismic"))
     {
     colorMaps->addToggle("Seismic");
     }
-  if (this->widgetHints->isEnabled("InverseSeismic"))
+  if (m_state.widgetHints().isEnabled("InverseSeismic"))
     {
     colorMaps->addToggle("Inverse Seismic");
     }
@@ -706,7 +706,7 @@ GLMotif::Popup* MooseViewer::createColorMapSubMenu(void)
 
   colorMaps->manageChild();
 
-  this->widgetHints->popGroup();
+  m_state.widgetHints().popGroup();
 
   return colorMapSubMenuPopup;
 } // end createColorMapSubMenu()
@@ -864,37 +864,32 @@ void MooseViewer::frame(void)
 
   // Get scalar array metadata.
   std::string arrayName = this->getSelectedColorByArrayName();
-  ArrayLocator locator(this->reader->GetOutput(), arrayName);
 
-  // Convert contour values from [0, 255] to scalar range:
-  // TODO this would be nice to have handled already by the widget or callback.
-  std::vector<double> scaledContourValues(this->ContourValues);
-  for (std::vector<double>::iterator it = scaledContourValues.begin(),
-       itEnd = scaledContourValues.end(); it != itEnd; ++it)
+  // TODO this really only needs to be reset when the file is reread or the
+  // array name changes.
+  m_state.locator() = ArrayLocator(m_state.reader().GetOutput(), arrayName);
+
+  /* Synchronize mvGLObjects: */
+  typedef mvApplicationState::Objects::iterator Iter;
+  for (Iter it = m_state.objects().begin(), itEnd = m_state.objects().end();
+       it != itEnd; ++it)
     {
-    *it = (*it/255.) * (locator.Range[1] - locator.Range[0]) + locator.Range[0];
+    (*it)->syncApplicationState(m_state);
     }
-
-  // Setup child GLObjects:
-  this->m_contours->setVisible(this->ContourVisible);
-  this->m_contours->setInput(reader->GetOutput());
-  this->m_contours->setColorByArrayName(arrayName);
-  this->m_contours->setContourValues(scaledContourValues);
-  this->m_contours->update(locator);
 
   this->updateColorMap();
   this->updateAlpha();
   if (this->IsPlaying)
     {
-    int currentTimeStep = this->reader->GetTimeStep();
-    if (currentTimeStep < this->reader->GetTimeStepRange()[1])
+    int currentTimeStep = m_state.reader().GetTimeStep();
+    if (currentTimeStep < m_state.reader().GetTimeStepRange()[1])
       {
-      this->reader->SetTimeStep(currentTimeStep + 1);
+      m_state.reader().SetTimeStep(currentTimeStep + 1);
       Vrui::scheduleUpdate(Vrui::getApplicationTime() + 1.0/125.0);
       }
     else if(this->Loop)
       {
-      this->reader->SetTimeStep(this->reader->GetTimeStepRange()[0]);
+      m_state.reader().SetTimeStep(m_state.reader().GetTimeStepRange()[0]);
       Vrui::scheduleUpdate(Vrui::getApplicationTime() + 1.0/125.0);
       }
     else
@@ -919,26 +914,32 @@ void MooseViewer::initContext(GLContextData& contextData) const
     }
 
   /* Create a new context data item */
-  DataItem* dataItem = new DataItem();
-  contextData.addDataItem(this, dataItem);
+  mvContextState* context = new mvContextState;
+  contextData.addDataItem(this, context);
 
-  m_contours->initRenderer(contextData, dataItem->renderer);
-  m_contours->setLookupTable(contextData, dataItem->lut);
+  /* Synchronize mvGLObjects: */
+  typedef mvApplicationState::Objects::const_iterator Iter;
+  for (Iter it = m_state.objects().begin(), itEnd = m_state.objects().end();
+       it != itEnd; ++it)
+    {
+    (*it)->initMvContext(*context, contextData);
+    }
 
   vtkNew<vtkOutlineFilter> dataOutline;
 
-  dataItem->compositeFilter->SetInputConnection(this->reader->GetOutputPort());
-  dataItem->compositeFilter->Update();
-  dataItem->compositeFilter->GetOutput()->GetBounds(this->DataBounds);
+  context->compositeFilter->SetInputConnection(
+        m_state.reader().GetOutputPort());
+  context->compositeFilter->Update();
+  context->compositeFilter->GetOutput()->GetBounds(this->DataBounds);
 
-  dataOutline->SetInputConnection(dataItem->compositeFilter->GetOutputPort());
+  dataOutline->SetInputConnection(context->compositeFilter->GetOutputPort());
 
-  dataItem->mapperVolume->SetRequestedRenderMode(this->RequestedRenderMode);
+  context->mapperVolume->SetRequestedRenderMode(this->RequestedRenderMode);
 
   vtkNew<vtkPolyDataMapper> mapperOutline;
   mapperOutline->SetInputConnection(dataOutline->GetOutputPort());
-  dataItem->actorOutline->SetMapper(mapperOutline.GetPointer());
-  dataItem->actorOutline->GetProperty()->SetColor(1,1,1);
+  context->actorOutline->SetMapper(mapperOutline.GetPointer());
+  context->actorOutline->GetProperty()->SetColor(1,1,1);
 }
 
 //----------------------------------------------------------------------------
@@ -964,58 +965,52 @@ void MooseViewer::display(GLContextData& contextData) const
       }
     }
 
-  /* Grab the reader's data set. */
-  vtkDataSet *inputDataSet =
-      vtkDataSet::SafeDownCast(
-        vtkMultiBlockDataSet::SafeDownCast(
-          this->reader->GetOutput()->GetBlock(0))->GetBlock(0));
-
   /* Get context data item */
-  DataItem* dataItem = contextData.retrieveDataItem<DataItem>(this);
+  mvContextState* context = contextData.retrieveDataItem<mvContextState>(this);
 
   // Update framerate:
   if (this->ShowFPS)
     {
     std::ostringstream fps;
     fps << "FPS: " << this->GetFramesPerSecond();
-    dataItem->framerate->SetInput(fps.str().c_str());
-    dataItem->framerate->SetVisibility(1);
+    context->framerate->SetInput(fps.str().c_str());
+    context->framerate->SetVisibility(1);
     }
   else
     {
-    dataItem->framerate->SetVisibility(0);
+    context->framerate->SetVisibility(0);
     }
 
   /* Color by selected array */
   std::string selectedArray = this->getSelectedColorByArrayName();
-  int selectedArrayType = -1;
   double* dataRange = NULL;
   if (!selectedArray.empty())
     {
-    // TODO This is screwing up the mtimes. This should be set on the filters
-    // that need it.
-//    inputDataSet->GetPointData()->SetActiveScalars(selectedArray.c_str());
-
-    dataItem->mapper->SelectColorArray(selectedArray.c_str());
+    context->mapper->SelectColorArray(selectedArray.c_str());
 
     bool dataArrayFound = true;
 
+    // FIXME: Much of this would be good to move into a mvGLObject at some
+    // point:
+    // - usg is used to configure the volume. This would be a new object.
+    // - The data range is extracted here, but that could be replaced by using
+    //   a reader-scoped ArrayLocator.
     vtkSmartPointer<vtkUnstructuredGrid> usg =
       vtkSmartPointer<vtkUnstructuredGrid>::New();
     usg->DeepCopy(
       vtkUnstructuredGrid::SafeDownCast(vtkMultiBlockDataSet::SafeDownCast(
-          this->reader->GetOutput()->GetBlock(0))->GetBlock(0)));
+          m_state.reader().GetOutput()->GetBlock(0))->GetBlock(0)));
 
-    dataItem->compositeFilter->Update();
+    context->compositeFilter->Update();
     vtkSmartPointer<vtkDataArray> dataArray = vtkDataArray::SafeDownCast(
-      dataItem->compositeFilter->GetOutput()->GetPointData(
+      context->compositeFilter->GetOutput()->GetPointData(
         )->GetArray(selectedArray.c_str()));
     if (!dataArray)
       {
       dataArray = vtkDataArray::SafeDownCast(
-        dataItem->compositeFilter->GetOutput()->GetCellData(
+        context->compositeFilter->GetOutput()->GetCellData(
           )->GetArray(selectedArray.c_str()));
-      dataItem->mapper->SetScalarModeToUseCellFieldData();
+      context->mapper->SetScalarModeToUseCellFieldData();
       vtkSmartPointer<vtkCellDataToPointData> cellToPoint =
         vtkSmartPointer<vtkCellDataToPointData>::New();
       cellToPoint->SetInputData(usg);
@@ -1027,15 +1022,10 @@ void MooseViewer::display(GLContextData& contextData) const
           " nor CellDataArray" << std::endl;
         dataArrayFound = false;
         }
-      else
-        {
-        selectedArrayType = 1;
-        }
       }
     else
       {
-      dataItem->mapper->SetScalarModeToUsePointFieldData();
-      selectedArrayType = 0;
+      context->mapper->SetScalarModeToUsePointFieldData();
       }
 
     if (dataArrayFound)
@@ -1043,39 +1033,39 @@ void MooseViewer::display(GLContextData& contextData) const
       dataRange = dataArray->GetRange();
       dataRange[0] = this->ScalarRange[0];
       dataRange[1] = this->ScalarRange[1];
-      dataItem->mapper->SetScalarRange(dataRange);
-      dataItem->lut->SetTableRange(dataRange);
+      context->mapper->SetScalarRange(dataRange);
+      context->colorMap().SetTableRange(dataRange);
       }
 
     usg->GetPointData()->SetActiveScalars(selectedArray.c_str());
     int imageExtent[6] = {0, this->GaussianSplatterDims-1,
       0, this->GaussianSplatterDims-1, 0, this->GaussianSplatterDims-1};
-    dataItem->gaussian->GetOutput()->SetExtent(imageExtent);
-    dataItem->gaussian->SetInputData(usg);
-    dataItem->gaussian->SetModelBounds(usg->GetBounds());
-    dataItem->gaussian->SetSampleDimensions(this->GaussianSplatterDims,
+    context->gaussian->GetOutput()->SetExtent(imageExtent);
+    context->gaussian->SetInputData(usg);
+    context->gaussian->SetModelBounds(usg->GetBounds());
+    context->gaussian->SetSampleDimensions(this->GaussianSplatterDims,
       this->GaussianSplatterDims, this->GaussianSplatterDims);
-    dataItem->gaussian->SetRadius(this->GaussianSplatterRadius*10);
-    dataItem->gaussian->SetExponentFactor(this->GaussianSplatterExp);
+    context->gaussian->SetRadius(this->GaussianSplatterRadius*10);
+    context->gaussian->SetExponentFactor(this->GaussianSplatterExp);
 
-    dataItem->colorFunction->RemoveAllPoints();
-    dataItem->opacityFunction->RemoveAllPoints();
+    context->colorFunction->RemoveAllPoints();
+    context->opacityFunction->RemoveAllPoints();
     double dataRangeMax = dataRange ? dataRange[1] : 1.0;
     double dataRangeMin = dataRange ? dataRange[0] : 0.0;
     double step = (dataRangeMax - dataRangeMin)/255.0;
     for (int i = 0; i < 256; ++i)
       {
-      dataItem->lut->SetTableValue(i,
+      context->colorMap().SetTableValue(i,
         this->ColorMap[4*i + 0],
         this->ColorMap[4*i + 1],
         this->ColorMap[4*i + 2],
         this->ColorMap[4*i + 3]);
-      dataItem->colorFunction->AddRGBPoint(
+      context->colorFunction->AddRGBPoint(
         dataRangeMin + (double)(i*step),
         this->ColorMap[4*i + 0],
         this->ColorMap[4*i + 1],
         this->ColorMap[4*i + 2]);
-      dataItem->opacityFunction->AddPoint(
+      context->opacityFunction->AddPoint(
         dataRangeMin + (double)(i*step),
         this->ColorMap[4*i + 3]);
       }
@@ -1084,52 +1074,57 @@ void MooseViewer::display(GLContextData& contextData) const
   /* Enable/disable the outline */
   if (this->Outline)
     {
-    dataItem->actorOutline->VisibilityOn();
+    context->actorOutline->VisibilityOn();
     }
   else
     {
-    dataItem->actorOutline->VisibilityOff();
+    context->actorOutline->VisibilityOff();
     }
 
   /* Set actor opacity */
-  dataItem->actor->GetProperty()->SetOpacity(this->Opacity);
+  context->actor->GetProperty()->SetOpacity(this->Opacity);
   /* Set the appropriate representation */
   if (this->RepresentationType != -1)
     {
-    dataItem->actor->VisibilityOn();
+    context->actor->VisibilityOn();
     if (this->RepresentationType == 3)
       {
-      dataItem->actor->GetProperty()->SetRepresentationToSurface();
-      dataItem->actor->GetProperty()->EdgeVisibilityOn();
+      context->actor->GetProperty()->SetRepresentationToSurface();
+      context->actor->GetProperty()->EdgeVisibilityOn();
       }
     else
       {
-      dataItem->actor->GetProperty()->SetRepresentation(
+      context->actor->GetProperty()->SetRepresentation(
         this->RepresentationType);
-      dataItem->actor->GetProperty()->EdgeVisibilityOff();
+      context->actor->GetProperty()->EdgeVisibilityOff();
       }
     }
   else
     {
-    dataItem->actor->VisibilityOff();
+    context->actor->VisibilityOff();
     }
   if (this->Volume)
     {
     if (!selectedArray.empty())
       {
-      dataItem->actorVolume->VisibilityOn();
+      context->actorVolume->VisibilityOn();
       }
     }
   else
     {
-    dataItem->actorVolume->VisibilityOff();
+    context->actorVolume->VisibilityOff();
     }
 
-  /* Contours */
-  m_contours->syncContext(contextData);
+  /* Synchronize mvGLObjects: */
+  typedef mvApplicationState::Objects::const_iterator Iter;
+  for (Iter it = m_state.objects().begin(), itEnd = m_state.objects().end();
+       it != itEnd; ++it)
+    {
+    (*it)->syncContextState(*context, contextData);
+    }
 
   /* Render the scene */
-  dataItem->externalVTKWidget->GetRenderWindow()->Render();
+  context->widget().GetRenderWindow()->Render();
 
   clippingPlaneIndex = 0;
   for (int i = 0; i < NumberOfClippingPlanes &&
@@ -1419,15 +1414,15 @@ void MooseViewer::changeVariablesCallback(
 
   std::string array(callBackData->listBox->getItem(callBackData->item));
 
-  int numPointResultArrays = this->reader->GetNumberOfPointResultArrays();
-  int numElementResultArrays = this->reader->GetNumberOfElementResultArrays();
+  int numPointResultArrays = m_state.reader().GetNumberOfPointResultArrays();
+  int numElementResultArrays = m_state.reader().GetNumberOfElementResultArrays();
 
   int i;
   for (i = 0; i < numPointResultArrays; ++i)
     {
-    if (array == this->reader->GetPointResultArrayName(i))
+    if (array == m_state.reader().GetPointResultArrayName(i))
       {
-      this->reader->SetPointResultArrayStatus(array.c_str(), enable ? 1 : 0);
+      m_state.reader().SetPointResultArrayStatus(array.c_str(), enable ? 1 : 0);
       break;
       }
     }
@@ -1435,9 +1430,9 @@ void MooseViewer::changeVariablesCallback(
     {
     for (i = 0; i < numElementResultArrays; ++i)
       {
-      if (array == this->reader->GetElementResultArrayName(i))
+      if (array == m_state.reader().GetElementResultArrayName(i))
         {
-        this->reader->SetElementResultArrayStatus(array.c_str(),
+        m_state.reader().SetElementResultArrayStatus(array.c_str(),
                                                   enable ? 1 : 0);
         break;
         }
@@ -1607,16 +1602,16 @@ void MooseViewer::showContoursDialogCallback(
 }
 
 //----------------------------------------------------------------------------
-void MooseViewer::contourValueChangedCallback(Misc::CallbackData* callBackData)
+void MooseViewer::contourValueChangedCallback(Misc::CallbackData*)
 {
-  this->ContourValues = ContoursDialog->getContourValues();
+  m_state.contours().setContourValues(this->ContoursDialog->getContourValues());
   Vrui::requestUpdate();
 }
 
 //----------------------------------------------------------------------------
 void MooseViewer::setContourVisible(bool visible)
 {
-  this->ContourVisible = visible;
+  m_state.contours().setVisible(visible);
 }
 
 //----------------------------------------------------------------------------

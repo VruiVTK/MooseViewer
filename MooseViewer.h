@@ -1,6 +1,9 @@
 #ifndef _MOOSEVIEWER_H
 #define _MOOSEVIEWER_H
 
+// MooseViewer includes
+#include "mvApplicationState.h"
+
 // OpenGL/Motif includes
 #include <GL/gl.h>
 
@@ -36,25 +39,21 @@ class BaseLocator;
 class ClippingPlane;
 class Contours;
 class TransferFunction1D;
-class UnstructuredContourObject;
+class mvContours;
 class VariablesDialog;
 class vtkDataArray;
 class vtkExodusIIReader;
 class vtkLookupTable;
-class WidgetHints;
 
 class MooseViewer:public Vrui::Application,public GLObject
 {
 /* Embedded classes: */
   typedef std::vector<BaseLocator*> BaseLocatorList;
 private:
-  struct DataItem;
-
-  UnstructuredContourObject *m_contours;
+  mvApplicationState m_state;
 
   /* Hints for widgets: */
   std::string widgetHintsFile;
-  WidgetHints *widgetHints;
 
   /* Elements: */
   GLMotif::PopupMenu* mainMenu; // The program's main menu
@@ -140,8 +139,6 @@ private:
 
   /* Contours dialog */
   Contours* ContoursDialog;
-  bool ContourVisible;
-  std::vector<double> ContourValues;
 
   /* Volume visible */
   bool Volume;
@@ -168,7 +165,8 @@ public:
   void Initialize();
 
   /* vtkExodusIIReader */
-  vtkSmartPointer<vtkExodusIIReader> reader;
+  vtkExodusIIReader& reader() { return m_state.reader(); }
+  const vtkExodusIIReader& reader() const { return m_state.reader(); }
 
   /* Methods to set/get the filename to read */
   void setFileName(const std::string &name);

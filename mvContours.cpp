@@ -1,20 +1,23 @@
-#include "UnstructuredContourObject.h"
+#include "mvContours.h"
 
 #include <GL/GLContextData.h>
 
 #include <vtkActor.h>
 #include <vtkCompositeDataSet.h>
 #include <vtkCompositePolyDataMapper.h>
+#include <vtkExodusIIReader.h>
+#include <vtkExternalOpenGLRenderer.h>
 #include <vtkLookupTable.h>
-#include <vtkRenderer.h>
 #include <vtkSMPContourGrid.h>
 #include <vtkSpanSpace.h>
 #include <vtkUnstructuredGrid.h>
 
 #include "ArrayLocator.h"
+#include "mvApplicationState.h"
+#include "mvContextState.h"
 
 //------------------------------------------------------------------------------
-UnstructuredContourObject::DataItem::DataItem()
+mvContours::DataItem::DataItem()
 {
   this->mapper->SetScalarVisibility(1);
   this->mapper->SetScalarModeToDefault();
@@ -25,7 +28,8 @@ UnstructuredContourObject::DataItem::DataItem()
 }
 
 //------------------------------------------------------------------------------
-UnstructuredContourObject::UnstructuredContourObject()
+mvContours::mvContours()
+  : m_visible(true)
 {
   m_scalarTree->SetResolution(100);
   m_contour->ComputeScalarsOn();
@@ -39,20 +43,48 @@ UnstructuredContourObject::UnstructuredContourObject()
 }
 
 //------------------------------------------------------------------------------
-UnstructuredContourObject::~UnstructuredContourObject()
+mvContours::~mvContours()
 {
 }
 
 //------------------------------------------------------------------------------
-void UnstructuredContourObject::update(const ArrayLocator &locator)
+void mvContours::initContext(GLContextData &contextData) const
 {
-  // Sync pipeline state.
-  m_contour->SetInputData(m_input);
+  this->mvGLObject::initContext(contextData);
 
-  // Point the mapper at the proper scalar array.
+  assert("Duplicate context initialization detected!" &&
+         !contextData.retrieveDataItem<DataItem>(this));
+
+  DataItem *dataItem = new DataItem;
+  contextData.addDataItem(this, dataItem);
+}
+
+//------------------------------------------------------------------------------
+void mvContours::initMvContext(mvContextState &mvContext,
+                               GLContextData &contextData) const
+{
+  this->mvGLObject::initMvContext(mvContext, contextData);
+
+  DataItem *dataItem = contextData.retrieveDataItem<DataItem>(this);
+  assert(dataItem);
+
+  mvContext.renderer().AddActor(dataItem->actor.GetPointer());
+  dataItem->mapper->SetLookupTable(&mvContext.colorMap());
+}
+
+//------------------------------------------------------------------------------
+void mvContours::syncApplicationState(const mvApplicationState &state)
+{
+  this->mvGLObject::syncApplicationState(state);
+
+  // Sync pipeline state.
+  m_contour->SetInputConnection(state.reader().GetOutputPort());
+  m_colorByArrayName = state.locator().Name;
+
+  // Use the correct array for contouring:
   if (!m_colorByArrayName.empty())
     {
-    switch (locator.Association)
+    switch (state.locator().Association)
       {
       case ArrayLocator::NotFound:
       case ArrayLocator::Invalid:
@@ -79,10 +111,12 @@ void UnstructuredContourObject::update(const ArrayLocator &locator)
     }
 
   // Set contour values:
+  double min = state.locator().Range[0];
+  double spread = state.locator().Range[1] - min;
   m_contour->SetNumberOfContours(m_contourValues.size());
   for (int i = 0; i < m_contourValues.size(); ++i)
     {
-    m_contour->SetValue(i, m_contourValues[i]);
+    m_contour->SetValue(i, (m_contourValues[i]/255.0) * spread + min);
     }
 
   // Re-execute if modified.
@@ -90,66 +124,33 @@ void UnstructuredContourObject::update(const ArrayLocator &locator)
 }
 
 //------------------------------------------------------------------------------
-void UnstructuredContourObject::initContext(GLContextData &contextData) const
+void mvContours::syncContextState(const mvContextState &context,
+                                  GLContextData &contextData) const
 {
-  assert("Duplicate context initialization detected!" &&
-         !contextData.retrieveDataItem<DataItem>(this));
+  this->mvGLObject::syncContextState(context, contextData);
 
-  DataItem *dataItem = new DataItem;
-  contextData.addDataItem(this, dataItem);
-}
-
-//------------------------------------------------------------------------------
-void UnstructuredContourObject::
-initRenderer(GLContextData &contextData, vtkRenderer *renderer) const
-{
   DataItem *dataItem = contextData.retrieveDataItem<DataItem>(this);
   assert(dataItem);
 
-  renderer->AddActor(dataItem->actor.GetPointer());
-}
+  dataItem->actor->SetVisibility(m_visible ? 1 : 0);
 
-//------------------------------------------------------------------------------
-void UnstructuredContourObject::setLookupTable(GLContextData &contextData,
-                                               vtkLookupTable *lut) const
-{
-  DataItem *dataItem = contextData.retrieveDataItem<DataItem>(this);
-  assert(dataItem);
-
-  dataItem->mapper->SetLookupTable(lut);
-}
-
-//------------------------------------------------------------------------------
-void UnstructuredContourObject::
-syncContext(GLContextData &contextData) const
-{
-  DataItem *dataItem = contextData.retrieveDataItem<DataItem>(this);
-  assert(dataItem);
-
-  if (m_visible)
-    {
-    dataItem->actor->SetVisibility(1);
-    }
-  else
-    {
-    dataItem->actor->SetVisibility(0);
-    }
-
-  // Copy the data if the output is newer
+  // TODO compute contours in a background thread.
   if (vtkDataObject *filterOutput = m_contour->GetOutputDataObject(0))
     {
     if (!dataItem->data ||
         dataItem->data->GetMTime() < filterOutput->GetMTime())
       {
+      // We intentionally break the pipeline here to allow future async
+      // computation of the rendered dataset.
       dataItem->data.TakeReference(filterOutput->NewInstance());
       dataItem->data->DeepCopy(filterOutput);
-      dataItem->mapper->SetInputDataObject(dataItem->data);
       }
     }
   else
     {
-    dataItem->mapper->SetInputDataObject(NULL);
+    dataItem->data = NULL;
     }
+  dataItem->mapper->SetInputDataObject(dataItem->data);
 
   // Point the mapper at the proper scalar array.
   ArrayLocator locator(dataItem->data, m_colorByArrayName);
@@ -177,50 +178,13 @@ syncContext(GLContextData &contextData) const
 }
 
 //------------------------------------------------------------------------------
-void UnstructuredContourObject::setInput(vtkUnstructuredGrid *grid)
-{
-  m_input = grid;
-}
-
-//------------------------------------------------------------------------------
-void UnstructuredContourObject::setInput(vtkCompositeDataSet *cds)
-{
-  if (cds != m_input.GetPointer())
-    {
-    vtkCompositeDataIterator *it = cds->NewIterator();
-    for (it->InitTraversal(); !it->IsDoneWithTraversal(); it->GoToNextItem())
-      {
-      if (!it->GetCurrentDataObject()->IsA("vtkUnstructuredGrid"))
-        {
-        std::cerr << "Expected all composite dataset leaves to be unstructured "
-                     "grids, but found a "
-                  << it->GetCurrentDataObject()->GetClassName() << "."
-                  << std::endl;
-        m_input = NULL;
-        return;
-        }
-      }
-    it->Delete();
-
-    m_input = cds;
-    }
-}
-
-//------------------------------------------------------------------------------
-vtkDataObject* UnstructuredContourObject::input() const
-{
-  return m_input.GetPointer();
-}
-
-//------------------------------------------------------------------------------
-std::vector<double> UnstructuredContourObject::contourValues() const
+std::vector<double> mvContours::contourValues() const
 {
   return m_contourValues;
 }
 
 //------------------------------------------------------------------------------
-void UnstructuredContourObject::
-setContourValues(const std::vector<double> &contourValues)
+void mvContours::setContourValues(const std::vector<double> &contourValues)
 {
   m_contourValues = contourValues;
 }

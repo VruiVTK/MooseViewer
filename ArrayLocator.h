@@ -4,11 +4,13 @@
 #include <vtkCellData.h>
 #include <vtkCompositeDataIterator.h>
 #include <vtkCompositeDataSet.h>
+#include <vtkDataArray.h>
 #include <vtkDataSet.h>
 #include <vtkPointData.h>
 #include <vtkTypeTraits.h>
 
 #include <algorithm>
+#include <cassert>
 
 // Utility to locate a field data array when the field association and dataset
 // type are unknown.
@@ -19,6 +21,7 @@
 // vtkDataSet.
 //
 // ArrayLocator::Association will be set to the location of the array.
+// ArrayLocator::Name will be set to the name of the array.
 // ArrayLocator::Range will be set to the range of the array.
 // ArrayLocator::IsComposite will be true if the dataset is composite.
 //
@@ -34,11 +37,35 @@ struct ArrayLocator
     };
 
   Location Association;
+  std::string Name;
   double Range[2];
   bool IsComposite;
 
+  ArrayLocator() : Association(Invalid), IsComposite(false)
+  {
+    this->Range[0] = vtkTypeTraits<double>::Max();
+    this->Range[1] = vtkTypeTraits<double>::Min();
+  }
+
+  ArrayLocator(const ArrayLocator &o)
+    : Association(o.Association), Name(o.Name), IsComposite(o.IsComposite)
+  {
+    this->Range[0] = o.Range[0];
+    this->Range[1] = o.Range[1];
+  }
+
+  ArrayLocator& operator=(const ArrayLocator &o)
+  {
+    this->Association = o.Association;
+    this->Name = o.Name;
+    this->Range[0] = o.Range[0];
+    this->Range[1] = o.Range[1];
+    this->IsComposite = o.IsComposite;
+  }
+
   ArrayLocator(vtkDataObject *dataObj, const std::string &arrayName)
     : Association(Invalid),
+      Name(arrayName),
       IsComposite(false)
   {
     this->Range[0] = vtkTypeTraits<double>::Max();
