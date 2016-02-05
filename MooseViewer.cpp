@@ -71,6 +71,7 @@
 #include "mvApplicationState.h"
 #include "mvContextState.h"
 #include "mvContours.h"
+#include "mvOutline.h"
 #include "mvVolume.h"
 #include "ScalarWidget.h"
 #include "TransferFunction1D.h"
@@ -91,7 +92,6 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   NumberOfClippingPlanes(6),
   Opacity(1.0),
   opacityValue(NULL),
-  Outline(true),
   renderingDialog(NULL),
   RepresentationType(2),
   sampleValue(NULL),
@@ -919,19 +919,10 @@ void MooseViewer::initContext(GLContextData& contextData) const
     (*it)->initMvContext(*context, contextData);
     }
 
-  vtkNew<vtkOutlineFilter> dataOutline;
-
   context->compositeFilter->SetInputConnection(
         m_state.reader().GetOutputPort());
   context->compositeFilter->Update();
   context->compositeFilter->GetOutput()->GetBounds(this->DataBounds);
-
-  dataOutline->SetInputConnection(context->compositeFilter->GetOutputPort());
-
-  vtkNew<vtkPolyDataMapper> mapperOutline;
-  mapperOutline->SetInputConnection(dataOutline->GetOutputPort());
-  context->actorOutline->SetMapper(mapperOutline.GetPointer());
-  context->actorOutline->GetProperty()->SetColor(1,1,1);
 }
 
 //----------------------------------------------------------------------------
@@ -1009,16 +1000,6 @@ void MooseViewer::display(GLContextData& contextData) const
 
     // TODO This only needs to be updated when Locator updates.
     m_state.colorMap().SetTableRange(tmpRange);
-    }
-
-  /* Enable/disable the outline */
-  if (this->Outline)
-    {
-    context->actorOutline->VisibilityOn();
-    }
-  else
-    {
-    context->actorOutline->VisibilityOff();
     }
 
   /* Set actor opacity */
@@ -1180,7 +1161,7 @@ void MooseViewer::changeRepresentationCallback(
     }
   else if (strcmp(callBackData->toggle->getName(), "ShowOutline") == 0)
     {
-    this->Outline = callBackData->set;
+    m_state.outline().setVisible(callBackData->set);
     }
 }
 //----------------------------------------------------------------------------

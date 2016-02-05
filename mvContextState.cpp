@@ -29,9 +29,6 @@ mvContextState::mvContextState()
   this->mapper->SetScalarModeToUsePointFieldData();
   this->actor->SetMapper(this->mapper.GetPointer());
 
-  this->actorOutline->GetProperty()->SetColor(1.0, 1.0, 1.0);
-  m_renderer->AddActor(this->actorOutline.GetPointer());
-
   this->framerate->GetTextProperty()->SetJustificationToLeft();
   this->framerate->GetTextProperty()->SetVerticalJustificationToTop();
   this->framerate->GetTextProperty()->SetFontSize(12);

@@ -5,6 +5,7 @@ class ArrayLocator;
 class mvContours;
 class mvVolume;
 class mvGLObject;
+class mvOutline;
 class vtkExodusIIReader;
 class vtkLookupTable;
 class WidgetHints;
@@ -43,6 +44,10 @@ public:
   ArrayLocator& locator() { return *m_locator; }
   const ArrayLocator& locator() const { return *m_locator; }
 
+  /** Render dataset outline. */
+  mvOutline& outline() { return *m_outline; }
+  const mvOutline& outline() const { return *m_outline; }
+
   /** File reader.
    * Access is not const-correct because VTK is not const-correct. */
   vtkExodusIIReader& reader() const { return *m_reader; }
@@ -65,6 +70,7 @@ private:
   vtkLookupTable *m_colorMap;
   mvContours *m_contours;
   ArrayLocator *m_locator;
+  mvOutline *m_outline;
   vtkExodusIIReader *m_reader;
   mvVolume *m_volume;
   WidgetHints *m_widgetHints;

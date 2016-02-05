@@ -76,6 +76,8 @@ SET(${PROJECT_NAME}_SRCS
   mvContours.h
   mvGLObject.cpp
   mvGLObject.h
+  mvOutline.cpp
+  mvOutline.h
   mvVolume.cpp
   mvVolume.h
   RGBAColor.cpp

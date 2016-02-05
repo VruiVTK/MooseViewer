@@ -32,7 +32,6 @@ public:
 
   // These need to be refactored into mvGLObject context data.
   vtkNew<vtkActor> actor;
-  vtkNew<vtkActor> actorOutline;
   vtkNew<vtkCompositeDataGeometryFilter> compositeFilter;
   vtkNew<vtkPolyDataMapper> mapper;
 

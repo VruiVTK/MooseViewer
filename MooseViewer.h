@@ -118,9 +118,6 @@ private:
   double * FlashlightPosition;
   double * FlashlightDirection;
 
-  /* Outline visible */
-  bool Outline;
-
   /* Color editor dialog */
   TransferFunction1D* ColorEditor;
 
