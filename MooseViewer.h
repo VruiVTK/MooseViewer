@@ -143,11 +143,6 @@ private:
   /* Custom scalar range */
   double* ScalarRange;
 
-  bool ShowFPS;
-  Misc::Timer FrameTimer;
-  std::vector<double> FrameTimes;
-  double GetFramesPerSecond() const;
-
   /* Constructors and destructors: */
 public:
   MooseViewer(int& argc,char**& argv);
@@ -167,8 +162,8 @@ public:
   void setWidgetHintsFile(const std::string &whFile);
   const std::string& getWidgetHintsFile(void);
 
-  void setShowFPS(bool show) { this->ShowFPS = show; }
-  bool getShowFPS() const { return this->ShowFPS; }
+  void setShowFPS(bool show);
+  bool getShowFPS() const;
 
   /* Animation */
   bool IsPlaying;

@@ -8,8 +8,6 @@
 #include <vtkLight.h>
 #include <vtkPolyDataMapper.h>
 #include <vtkProperty.h>
-#include <vtkTextActor.h>
-#include <vtkTextProperty.h>
 #include <vtkNew.h>
 
 mvContextState::mvContextState()
@@ -28,15 +26,6 @@ mvContextState::mvContextState()
   this->mapper->SetScalarVisibility(1);
   this->mapper->SetScalarModeToUsePointFieldData();
   this->actor->SetMapper(this->mapper.GetPointer());
-
-  this->framerate->GetTextProperty()->SetJustificationToLeft();
-  this->framerate->GetTextProperty()->SetVerticalJustificationToTop();
-  this->framerate->GetTextProperty()->SetFontSize(12);
-  this->framerate->SetTextScaleModeToViewport();
-  vtkCoordinate *fpsCoord = this->framerate->GetPositionCoordinate();
-  fpsCoord->SetCoordinateSystemToNormalizedDisplay();
-  fpsCoord->SetValue(0, 0.999);
-  m_renderer->AddActor2D(this->framerate.GetPointer());
 }
 
 mvContextState::~mvContextState()

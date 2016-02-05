@@ -13,7 +13,6 @@ class vtkCompositeDataGeometryFilter;
 class vtkCompositePolyDataMapper;
 class vtkExternalOpenGLRenderer;
 class vtkPolyDataMapper;
-class vtkTextActor;
 
 /**
  * @brief The mvContextState class holds shared context state.
@@ -34,8 +33,6 @@ public:
   vtkNew<vtkActor> actor;
   vtkNew<vtkCompositeDataGeometryFilter> compositeFilter;
   vtkNew<vtkPolyDataMapper> mapper;
-
-  vtkNew<vtkTextActor> framerate;
 
 private:
   // VTK components

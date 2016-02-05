@@ -74,6 +74,8 @@ SET(${PROJECT_NAME}_SRCS
   mvContextState.h
   mvContours.cpp
   mvContours.h
+  mvFramerate.cpp
+  mvFramerate.h
   mvGLObject.cpp
   mvGLObject.h
   mvOutline.cpp

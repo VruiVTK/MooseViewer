@@ -4,6 +4,7 @@
 class ArrayLocator;
 class mvContours;
 class mvVolume;
+class mvFramerate;
 class mvGLObject;
 class mvOutline;
 class vtkExodusIIReader;
@@ -40,6 +41,10 @@ public:
   mvContours& contours() { return *m_contours; }
   const mvContours& contours() const { return *m_contours; }
 
+  /** Framerate overlay. */
+  mvFramerate& framerate() { return *m_framerate; }
+  const mvFramerate& framerate() const { return *m_framerate; }
+
   /** Array locator. */
   ArrayLocator& locator() { return *m_locator; }
   const ArrayLocator& locator() const { return *m_locator; }
@@ -69,6 +74,7 @@ private:
 
   vtkLookupTable *m_colorMap;
   mvContours *m_contours;
+  mvFramerate *m_framerate;
   ArrayLocator *m_locator;
   mvOutline *m_outline;
   vtkExodusIIReader *m_reader;
