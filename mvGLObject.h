@@ -81,7 +81,8 @@ public:
    * MooseViewer::display(), after syncing application state but before
    * rendering.
    */
-  virtual void syncContextState(const mvContextState &state,
+  virtual void syncContextState(const mvApplicationState &appState,
+                                const mvContextState &contextState,
                                 GLContextData &contextData) const;
 };
 

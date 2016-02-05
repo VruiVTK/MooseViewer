@@ -6,6 +6,7 @@ class mvContours;
 class mvVolume;
 class mvGLObject;
 class vtkExodusIIReader;
+class vtkLookupTable;
 class WidgetHints;
 
 #include <string>
@@ -29,6 +30,10 @@ public:
   /** List of all mvGLObjects. */
   Objects& objects() { return m_objects; }
   const Objects& objects() const { return m_objects; }
+
+  /** Color map.
+   * Access is not const-correct because VTK is not const-correct. */
+  vtkLookupTable& colorMap() const { return *m_colorMap; }
 
   /** Contouring rendering object. */
   mvContours& contours() { return *m_contours; }
@@ -57,6 +62,7 @@ private:
 
   Objects m_objects;
 
+  vtkLookupTable *m_colorMap;
   mvContours *m_contours;
   ArrayLocator *m_locator;
   vtkExodusIIReader *m_reader;

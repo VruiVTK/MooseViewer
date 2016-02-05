@@ -46,7 +46,8 @@ public:
   void initMvContext(mvContextState &mvContext,
                      GLContextData &contextData) const;
   void syncApplicationState(const mvApplicationState &state);
-  void syncContextState(const mvContextState &state,
+  void syncContextState(const mvApplicationState &appState,
+                        const mvContextState &contextState,
                         GLContextData &contextData) const;
 
   /**
@@ -78,7 +79,6 @@ private:
 
   // Render settings:
   bool m_visible;
-  std::string m_colorByArrayName;
 };
 
 #endif // MVCONTOURS_H

@@ -6,7 +6,6 @@
 #include <vtkCompositePolyDataMapper.h>
 #include <vtkExternalOpenGLRenderer.h>
 #include <vtkLight.h>
-#include <vtkLookupTable.h>
 #include <vtkPolyDataMapper.h>
 #include <vtkProperty.h>
 #include <vtkTextActor.h>
@@ -32,10 +31,6 @@ mvContextState::mvContextState()
 
   this->actorOutline->GetProperty()->SetColor(1.0, 1.0, 1.0);
   m_renderer->AddActor(this->actorOutline.GetPointer());
-
-  m_colorMap->SetNumberOfColors(256);
-  m_colorMap->Build();
-  this->mapper->SetLookupTable(m_colorMap.GetPointer());
 
   this->framerate->GetTextProperty()->SetJustificationToLeft();
   this->framerate->GetTextProperty()->SetVerticalJustificationToTop();

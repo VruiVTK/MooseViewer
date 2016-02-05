@@ -69,7 +69,6 @@ void mvContours::initMvContext(mvContextState &mvContext,
   assert(dataItem);
 
   mvContext.renderer().AddActor(dataItem->actor.GetPointer());
-  dataItem->mapper->SetLookupTable(&mvContext.colorMap());
 }
 
 //------------------------------------------------------------------------------
@@ -79,35 +78,31 @@ void mvContours::syncApplicationState(const mvApplicationState &state)
 
   // Sync pipeline state.
   m_contour->SetInputConnection(state.reader().GetOutputPort());
-  m_colorByArrayName = state.locator().Name;
 
   // Use the correct array for contouring:
-  if (!m_colorByArrayName.empty())
+  switch (state.locator().Association)
     {
-    switch (state.locator().Association)
-      {
-      case ArrayLocator::NotFound:
-      case ArrayLocator::Invalid:
-        break;
+    case ArrayLocator::NotFound:
+    case ArrayLocator::Invalid:
+      break;
 
-      case ArrayLocator::PointData:
-        m_contour->SetInputArrayToProcess(
-              0, 0, 0, vtkDataObject::FIELD_ASSOCIATION_POINTS,
-              m_colorByArrayName.c_str());
-        break;
+    case ArrayLocator::PointData:
+      m_contour->SetInputArrayToProcess(
+            0, 0, 0, vtkDataObject::FIELD_ASSOCIATION_POINTS,
+            state.locator().Name.c_str());
+      break;
 
-      case ArrayLocator::CellData:
-        m_contour->SetInputArrayToProcess(
-              0, 0, 0, vtkDataObject::FIELD_ASSOCIATION_CELLS,
-              m_colorByArrayName.c_str());
-        break;
+    case ArrayLocator::CellData:
+      m_contour->SetInputArrayToProcess(
+            0, 0, 0, vtkDataObject::FIELD_ASSOCIATION_CELLS,
+            state.locator().Name.c_str());
+      break;
 
-      case ArrayLocator::FieldData:
-        m_contour->SetInputArrayToProcess(
-              0, 0, 0, vtkDataObject::FIELD_ASSOCIATION_NONE,
-              m_colorByArrayName.c_str());
-        break;
-      }
+    case ArrayLocator::FieldData:
+      m_contour->SetInputArrayToProcess(
+            0, 0, 0, vtkDataObject::FIELD_ASSOCIATION_NONE,
+            state.locator().Name.c_str());
+      break;
     }
 
   // Set contour values:
@@ -124,10 +119,11 @@ void mvContours::syncApplicationState(const mvApplicationState &state)
 }
 
 //------------------------------------------------------------------------------
-void mvContours::syncContextState(const mvContextState &context,
+void mvContours::syncContextState(const mvApplicationState &appState,
+                                  const mvContextState &contextState,
                                   GLContextData &contextData) const
 {
-  this->mvGLObject::syncContextState(context, contextData);
+  this->mvGLObject::syncContextState(appState, contextState, contextData);
 
   DataItem *dataItem = contextData.retrieveDataItem<DataItem>(this);
   assert(dataItem);
@@ -151,10 +147,10 @@ void mvContours::syncContextState(const mvContextState &context,
     dataItem->data = NULL;
     }
   dataItem->mapper->SetInputDataObject(dataItem->data);
+  dataItem->mapper->SetLookupTable(&appState.colorMap());
 
   // Point the mapper at the proper scalar array.
-  ArrayLocator locator(dataItem->data, m_colorByArrayName);
-  switch (locator.Association)
+  switch (appState.locator().Association)
     {
     case ArrayLocator::NotFound:
     case ArrayLocator::Invalid:
@@ -162,17 +158,17 @@ void mvContours::syncContextState(const mvContextState &context,
 
     case ArrayLocator::PointData:
       dataItem->mapper->SetScalarModeToUsePointFieldData();
-      dataItem->mapper->SelectColorArray(m_colorByArrayName.c_str());
+      dataItem->mapper->SelectColorArray(appState.locator().Name.c_str());
       break;
 
     case ArrayLocator::CellData:
       dataItem->mapper->SetScalarModeToUseCellFieldData();
-      dataItem->mapper->SelectColorArray(m_colorByArrayName.c_str());
+      dataItem->mapper->SelectColorArray(appState.locator().Name.c_str());
       break;
 
     case ArrayLocator::FieldData:
       dataItem->mapper->SetScalarModeToUseFieldData();
-      dataItem->mapper->SelectColorArray(m_colorByArrayName.c_str());
+      dataItem->mapper->SelectColorArray(appState.locator().Name.c_str());
       break;
     }
 }

@@ -79,8 +79,6 @@ void mvVolume::syncApplicationState(const mvApplicationState &state)
 {
   this->mvGLObject::syncApplicationState(state);
 
-  m_locator = state.locator();
-
   // Splat the proper array:
   switch (state.locator().Association)
     {
@@ -124,15 +122,17 @@ void mvVolume::syncApplicationState(const mvApplicationState &state)
 }
 
 //------------------------------------------------------------------------------
-void mvVolume::syncContextState(const mvContextState &context,
+void mvVolume::syncContextState(const mvApplicationState &appState,
+                                const mvContextState &contextState,
                                 GLContextData &contextData) const
 {
-  this->mvGLObject::syncContextState(context, contextData);
+  this->mvGLObject::syncContextState(appState, contextState, contextData);
 
   DataItem *dataItem = contextData.retrieveDataItem<DataItem>(this);
   assert(dataItem);
 
-  dataItem->actor->SetVisibility((m_visible && !m_locator.Name.empty())? 1 : 0);
+  dataItem->actor->SetVisibility((m_visible && !appState.locator().Name.empty())
+                                 ? 1 : 0);
 
   if (vtkDataObject *appDS = m_splat->GetOutputDataObject(0))
     {
@@ -171,17 +171,18 @@ void mvVolume::syncContextState(const mvContextState &context,
   dataItem->mapper->SetInputDataObject(dataItem->data);
 
   // Update color map.
-  if (context.colorMap().GetMTime() > std::min(m_colorFunction->GetMTime(),
-                                               m_opacityFunction->GetMTime()))
+  if (appState.colorMap().GetMTime() > std::min(m_colorFunction->GetMTime(),
+                                                m_opacityFunction->GetMTime()))
     {
     m_colorFunction->RemoveAllPoints();
     m_opacityFunction->RemoveAllPoints();
-    double step = (m_locator.Range[1] - m_locator.Range[0]) / 255.0;
+    double step = (appState.locator().Range[1] - appState.locator().Range[0])
+                   / 255.0;
     double rgba[4];
     for (vtkIdType i = 0; i < 256; ++i)
       {
-      const double x = m_locator.Range[0] + (i * step);
-      context.colorMap().GetTableValue(i, rgba);
+      const double x = appState.locator().Range[0] + (i * step);
+      appState.colorMap().GetTableValue(i, rgba);
       m_colorFunction->AddRGBPoint(x, rgba[0], rgba[1], rgba[2]);
       m_opacityFunction->AddPoint(x, rgba[3]);
       }

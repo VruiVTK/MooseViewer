@@ -1,6 +1,7 @@
 #include "mvApplicationState.h"
 
 #include <vtkExodusIIReader.h>
+#include <vtkLookupTable.h>
 
 #include "ArrayLocator.h"
 #include "mvContours.h"
@@ -8,7 +9,8 @@
 #include "WidgetHints.h"
 
 mvApplicationState::mvApplicationState()
-  : m_contours(new mvContours),
+  : m_colorMap(vtkLookupTable::New()),
+    m_contours(new mvContours),
     m_locator(new ArrayLocator),
     m_reader(vtkExodusIIReader::New()),
     m_widgetHints(new WidgetHints()),
@@ -20,6 +22,7 @@ mvApplicationState::mvApplicationState()
 
 mvApplicationState::~mvApplicationState()
 {
+  m_colorMap->Delete();
   delete m_contours;
   delete m_locator;
   m_reader->Delete();

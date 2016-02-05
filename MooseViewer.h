@@ -20,7 +20,6 @@
 
 // VTK includes
 #include <vtkSmartPointer.h>
-#include <vtkTimeStamp.h>
 
 // STL includes
 #include <vector>
@@ -125,9 +124,9 @@ private:
   /* Color editor dialog */
   TransferFunction1D* ColorEditor;
 
-  /* Color Transfer function */
-  double * ColorMap;
-  vtkTimeStamp ColorMapMTime;
+  /** Cached copy of the last colormap data. Used to skip colormap updates when
+   *  nothing actually changes. */
+  double *m_colorMapCache;
 
   /* Animation dialog */
   AnimationDialog* AnimationControl;

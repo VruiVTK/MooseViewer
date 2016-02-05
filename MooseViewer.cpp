@@ -121,7 +121,7 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
 //----------------------------------------------------------------------------
 MooseViewer::~MooseViewer(void)
 {
-  delete[] this->ColorMap;
+  delete[] m_colorMapCache;
   delete[] this->ClippingPlanes;
   delete[] this->DataBounds;
   delete[] this->Histogram;
@@ -162,7 +162,8 @@ void MooseViewer::Initialize()
   this->DataBounds = new double[6];
 
   /* Color Map */
-  this->ColorMap = new double[4*256];
+  m_colorMapCache = new double[4*256];
+  std::fill(m_colorMapCache, m_colorMapCache + 4 * 256, -1.); // invalid
 
   /* Histogram */
   this->Histogram = new float[256];
@@ -818,10 +819,6 @@ void MooseViewer::frame(void)
       &MooseViewer::alphaChangedCallback);
     updateColorMap();
 
-    // This ensures that the context colorMaps get updated initially. This
-    // can be removed once the colorMap is moved to app state.
-    this->ColorMapMTime.Modified();
-
     /* Contours */
     this->ContoursDialog = new Contours(this);
     this->ContoursDialog->getAlphaChangedCallbacks().add(this,
@@ -1008,19 +1005,10 @@ void MooseViewer::display(GLContextData& contextData) const
     double tmpRange[2] = { m_state.locator().Range[0],
                            m_state.locator().Range[1] };
     context->mapper->SetScalarRange(tmpRange);
+    context->mapper->SetLookupTable(&m_state.colorMap());
 
     // TODO This only needs to be updated when Locator updates.
-    context->colorMap().SetTableRange(tmpRange);
-    }
-
-  // Update this context's colormap
-  if (this->ColorMapMTime > context->colorMap().GetMTime())
-    {
-    context->colorMap().SetNumberOfTableValues(256);
-    for (int i = 0; i < 256; ++i)
-      {
-      context->colorMap().SetTableValue(i, this->ColorMap + 4*i);
-      }
+    m_state.colorMap().SetTableRange(tmpRange);
     }
 
   /* Enable/disable the outline */
@@ -1061,7 +1049,7 @@ void MooseViewer::display(GLContextData& contextData) const
   for (Iter it = m_state.objects().begin(), itEnd = m_state.objects().end();
        it != itEnd; ++it)
     {
-    (*it)->syncContextState(*context, contextData);
+    (*it)->syncContextState(m_state, *context, contextData);
     }
 
   /* Render the scene */
@@ -1438,13 +1426,23 @@ void MooseViewer::updateColorMap(void)
   this->ColorEditor->exportColorMap(tmp);
   this->ColorEditor->exportAlpha(tmp);
 
-  if (std::equal(tmp, tmp + 256 * 4, this->ColorMap))
+  // Do nothing if the colormap hasn't actually changed.
+  if (std::equal(tmp, tmp + 256 * 4, m_colorMapCache))
     {
     return;
     }
 
-  std::copy(tmp, tmp + 256 * 4, this->ColorMap);
-  this->ColorMapMTime.Modified();
+  // Sync the cache to the new data:
+  std::copy(tmp, tmp + 256 * 4, m_colorMapCache);
+
+  // Update the actual colormap
+  m_state.colorMap().SetNumberOfTableValues(256);
+  for (int i = 0; i < 256; ++i)
+    {
+    m_state.colorMap().SetTableValue(i, m_colorMapCache + 4*i);
+    }
+
+  // Redraw
   Vrui::requestUpdate();
 }
 

@@ -45,7 +45,8 @@ public:
   void initMvContext(mvContextState &mvContext,
                      GLContextData &contextData) const;
   void syncApplicationState(const mvApplicationState &state);
-  void syncContextState(const mvContextState &state,
+  void syncContextState(const mvApplicationState &appState,
+                        const mvContextState &contextState,
                         GLContextData &contextData) const;
 
   /**
@@ -86,8 +87,6 @@ private:
 
   int m_requestedRenderMode;
   bool m_visible;
-
-  ArrayLocator m_locator;
 
   double m_splatDimensions;
   double m_splatExponent;

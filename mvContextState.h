@@ -12,7 +12,6 @@ class vtkActor;
 class vtkCompositeDataGeometryFilter;
 class vtkCompositePolyDataMapper;
 class vtkExternalOpenGLRenderer;
-class vtkLookupTable;
 class vtkPolyDataMapper;
 class vtkTextActor;
 
@@ -28,7 +27,6 @@ public:
   ~mvContextState();
 
   // These aren't const-correct bc VTK is not const-correct.
-  vtkLookupTable& colorMap() const { return *m_colorMap.Get(); }
   vtkExternalOpenGLRenderer& renderer() const { return *m_renderer.Get(); }
   ExternalVTKWidget& widget() const { return *m_widget.Get(); }
 
@@ -42,7 +40,6 @@ public:
 
 private:
   // VTK components
-  vtkNew<vtkLookupTable> m_colorMap;
   vtkNew<vtkExternalOpenGLRenderer> m_renderer;
   vtkNew<ExternalVTKWidget> m_widget;
 };
