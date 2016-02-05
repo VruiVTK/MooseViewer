@@ -86,12 +86,6 @@ private:
   /* Name of file to load */
   std::string FileName;
 
-  /* Opacity value */
-  double Opacity;
-
-  /* Representation Type */
-  int RepresentationType;
-
   /* bounds */
   double* DataBounds;
 

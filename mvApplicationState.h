@@ -5,6 +5,7 @@ class ArrayLocator;
 class mvContours;
 class mvVolume;
 class mvFramerate;
+class mvGeometry;
 class mvGLObject;
 class mvOutline;
 class vtkExodusIIReader;
@@ -45,6 +46,10 @@ public:
   mvFramerate& framerate() { return *m_framerate; }
   const mvFramerate& framerate() const { return *m_framerate; }
 
+  /** Main polydata geometry rendering. */
+  mvGeometry& geometry() { return *m_geometry; }
+  const mvGeometry& geometry() const { return *m_geometry; }
+
   /** Array locator. */
   ArrayLocator& locator() { return *m_locator; }
   const ArrayLocator& locator() const { return *m_locator; }
@@ -75,6 +80,7 @@ private:
   vtkLookupTable *m_colorMap;
   mvContours *m_contours;
   mvFramerate *m_framerate;
+  mvGeometry *m_geometry;
   ArrayLocator *m_locator;
   mvOutline *m_outline;
   vtkExodusIIReader *m_reader;

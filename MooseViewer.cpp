@@ -72,6 +72,7 @@
 #include "mvContextState.h"
 #include "mvContours.h"
 #include "mvFramerate.h"
+#include "mvGeometry.h"
 #include "mvOutline.h"
 #include "mvVolume.h"
 #include "ScalarWidget.h"
@@ -91,10 +92,8 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   Loop(false),
   mainMenu(NULL),
   NumberOfClippingPlanes(6),
-  Opacity(1.0),
   opacityValue(NULL),
   renderingDialog(NULL),
-  RepresentationType(2),
   sampleValue(NULL),
   variablesDialog(0)
 {
@@ -740,14 +739,14 @@ GLMotif::PopupWindow* MooseViewer::createRenderingDialog(void) {
   GLMotif::Slider* opacitySlider = new GLMotif::Slider(
     "OpacitySlider", opacityRow, GLMotif::Slider::HORIZONTAL,
     ss.fontHeight*10.0f);
-  opacitySlider->setValue(Opacity);
+  opacitySlider->setValue(m_state.geometry().opacity());
   opacitySlider->setValueRange(0.0, 1.0, 0.1);
   opacitySlider->getValueChangedCallbacks().add(
     this, &MooseViewer::opacitySliderCallback);
   opacityValue = new GLMotif::TextField("OpacityValue", opacityRow, 6);
   opacityValue->setFieldWidth(6);
   opacityValue->setPrecision(3);
-  opacityValue->setValue(Opacity);
+  opacityValue->setValue(m_state.geometry().opacity());
   opacityRow->manageChild();
 
   /* Create Volume sampling options sliders */
@@ -817,6 +816,7 @@ GLMotif::PopupWindow* MooseViewer::createRenderingDialog(void) {
 //----------------------------------------------------------------------------
 void MooseViewer::frame(void)
 {
+  // TODO This would be best moved to an updateReader() method eventually:
   if(this->FirstFrame)
     {
     /* Initialize the color editor */
@@ -903,6 +903,27 @@ void MooseViewer::initContext(GLContextData& contextData) const
       << glewInitResult << ")." << std::endl;
     }
 
+  // TODO move to a updateReader method at some point.
+  this->DataBounds[0] = DataBounds[2] = DataBounds[4] = VTK_DOUBLE_MAX;
+  this->DataBounds[1] = DataBounds[3] = DataBounds[5] = VTK_DOUBLE_MIN;
+  m_state.reader().Update();
+  vtkCompositeDataIterator *it = m_state.reader().GetOutput()->NewIterator();
+  double leafBounds[6];
+  for (it->InitTraversal(); !it->IsDoneWithTraversal(); it->GoToNextItem())
+    {
+    if (vtkDataSet *ds = vtkDataSet::SafeDownCast(it->GetCurrentDataObject()))
+      {
+      ds->GetBounds(leafBounds);
+      this->DataBounds[0] = std::min(this->DataBounds[0], leafBounds[0]);
+      this->DataBounds[1] = std::max(this->DataBounds[1], leafBounds[1]);
+      this->DataBounds[2] = std::min(this->DataBounds[2], leafBounds[2]);
+      this->DataBounds[3] = std::max(this->DataBounds[3], leafBounds[3]);
+      this->DataBounds[4] = std::min(this->DataBounds[4], leafBounds[4]);
+      this->DataBounds[5] = std::max(this->DataBounds[5], leafBounds[5]);
+      }
+    }
+  it->Delete();
+
   /* Create a new context data item */
   mvContextState* context = new mvContextState;
   contextData.addDataItem(this, context);
@@ -914,11 +935,6 @@ void MooseViewer::initContext(GLContextData& contextData) const
     {
     (*it)->initMvContext(*context, contextData);
     }
-
-  context->compositeFilter->SetInputConnection(
-        m_state.reader().GetOutputPort());
-  context->compositeFilter->Update();
-  context->compositeFilter->GetOutput()->GetBounds(this->DataBounds);
 }
 
 //----------------------------------------------------------------------------
@@ -950,62 +966,9 @@ void MooseViewer::display(GLContextData& contextData) const
   /* Color by selected array */
   if (!m_state.locator().Name.empty())
     {
-    switch (m_state.locator().Association)
-      {
-      case ArrayLocator::Invalid:
-        std::cerr << "Invalid dataset or scalar array name." << std::endl;
-        break;
-
-      case ArrayLocator::NotFound:
-        std::cerr << "Array '" << m_state.locator().Name << "' not found in "
-                     "dataset." << std::endl;
-        break;
-
-      case ArrayLocator::PointData:
-        context->mapper->SetScalarModeToUsePointFieldData();
-        break;
-
-      case ArrayLocator::CellData:
-        context->mapper->SetScalarModeToUseCellFieldData();
-        break;
-
-      case ArrayLocator::FieldData:
-        context->mapper->SetScalarModeToUseFieldData();
-        break;
-      }
-    context->mapper->SelectColorArray(m_state.locator().Name.c_str());
-
-    // Workaround const-correctness bug:
-    double tmpRange[2] = { m_state.locator().Range[0],
-                           m_state.locator().Range[1] };
-    context->mapper->SetScalarRange(tmpRange);
-    context->mapper->SetLookupTable(&m_state.colorMap());
-
     // TODO This only needs to be updated when Locator updates.
-    m_state.colorMap().SetTableRange(tmpRange);
-    }
-
-  /* Set actor opacity */
-  context->actor->GetProperty()->SetOpacity(this->Opacity);
-  /* Set the appropriate representation */
-  if (this->RepresentationType != -1)
-    {
-    context->actor->VisibilityOn();
-    if (this->RepresentationType == 3)
-      {
-      context->actor->GetProperty()->SetRepresentationToSurface();
-      context->actor->GetProperty()->EdgeVisibilityOn();
-      }
-    else
-      {
-      context->actor->GetProperty()->SetRepresentation(
-        this->RepresentationType);
-      context->actor->GetProperty()->EdgeVisibilityOff();
-      }
-    }
-  else
-    {
-    context->actor->VisibilityOff();
+    m_state.colorMap().SetTableRange(m_state.locator().Range[0],
+                                     m_state.locator().Range[1]);
     }
 
   /* Synchronize mvGLObjects: */
@@ -1060,7 +1023,7 @@ void MooseViewer::centerDisplayCallback(Misc::CallbackData* callBackData)
 void MooseViewer::opacitySliderCallback(
   GLMotif::Slider::ValueChangedCallbackData* callBackData)
 {
-  this->Opacity = static_cast<double>(callBackData->value);
+  m_state.geometry().setOpacity(static_cast<double>(callBackData->value));
   opacityValue->setValue(callBackData->value);
 }
 
@@ -1117,36 +1080,33 @@ void MooseViewer::changeRepresentationCallback(
   /* Adjust representation state based on which toggle button changed state: */
   if (strcmp(callBackData->toggle->getName(), "ShowSurface") == 0)
     {
-    this->RepresentationType = 2;
+    m_state.geometry().setRepresentation(mvGeometry::Surface);
     m_state.volume().setVisible(false);
     }
   else if (strcmp(callBackData->toggle->getName(), "ShowSurfaceWithEdges") == 0)
     {
-    this->RepresentationType = 3;
+    m_state.geometry().setRepresentation(mvGeometry::SurfaceWithEdges);
     m_state.volume().setVisible(false);
     }
   else if (strcmp(callBackData->toggle->getName(), "ShowWireframe") == 0)
     {
-    this->RepresentationType = 1;
+    m_state.geometry().setRepresentation(mvGeometry::Wireframe);
     m_state.volume().setVisible(false);
     }
   else if (strcmp(callBackData->toggle->getName(), "ShowPoints") == 0)
     {
-    this->RepresentationType = 0;
+    m_state.geometry().setRepresentation(mvGeometry::Points);
     m_state.volume().setVisible(false);
     }
   else if (strcmp(callBackData->toggle->getName(), "ShowNone") == 0)
     {
-    this->RepresentationType = -1;
+    m_state.geometry().setRepresentation(mvGeometry::NoGeometry);
     m_state.volume().setVisible(false);
     }
   else if (strcmp(callBackData->toggle->getName(), "ShowVolume") == 0)
     {
-    m_state.volume().setVisible(callBackData->set);
-    if (callBackData->set)
-      {
-      this->RepresentationType = -1;
-      }
+    m_state.geometry().setRepresentation(mvGeometry::NoGeometry);
+    m_state.volume().setVisible(true);
     }
   else if (strcmp(callBackData->toggle->getName(), "ShowOutline") == 0)
     {
