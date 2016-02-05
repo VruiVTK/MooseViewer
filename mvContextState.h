@@ -9,17 +9,12 @@
 // Forward declarations
 class ExternalVTKWidget;
 class vtkActor;
-class vtkCheckerboardSplatter;
-class vtkColorTransferFunction;
 class vtkCompositeDataGeometryFilter;
 class vtkCompositePolyDataMapper;
 class vtkExternalOpenGLRenderer;
 class vtkLookupTable;
-class vtkPiecewiseFunction;
 class vtkPolyDataMapper;
-class vtkSmartVolumeMapper;
 class vtkTextActor;
-class vtkVolume;
 
 /**
  * @brief The mvContextState class holds shared context state.
@@ -42,12 +37,6 @@ public:
   vtkNew<vtkActor> actorOutline;
   vtkNew<vtkCompositeDataGeometryFilter> compositeFilter;
   vtkNew<vtkPolyDataMapper> mapper;
-
-  vtkNew<vtkCheckerboardSplatter> gaussian;
-  vtkNew<vtkVolume> actorVolume;
-  vtkNew<vtkSmartVolumeMapper> mapperVolume;
-  vtkNew<vtkColorTransferFunction> colorFunction;
-  vtkNew<vtkPiecewiseFunction> opacityFunction;
 
   vtkNew<vtkTextActor> framerate;
 

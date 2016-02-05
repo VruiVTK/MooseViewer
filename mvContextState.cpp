@@ -2,21 +2,15 @@
 
 #include <ExternalVTKWidget.h>
 #include <vtkActor.h>
-#include <vtkCheckerboardSplatter.h>
-#include <vtkColorTransferFunction.h>
 #include <vtkCompositeDataGeometryFilter.h>
 #include <vtkCompositePolyDataMapper.h>
 #include <vtkExternalOpenGLRenderer.h>
 #include <vtkLight.h>
 #include <vtkLookupTable.h>
-#include <vtkPiecewiseFunction.h>
 #include <vtkPolyDataMapper.h>
 #include <vtkProperty.h>
-#include <vtkSmartVolumeMapper.h>
 #include <vtkTextActor.h>
 #include <vtkTextProperty.h>
-#include <vtkVolume.h>
-#include <vtkVolumeProperty.h>
 #include <vtkNew.h>
 
 mvContextState::mvContextState()
@@ -42,21 +36,6 @@ mvContextState::mvContextState()
   m_colorMap->SetNumberOfColors(256);
   m_colorMap->Build();
   this->mapper->SetLookupTable(m_colorMap.GetPointer());
-
-  this->gaussian->ScalarWarpingOn();
-  this->gaussian->NormalWarpingOff();
-  this->gaussian->SetRadius(0.05);
-  this->gaussian->SetExponentFactor(-1);
-
-  this->mapperVolume->SetInputConnection(this->gaussian->GetOutputPort());
-  vtkNew<vtkVolumeProperty> volumeProperty;
-  volumeProperty->SetColor(this->colorFunction.GetPointer());
-  volumeProperty->SetScalarOpacity(this->opacityFunction.GetPointer());
-  volumeProperty->SetInterpolationTypeToLinear();
-  volumeProperty->ShadeOff();
-  this->actorVolume->SetMapper(this->mapperVolume.GetPointer());
-  this->actorVolume->SetProperty(volumeProperty.GetPointer());
-  m_renderer->AddVolume(this->actorVolume.GetPointer());
 
   this->framerate->GetTextProperty()->SetJustificationToLeft();
   this->framerate->GetTextProperty()->SetVerticalJustificationToTop();

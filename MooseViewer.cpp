@@ -71,6 +71,7 @@
 #include "mvApplicationState.h"
 #include "mvContextState.h"
 #include "mvContours.h"
+#include "mvVolume.h"
 #include "ScalarWidget.h"
 #include "TransferFunction1D.h"
 #include "VariablesDialog.h"
@@ -84,9 +85,6 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   colorByVariablesMenu(0),
   ContoursDialog(NULL),
   FirstFrame(true),
-  GaussianSplatterDims(30),
-  GaussianSplatterExp(-1.0),
-  GaussianSplatterRadius(0.01),
   IsPlaying(false),
   Loop(false),
   mainMenu(NULL),
@@ -96,11 +94,9 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   Outline(true),
   renderingDialog(NULL),
   RepresentationType(2),
-  RequestedRenderMode(3),
   sampleValue(NULL),
   ShowFPS(false),
-  variablesDialog(0),
-  Volume(false)
+  variablesDialog(0)
 {
   /* Set Window properties:
    * Since the application requires translucency, GLX_ALPHA_SIZE is set to 1 at
@@ -750,7 +746,7 @@ GLMotif::PopupWindow* MooseViewer::createRenderingDialog(void) {
     "SampleLabel", sampleRow, "Volume Sampling Dimensions");
   GLMotif::Slider* sampleSlider = new GLMotif::Slider(
     "SampleSlider", sampleRow, GLMotif::Slider::HORIZONTAL, ss.fontHeight*10.0f);
-  sampleSlider->setValue(GaussianSplatterExp);
+  sampleSlider->setValue(m_state.volume().splatExponent());
   sampleSlider->setValueRange(20, 200.0, 10.0);
   sampleSlider->getValueChangedCallbacks().add(
     this, &MooseViewer::sampleSliderCallback);
@@ -758,8 +754,9 @@ GLMotif::PopupWindow* MooseViewer::createRenderingDialog(void) {
   sampleValue->setFieldWidth(6);
   sampleValue->setPrecision(3);
   std::stringstream stringstr;
-  stringstr << GaussianSplatterDims << " x " << GaussianSplatterDims <<
-    " x " << GaussianSplatterDims;
+  stringstr << m_state.volume().splatDimensions() << " x "
+            << m_state.volume().splatDimensions() << " x "
+            << m_state.volume().splatDimensions();
   sampleValue->setString(stringstr.str().c_str());
   sampleRow->manageChild();
 
@@ -772,14 +769,14 @@ GLMotif::PopupWindow* MooseViewer::createRenderingDialog(void) {
   GLMotif::Slider* radiusSlider = new GLMotif::Slider(
     "RadiusSlider", radiusRow, GLMotif::Slider::HORIZONTAL,
     ss.fontHeight*10.0f);
-  radiusSlider->setValue(GaussianSplatterRadius);
+  radiusSlider->setValue(m_state.volume().splatRadius());
   radiusSlider->setValueRange(0.0, 0.1, 0.01);
   radiusSlider->getValueChangedCallbacks().add(
     this, &MooseViewer::radiusSliderCallback);
   radiusValue = new GLMotif::TextField("RadiusValue", radiusRow, 6);
   radiusValue->setFieldWidth(6);
   radiusValue->setPrecision(3);
-  radiusValue->setValue(GaussianSplatterRadius);
+  radiusValue->setValue(m_state.volume().splatRadius());
   radiusRow->manageChild();
 
   GLMotif::RowColumn * exponentRow = new GLMotif::RowColumn(
@@ -790,14 +787,14 @@ GLMotif::PopupWindow* MooseViewer::createRenderingDialog(void) {
     "ExpLabel", exponentRow, "Volume Sampling Exponent");
   GLMotif::Slider* exponentSlider = new GLMotif::Slider(
     "ExponentSlider", exponentRow, GLMotif::Slider::HORIZONTAL, ss.fontHeight*10.0f);
-  exponentSlider->setValue(GaussianSplatterExp);
+  exponentSlider->setValue(m_state.volume().splatExponent());
   exponentSlider->setValueRange(-5.0, 5.0, 1.0);
   exponentSlider->getValueChangedCallbacks().add(
     this, &MooseViewer::exponentSliderCallback);
   exponentValue = new GLMotif::TextField("ExponentValue", exponentRow, 6);
   exponentValue->setFieldWidth(6);
   exponentValue->setPrecision(3);
-  exponentValue->setValue(GaussianSplatterExp);
+  exponentValue->setValue(m_state.volume().splatExponent());
   exponentRow->manageChild();
 
   dialog->manageChild();
@@ -820,7 +817,10 @@ void MooseViewer::frame(void)
     this->ColorEditor->getAlphaChangedCallbacks().add(this,
       &MooseViewer::alphaChangedCallback);
     updateColorMap();
-    updateAlpha();
+
+    // This ensures that the context colorMaps get updated initially. This
+    // can be removed once the colorMap is moved to app state.
+    this->ColorMapMTime.Modified();
 
     /* Contours */
     this->ContoursDialog = new Contours(this);
@@ -877,8 +877,6 @@ void MooseViewer::frame(void)
     (*it)->syncApplicationState(m_state);
     }
 
-  this->updateColorMap();
-  this->updateAlpha();
   if (this->IsPlaying)
     {
     int currentTimeStep = m_state.reader().GetTimeStep();
@@ -899,7 +897,6 @@ void MooseViewer::frame(void)
       }
     }
   this->AnimationControl->updateTimeInformation();
-  this->updateHistogram();
 }
 
 //----------------------------------------------------------------------------
@@ -933,8 +930,6 @@ void MooseViewer::initContext(GLContextData& contextData) const
   context->compositeFilter->GetOutput()->GetBounds(this->DataBounds);
 
   dataOutline->SetInputConnection(context->compositeFilter->GetOutputPort());
-
-  context->mapperVolume->SetRequestedRenderMode(this->RequestedRenderMode);
 
   vtkNew<vtkPolyDataMapper> mapperOutline;
   mapperOutline->SetInputConnection(dataOutline->GetOutputPort());
@@ -982,92 +977,49 @@ void MooseViewer::display(GLContextData& contextData) const
     }
 
   /* Color by selected array */
-  std::string selectedArray = this->getSelectedColorByArrayName();
-  double* dataRange = NULL;
-  if (!selectedArray.empty())
+  if (!m_state.locator().Name.empty())
     {
-    context->mapper->SelectColorArray(selectedArray.c_str());
-
-    bool dataArrayFound = true;
-
-    // FIXME: Much of this would be good to move into a mvGLObject at some
-    // point:
-    // - usg is used to configure the volume. This would be a new object.
-    // - The data range is extracted here, but that could be replaced by using
-    //   a reader-scoped ArrayLocator.
-    vtkSmartPointer<vtkUnstructuredGrid> usg =
-      vtkSmartPointer<vtkUnstructuredGrid>::New();
-    usg->DeepCopy(
-      vtkUnstructuredGrid::SafeDownCast(vtkMultiBlockDataSet::SafeDownCast(
-          m_state.reader().GetOutput()->GetBlock(0))->GetBlock(0)));
-
-    context->compositeFilter->Update();
-    vtkSmartPointer<vtkDataArray> dataArray = vtkDataArray::SafeDownCast(
-      context->compositeFilter->GetOutput()->GetPointData(
-        )->GetArray(selectedArray.c_str()));
-    if (!dataArray)
+    switch (m_state.locator().Association)
       {
-      dataArray = vtkDataArray::SafeDownCast(
-        context->compositeFilter->GetOutput()->GetCellData(
-          )->GetArray(selectedArray.c_str()));
-      context->mapper->SetScalarModeToUseCellFieldData();
-      vtkSmartPointer<vtkCellDataToPointData> cellToPoint =
-        vtkSmartPointer<vtkCellDataToPointData>::New();
-      cellToPoint->SetInputData(usg);
-      cellToPoint->Update();
-      usg->DeepCopy(vtkUnstructuredGrid::SafeDownCast(cellToPoint->GetOutput()));
-      if (!dataArray)
-        {
-        std::cerr << "The selected array is neither PointDataArray"\
-          " nor CellDataArray" << std::endl;
-        dataArrayFound = false;
-        }
-      }
-    else
-      {
-      context->mapper->SetScalarModeToUsePointFieldData();
-      }
+      case ArrayLocator::Invalid:
+        std::cerr << "Invalid dataset or scalar array name." << std::endl;
+        break;
 
-    if (dataArrayFound)
-      {
-      dataRange = dataArray->GetRange();
-      dataRange[0] = this->ScalarRange[0];
-      dataRange[1] = this->ScalarRange[1];
-      context->mapper->SetScalarRange(dataRange);
-      context->colorMap().SetTableRange(dataRange);
+      case ArrayLocator::NotFound:
+        std::cerr << "Array '" << m_state.locator().Name << "' not found in "
+                     "dataset." << std::endl;
+        break;
+
+      case ArrayLocator::PointData:
+        context->mapper->SetScalarModeToUsePointFieldData();
+        break;
+
+      case ArrayLocator::CellData:
+        context->mapper->SetScalarModeToUseCellFieldData();
+        break;
+
+      case ArrayLocator::FieldData:
+        context->mapper->SetScalarModeToUseFieldData();
+        break;
       }
+    context->mapper->SelectColorArray(m_state.locator().Name.c_str());
 
-    usg->GetPointData()->SetActiveScalars(selectedArray.c_str());
-    int imageExtent[6] = {0, this->GaussianSplatterDims-1,
-      0, this->GaussianSplatterDims-1, 0, this->GaussianSplatterDims-1};
-    context->gaussian->GetOutput()->SetExtent(imageExtent);
-    context->gaussian->SetInputData(usg);
-    context->gaussian->SetModelBounds(usg->GetBounds());
-    context->gaussian->SetSampleDimensions(this->GaussianSplatterDims,
-      this->GaussianSplatterDims, this->GaussianSplatterDims);
-    context->gaussian->SetRadius(this->GaussianSplatterRadius*10);
-    context->gaussian->SetExponentFactor(this->GaussianSplatterExp);
+    // Workaround const-correctness bug:
+    double tmpRange[2] = { m_state.locator().Range[0],
+                           m_state.locator().Range[1] };
+    context->mapper->SetScalarRange(tmpRange);
 
-    context->colorFunction->RemoveAllPoints();
-    context->opacityFunction->RemoveAllPoints();
-    double dataRangeMax = dataRange ? dataRange[1] : 1.0;
-    double dataRangeMin = dataRange ? dataRange[0] : 0.0;
-    double step = (dataRangeMax - dataRangeMin)/255.0;
+    // TODO This only needs to be updated when Locator updates.
+    context->colorMap().SetTableRange(tmpRange);
+    }
+
+  // Update this context's colormap
+  if (this->ColorMapMTime > context->colorMap().GetMTime())
+    {
+    context->colorMap().SetNumberOfTableValues(256);
     for (int i = 0; i < 256; ++i)
       {
-      context->colorMap().SetTableValue(i,
-        this->ColorMap[4*i + 0],
-        this->ColorMap[4*i + 1],
-        this->ColorMap[4*i + 2],
-        this->ColorMap[4*i + 3]);
-      context->colorFunction->AddRGBPoint(
-        dataRangeMin + (double)(i*step),
-        this->ColorMap[4*i + 0],
-        this->ColorMap[4*i + 1],
-        this->ColorMap[4*i + 2]);
-      context->opacityFunction->AddPoint(
-        dataRangeMin + (double)(i*step),
-        this->ColorMap[4*i + 3]);
+      context->colorMap().SetTableValue(i, this->ColorMap + 4*i);
       }
     }
 
@@ -1102,17 +1054,6 @@ void MooseViewer::display(GLContextData& contextData) const
   else
     {
     context->actor->VisibilityOff();
-    }
-  if (this->Volume)
-    {
-    if (!selectedArray.empty())
-      {
-      context->actorVolume->VisibilityOn();
-      }
-    }
-  else
-    {
-    context->actorVolume->VisibilityOff();
     }
 
   /* Synchronize mvGLObjects: */
@@ -1169,10 +1110,11 @@ void MooseViewer::opacitySliderCallback(
 void MooseViewer::sampleSliderCallback(
   GLMotif::Slider::ValueChangedCallbackData* callBackData)
 {
-  this->GaussianSplatterDims = static_cast<double>(callBackData->value);
+  m_state.volume().setSplatDimensions(static_cast<double>(callBackData->value));
   std::stringstream ss;
-  ss << GaussianSplatterDims << " x " << GaussianSplatterDims <<
-    " x " << GaussianSplatterDims;
+  ss << m_state.volume().splatDimensions() << " x "
+     << m_state.volume().splatDimensions() << " x "
+     << m_state.volume().splatDimensions();
   sampleValue->setString(ss.str().c_str());
 }
 
@@ -1180,7 +1122,7 @@ void MooseViewer::sampleSliderCallback(
 void MooseViewer::radiusSliderCallback(
   GLMotif::Slider::ValueChangedCallbackData* callBackData)
 {
-  this->GaussianSplatterRadius = static_cast<double>(callBackData->value);
+  m_state.volume().setSplatRadius(static_cast<double>(callBackData->value));
   radiusValue->setValue(callBackData->value);
 }
 
@@ -1188,7 +1130,7 @@ void MooseViewer::radiusSliderCallback(
 void MooseViewer::exponentSliderCallback(
   GLMotif::Slider::ValueChangedCallbackData* callBackData)
 {
-  this->GaussianSplatterExp = static_cast<double>(callBackData->value);
+  m_state.volume().setSplatExponent(static_cast<double>(callBackData->value));
   exponentValue->setValue(callBackData->value);
 }
 
@@ -1218,32 +1160,32 @@ void MooseViewer::changeRepresentationCallback(
   if (strcmp(callBackData->toggle->getName(), "ShowSurface") == 0)
     {
     this->RepresentationType = 2;
-    this->Volume = false;
+    m_state.volume().setVisible(false);
     }
   else if (strcmp(callBackData->toggle->getName(), "ShowSurfaceWithEdges") == 0)
     {
     this->RepresentationType = 3;
-    this->Volume = false;
+    m_state.volume().setVisible(false);
     }
   else if (strcmp(callBackData->toggle->getName(), "ShowWireframe") == 0)
     {
     this->RepresentationType = 1;
-    this->Volume = false;
+    m_state.volume().setVisible(false);
     }
   else if (strcmp(callBackData->toggle->getName(), "ShowPoints") == 0)
     {
     this->RepresentationType = 0;
-    this->Volume = false;
+    m_state.volume().setVisible(false);
     }
   else if (strcmp(callBackData->toggle->getName(), "ShowNone") == 0)
     {
     this->RepresentationType = -1;
-    this->Volume = false;
+    m_state.volume().setVisible(false);
     }
   else if (strcmp(callBackData->toggle->getName(), "ShowVolume") == 0)
     {
-    this->Volume = callBackData->set;
-    if (this->Volume)
+    m_state.volume().setVisible(callBackData->set);
+    if (callBackData->set)
       {
       this->RepresentationType = -1;
       }
@@ -1472,37 +1414,37 @@ void MooseViewer::changeColorMapCallback(
     callBackData->newSelectedToggle);
   this->ColorEditor->changeColorMap(value);
   this->updateColorMap();
-  this->updateAlpha();
-  Vrui::requestUpdate();
 }
 
 //----------------------------------------------------------------------------
 void MooseViewer::colorMapChangedCallback(
   Misc::CallbackData* callBackData)
 {
-  this->ColorEditor->exportColorMap(this->ColorMap);
-  this->updateAlpha();
-  Vrui::requestUpdate();
+  this->updateColorMap();
 }
 
 //----------------------------------------------------------------------------
 void MooseViewer::alphaChangedCallback(Misc::CallbackData* callBackData)
 {
-  this->ColorEditor->exportAlpha(this->ColorMap);
-  Vrui::requestUpdate();
-}
-
-//----------------------------------------------------------------------------
-void MooseViewer::updateAlpha(void)
-{
-  this->ColorEditor->exportAlpha(this->ColorMap);
-  Vrui::requestUpdate();
+  this->updateColorMap();
 }
 
 //----------------------------------------------------------------------------
 void MooseViewer::updateColorMap(void)
 {
-  this->ColorEditor->exportColorMap(this->ColorMap);
+  // Complexity is to accurately record mtimes. Many of the calls to this
+  // function could be refactored out to just initialize & handle callbacks.
+  double tmp[256 * 4];
+  this->ColorEditor->exportColorMap(tmp);
+  this->ColorEditor->exportAlpha(tmp);
+
+  if (std::equal(tmp, tmp + 256 * 4, this->ColorMap))
+    {
+    return;
+    }
+
+  std::copy(tmp, tmp + 256 * 4, this->ColorMap);
+  this->ColorMapMTime.Modified();
   Vrui::requestUpdate();
 }
 
@@ -1617,13 +1559,13 @@ void MooseViewer::setContourVisible(bool visible)
 //----------------------------------------------------------------------------
 void MooseViewer::setRequestedRenderMode(int mode)
 {
-  this->RequestedRenderMode = mode;
+  m_state.volume().setRequestedRenderMode(mode);
 }
 
 //----------------------------------------------------------------------------
 int MooseViewer::getRequestedRenderMode(void) const
 {
-  return this->RequestedRenderMode;
+  return m_state.volume().requestedRenderMode();
 }
 
 //----------------------------------------------------------------------------

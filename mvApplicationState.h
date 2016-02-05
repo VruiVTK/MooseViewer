@@ -3,6 +3,7 @@
 
 class ArrayLocator;
 class mvContours;
+class mvVolume;
 class mvGLObject;
 class vtkExodusIIReader;
 class WidgetHints;
@@ -41,6 +42,10 @@ public:
    * Access is not const-correct because VTK is not const-correct. */
   vtkExodusIIReader& reader() const { return *m_reader; }
 
+  /** Volume rendering object. */
+  mvVolume& volume() { return *m_volume; }
+  const mvVolume& volume() const { return *m_volume; }
+
   /** UI hints from JSON file. */
   WidgetHints &widgetHints() { return *m_widgetHints; }
   const WidgetHints &widgetHints() const { return *m_widgetHints; }
@@ -55,6 +60,7 @@ private:
   mvContours *m_contours;
   ArrayLocator *m_locator;
   vtkExodusIIReader *m_reader;
+  mvVolume *m_volume;
   WidgetHints *m_widgetHints;
 };
 

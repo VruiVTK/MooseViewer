@@ -20,6 +20,7 @@
 
 // VTK includes
 #include <vtkSmartPointer.h>
+#include <vtkTimeStamp.h>
 
 // STL includes
 #include <vector>
@@ -86,9 +87,6 @@ private:
   /* Name of file to load */
   std::string FileName;
 
-  /* SmartVolumeMapper Requested RenderMode */
-  int RequestedRenderMode;
-
   /* Opacity value */
   double Opacity;
 
@@ -129,6 +127,7 @@ private:
 
   /* Color Transfer function */
   double * ColorMap;
+  vtkTimeStamp ColorMapMTime;
 
   /* Animation dialog */
   AnimationDialog* AnimationControl;
@@ -141,13 +140,9 @@ private:
   Contours* ContoursDialog;
 
   /* Volume visible */
-  bool Volume;
   GLMotif::TextField* sampleValue;
   GLMotif::TextField* radiusValue;
   GLMotif::TextField* exponentValue;
-  double GaussianSplatterRadius;
-  double GaussianSplatterExp;
-  double GaussianSplatterDims;
 
   /* Custom scalar range */
   double* ScalarRange;
@@ -231,7 +226,6 @@ public:
   void changeColorMapCallback(GLMotif::RadioBox::ValueChangedCallbackData* callBackData);
   void alphaChangedCallback(Misc::CallbackData* callBackData);
   void colorMapChangedCallback(Misc::CallbackData* callBackData);
-  void updateAlpha(void);
   void updateColorMap(void);
   void contourValueChangedCallback(Misc::CallbackData* callBackData);
   void updateScalarRange(void);
