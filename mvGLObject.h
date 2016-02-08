@@ -58,7 +58,7 @@ public:
    * Do not use, this will not be executed. Put all context intialization in
    * initMvContext.
    */
-  void initContext(GLContextData &contextData) const;
+  void initContext(GLContextData &contextData) const final;
 
   /**
    * Initialize object with respect to the MooseViewer app. This is the spot

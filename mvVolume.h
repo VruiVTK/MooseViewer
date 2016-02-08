@@ -42,11 +42,11 @@ public:
 
   // mvGLObjectAPI:
   void initMvContext(mvContextState &mvContext,
-                     GLContextData &contextData) const;
-  void syncApplicationState(const mvApplicationState &state);
+                     GLContextData &contextData) const override;
+  void syncApplicationState(const mvApplicationState &state) override;
   void syncContextState(const mvApplicationState &appState,
                         const mvContextState &contextState,
-                        GLContextData &contextData) const;
+                        GLContextData &contextData) const override;
 
   /**
    * Toggle visibility of the props on/off.
