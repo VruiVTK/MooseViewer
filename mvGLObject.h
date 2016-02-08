@@ -14,19 +14,19 @@ class mvContextState;
  * MooseViewer app. Each subclass should manage one or more related props in
  * the rendered scene.
  *
+ * Do not implement GLObject::initContext -- it will not be called, as auto
+ * initializatoin is disabled for these classes. Instead, put all initialization
+ * code into initMvContext.
+ *
  * The goal of this class is to simplify the integration of VTK rendering
  * concepts into the VRUI GLObject abstraction.
  *
  * The synchronization points are:
  *
- * initContext: Called after MooseViewer is constructed, but before
- *              MooseViewer::initContext is called. Use this to instantiate
- *              and initialize context-specific entities using the DataItem
- *              / GLContextData pattern defined by VRUI.
  * initMvContext: Called from MooseViewer::initContext. Use this to do one-time
  *                setup of this objects context-specific state with respect to
  *                the application's mvContextState (e.g. add actors to the
- *                renderer).
+ *                renderer). This replaces the GLObject::initContext method.
  * syncApplicationState: Called from MooseViewer::frame. Update the
  *                       application-side data pipeline. Any data computations
  *                       that are shared between contexts should be performed
@@ -55,17 +55,16 @@ public:
   ~mvGLObject();
 
   /**
-   * virtual GLObject API. Initialize an instance of DataItem and add it to the
-   * GLContextData manager.
-   *
-   * @note This will only be called once, and always prior to update(). Do not
-   * depend on state that is set via update().
+   * Do not use, this will not be executed. Put all context intialization in
+   * initMvContext.
    */
   void initContext(GLContextData &contextData) const;
 
   /**
    * Initialize object with respect to the MooseViewer app. This is the spot
-   * to add actors to the context's renderer, etc.
+   * to add actors to the context's renderer, etc. All initialization for
+   * GLObject needs to happen here as well, such as adding an instance of
+   * DataItem to GLContextData.
    */
   virtual void initMvContext(mvContextState &mvContext,
                              GLContextData &contextData) const;

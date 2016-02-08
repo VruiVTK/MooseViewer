@@ -42,7 +42,6 @@ public:
   ~mvGeometry();
 
   // mvGLObjectAPI:
-  void initContext(GLContextData &contextData) const;
   void initMvContext(mvContextState &mvContext,
                      GLContextData &contextData) const;
   void syncApplicationState(const mvApplicationState &state);

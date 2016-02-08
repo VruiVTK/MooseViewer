@@ -106,15 +106,6 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   Vrui::WindowProperties properties;
   properties.setColorBufferSize(0,1);
   Vrui::requestWindowProperties(properties);
-
-  // mvLGObjects must be initialized before MooseViewer so that syncContext will
-  // work.
-  typedef mvApplicationState::Objects::const_iterator Iter;
-  for (Iter it = m_state.objects().begin(), itEnd = m_state.objects().end();
-       it != itEnd; ++it)
-    {
-    this->dependsOn(*it);
-    }
 }
 
 //----------------------------------------------------------------------------

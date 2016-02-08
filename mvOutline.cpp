@@ -32,25 +32,16 @@ mvOutline::~mvOutline()
 }
 
 //------------------------------------------------------------------------------
-void mvOutline::initContext(GLContextData &contextData) const
+void mvOutline::initMvContext(mvContextState &mvContext,
+                              GLContextData &contextData) const
 {
-  this->mvGLObject::initContext(contextData);
+  this->mvGLObject::initMvContext(mvContext, contextData);
 
   assert("Duplicate context initialization detected!" &&
          !contextData.retrieveDataItem<DataItem>(this));
 
   DataItem *dataItem = new DataItem;
   contextData.addDataItem(this, dataItem);
-}
-
-//------------------------------------------------------------------------------
-void mvOutline::initMvContext(mvContextState &mvContext,
-                              GLContextData &contextData) const
-{
-  this->mvGLObject::initMvContext(mvContext, contextData);
-
-  DataItem *dataItem = contextData.retrieveDataItem<DataItem>(this);
-  assert(dataItem);
 
   mvContext.renderer().AddActor(dataItem->actor.GetPointer());
 }

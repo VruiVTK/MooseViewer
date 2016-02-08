@@ -49,9 +49,10 @@ mvVolume::~mvVolume()
 }
 
 //------------------------------------------------------------------------------
-void mvVolume::initContext(GLContextData &contextData) const
+void mvVolume::initMvContext(mvContextState &mvContext,
+                             GLContextData &contextData) const
 {
-  this->mvGLObject::initContext(contextData);
+  this->mvGLObject::initMvContext(mvContext, contextData);
 
   assert("Duplicate context initialization detected!" &&
          !contextData.retrieveDataItem<DataItem>(this));
@@ -60,17 +61,6 @@ void mvVolume::initContext(GLContextData &contextData) const
   contextData.addDataItem(this, dataItem);
 
   dataItem->actor->SetProperty(m_volumeProperty.GetPointer());
-}
-
-//------------------------------------------------------------------------------
-void mvVolume::initMvContext(mvContextState &mvContext,
-                             GLContextData &contextData) const
-{
-  this->mvGLObject::initMvContext(mvContext, contextData);
-
-  DataItem *dataItem = contextData.retrieveDataItem<DataItem>(this);
-  assert(dataItem);
-
   mvContext.renderer().AddVolume(dataItem->actor.GetPointer());
 }
 
