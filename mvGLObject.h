@@ -45,10 +45,12 @@ class mvContextState;
 class mvGLObject : public GLObject
 {
 public:
+  typedef GLObject Superclass;
+
   /**
    * All subclasses should inherit their DataItems from this.
    */
-  struct DataItem : public GLObject::DataItem
+  struct DataItem : public Superclass::DataItem
   { /* Placeholder for future shared state. */  };
 
   mvGLObject();

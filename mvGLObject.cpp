@@ -5,7 +5,7 @@
 
 //------------------------------------------------------------------------------
 mvGLObject::mvGLObject()
-  : GLObject(/*autoInit=*/ false)
+  : Superclass(/*autoInit=*/ false)
 {
 }
 

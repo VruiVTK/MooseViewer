@@ -39,7 +39,7 @@ mvGeometry::~mvGeometry()
 void mvGeometry::initMvContext(mvContextState &mvContext,
                                GLContextData &contextData) const
 {
-  this->mvGLObject::initMvContext(mvContext, contextData);
+  this->Superclass::initMvContext(mvContext, contextData);
 
   assert("Duplicate context initialization detected!" &&
          !contextData.retrieveDataItem<DataItem>(this));
@@ -53,7 +53,7 @@ void mvGeometry::initMvContext(mvContextState &mvContext,
 //------------------------------------------------------------------------------
 void mvGeometry::syncApplicationState(const mvApplicationState &state)
 {
-  this->mvGLObject::syncApplicationState(state);
+  this->Superclass::syncApplicationState(state);
 
   m_filter->SetInputConnection(state.reader().GetOutputPort());
 
@@ -65,7 +65,7 @@ void mvGeometry::syncContextState(const mvApplicationState &appState,
                                   const mvContextState &contextState,
                                   GLContextData &contextData) const
 {
-  this->mvGLObject::syncContextState(appState, contextState, contextData);
+  this->Superclass::syncContextState(appState, contextState, contextData);
 
   DataItem *dataItem = contextData.retrieveDataItem<DataItem>(this);
   assert(dataItem);

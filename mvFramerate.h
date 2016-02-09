@@ -17,7 +17,9 @@ class vtkTextActor;
 class mvFramerate : public mvGLObject
 {
 public:
-  struct DataItem : public mvGLObject::DataItem
+  typedef mvGLObject Superclass;
+
+  struct DataItem : public Superclass::DataItem
   {
     DataItem();
     vtkNew<vtkTextActor> actor;
