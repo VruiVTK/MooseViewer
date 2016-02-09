@@ -70,6 +70,8 @@ SET(${PROJECT_NAME}_SRCS
   MooseViewer.h
   mvApplicationState.cpp
   mvApplicationState.h
+  mvAsyncGLObject.cpp
+  mvAsyncGLObject.h
   mvContextState.cpp
   mvContextState.h
   mvContours.cpp
