@@ -44,10 +44,10 @@ AnimationDialog::~AnimationDialog(void)
  */
 void AnimationDialog::initialize(void)
 {
-  vtkInformation* info = this->mooseViewer->reader->GetOutputInformation(0);
+  vtkInformation* info = this->mooseViewer->reader().GetOutputInformation(0);
   this->minTime = info->Get(vtkStreamingDemandDrivenPipeline::TIME_RANGE())[0];
   this->maxTime = info->Get(vtkStreamingDemandDrivenPipeline::TIME_RANGE())[1];
-  this->numberOfTimeSteps = this->mooseViewer->reader->GetNumberOfTimeSteps();
+  this->numberOfTimeSteps = this->mooseViewer->reader().GetNumberOfTimeSteps();
 
   const GLMotif::StyleSheet& styleSheet =
     *Vrui::getWidgetManager()->getStyleSheet();
@@ -163,45 +163,45 @@ void AnimationDialog::renderFrameCallback(
     return;
     }
 
-  int currentTimeStep = this->mooseViewer->reader->GetTimeStep();
-  int firstTimeStep = this->mooseViewer->reader->GetTimeStepRange()[0];
-  int lastTimeStep = this->mooseViewer->reader->GetTimeStepRange()[1];
+  int currentTimeStep = this->mooseViewer->reader().GetTimeStep();
+  int firstTimeStep = this->mooseViewer->reader().GetTimeStepRange()[0];
+  int lastTimeStep = this->mooseViewer->reader().GetTimeStepRange()[1];
 
   if (strcmp(_callbackData->button->getName(), "First") == 0)
     {
-    this->mooseViewer->reader->SetTimeStep(
-      this->mooseViewer->reader->GetTimeStepRange()[0]);
+    this->mooseViewer->reader().SetTimeStep(
+      this->mooseViewer->reader().GetTimeStepRange()[0]);
     }
   else if (strcmp(_callbackData->button->getName(), "Previous") == 0)
     {
     if (currentTimeStep > firstTimeStep)
       {
-      this->mooseViewer->reader->SetTimeStep(
-        this->mooseViewer->reader->GetTimeStep() - 1);
+      this->mooseViewer->reader().SetTimeStep(
+        this->mooseViewer->reader().GetTimeStep() - 1);
       }
     else if (this->mooseViewer->Loop)
       {
-      this->mooseViewer->reader->SetTimeStep(
-        this->mooseViewer->reader->GetTimeStepRange()[1]);
+      this->mooseViewer->reader().SetTimeStep(
+        this->mooseViewer->reader().GetTimeStepRange()[1]);
       }
     }
   else if (strcmp(_callbackData->button->getName(), "Next") == 0)
     {
     if (currentTimeStep < lastTimeStep)
       {
-        this->mooseViewer->reader->SetTimeStep(
-          this->mooseViewer->reader->GetTimeStep() + 1);
+        this->mooseViewer->reader().SetTimeStep(
+          this->mooseViewer->reader().GetTimeStep() + 1);
       }
     else if (this->mooseViewer->Loop)
       {
-      this->mooseViewer->reader->SetTimeStep(
-        this->mooseViewer->reader->GetTimeStepRange()[0]);
+      this->mooseViewer->reader().SetTimeStep(
+        this->mooseViewer->reader().GetTimeStepRange()[0]);
       }
     }
   else if (strcmp(_callbackData->button->getName(), "Last") == 0)
     {
-    this->mooseViewer->reader->SetTimeStep(
-      this->mooseViewer->reader->GetTimeStepRange()[1]);
+    this->mooseViewer->reader().SetTimeStep(
+      this->mooseViewer->reader().GetTimeStepRange()[1]);
     }
   Vrui::requestUpdate();
 }
@@ -245,7 +245,7 @@ void AnimationDialog::stopAnimation(void)
  */
 void AnimationDialog::updateTimeInformation(void)
 {
-  int currentTimeStep = this->mooseViewer->reader->GetTimeStep();
+  int currentTimeStep = this->mooseViewer->reader().GetTimeStep();
   this->stepField->setValue(currentTimeStep);
 
   double timeValue = 0.0;

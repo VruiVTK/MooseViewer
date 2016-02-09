@@ -1,6 +1,9 @@
 #ifndef _MOOSEVIEWER_H
 #define _MOOSEVIEWER_H
 
+// MooseViewer includes
+#include "mvApplicationState.h"
+
 // OpenGL/Motif includes
 #include <GL/gl.h>
 
@@ -36,25 +39,21 @@ class BaseLocator;
 class ClippingPlane;
 class Contours;
 class TransferFunction1D;
-class UnstructuredContourObject;
+class mvContours;
 class VariablesDialog;
 class vtkDataArray;
 class vtkExodusIIReader;
 class vtkLookupTable;
-class WidgetHints;
 
 class MooseViewer:public Vrui::Application,public GLObject
 {
 /* Embedded classes: */
   typedef std::vector<BaseLocator*> BaseLocatorList;
 private:
-  struct DataItem;
-
-  UnstructuredContourObject *m_contours;
+  mvApplicationState m_state;
 
   /* Hints for widgets: */
   std::string widgetHintsFile;
-  WidgetHints *widgetHints;
 
   /* Elements: */
   GLMotif::PopupMenu* mainMenu; // The program's main menu
@@ -87,15 +86,6 @@ private:
   /* Name of file to load */
   std::string FileName;
 
-  /* SmartVolumeMapper Requested RenderMode */
-  int RequestedRenderMode;
-
-  /* Opacity value */
-  double Opacity;
-
-  /* Representation Type */
-  int RepresentationType;
-
   /* bounds */
   double* DataBounds;
 
@@ -122,14 +112,12 @@ private:
   double * FlashlightPosition;
   double * FlashlightDirection;
 
-  /* Outline visible */
-  bool Outline;
-
   /* Color editor dialog */
   TransferFunction1D* ColorEditor;
 
-  /* Color Transfer function */
-  double * ColorMap;
+  /** Cached copy of the last colormap data. Used to skip colormap updates when
+   *  nothing actually changes. */
+  double *m_colorMapCache;
 
   /* Animation dialog */
   AnimationDialog* AnimationControl;
@@ -140,25 +128,14 @@ private:
 
   /* Contours dialog */
   Contours* ContoursDialog;
-  bool ContourVisible;
-  std::vector<double> ContourValues;
 
   /* Volume visible */
-  bool Volume;
   GLMotif::TextField* sampleValue;
   GLMotif::TextField* radiusValue;
   GLMotif::TextField* exponentValue;
-  double GaussianSplatterRadius;
-  double GaussianSplatterExp;
-  double GaussianSplatterDims;
 
   /* Custom scalar range */
   double* ScalarRange;
-
-  bool ShowFPS;
-  Misc::Timer FrameTimer;
-  std::vector<double> FrameTimes;
-  double GetFramesPerSecond() const;
 
   /* Constructors and destructors: */
 public:
@@ -168,7 +145,8 @@ public:
   void Initialize();
 
   /* vtkExodusIIReader */
-  vtkSmartPointer<vtkExodusIIReader> reader;
+  vtkExodusIIReader& reader() { return m_state.reader(); }
+  const vtkExodusIIReader& reader() const { return m_state.reader(); }
 
   /* Methods to set/get the filename to read */
   void setFileName(const std::string &name);
@@ -178,8 +156,8 @@ public:
   void setWidgetHintsFile(const std::string &whFile);
   const std::string& getWidgetHintsFile(void);
 
-  void setShowFPS(bool show) { this->ShowFPS = show; }
-  bool getShowFPS() const { return this->ShowFPS; }
+  void setShowFPS(bool show);
+  bool getShowFPS() const;
 
   /* Animation */
   bool IsPlaying;
@@ -233,7 +211,6 @@ public:
   void changeColorMapCallback(GLMotif::RadioBox::ValueChangedCallbackData* callBackData);
   void alphaChangedCallback(Misc::CallbackData* callBackData);
   void colorMapChangedCallback(Misc::CallbackData* callBackData);
-  void updateAlpha(void);
   void updateColorMap(void);
   void contourValueChangedCallback(Misc::CallbackData* callBackData);
   void updateScalarRange(void);

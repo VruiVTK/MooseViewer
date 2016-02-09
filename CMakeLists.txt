@@ -63,13 +63,27 @@ SET(${PROJECT_NAME}_SRCS
   ControlPointChangedCallbackData.h
   ControlPoint.cpp
   ControlPoint.h
-  DataItem.cpp
-  DataItem.h
   Gaussian.cpp
   Gaussian.h
   main.cpp
   MooseViewer.cpp
   MooseViewer.h
+  mvApplicationState.cpp
+  mvApplicationState.h
+  mvContextState.cpp
+  mvContextState.h
+  mvContours.cpp
+  mvContours.h
+  mvFramerate.cpp
+  mvFramerate.h
+  mvGeometry.cpp
+  mvGeometry.h
+  mvGLObject.cpp
+  mvGLObject.h
+  mvOutline.cpp
+  mvOutline.h
+  mvVolume.cpp
+  mvVolume.h
   RGBAColor.cpp
   RGBAColor.h
   ScalarWidgetCallbackData.cpp
@@ -90,8 +104,6 @@ SET(${PROJECT_NAME}_SRCS
   SwatchesWidget.h
   TransferFunction1D.cpp
   TransferFunction1D.h
-  UnstructuredContourObject.cpp
-  UnstructuredContourObject.h
   VariablesDialog.cpp
   VariablesDialog.h
   WidgetHints.cpp
