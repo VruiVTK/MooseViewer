@@ -1,7 +1,7 @@
 #ifndef MVVOLUME_H
 #define MVVOLUME_H
 
-#include "mvGLObject.h"
+#include "mvAsyncGLObject.h"
 
 #include <vtkNew.h>
 #include <vtkSmartPointer.h>
@@ -22,17 +22,14 @@ class vtkVolumeProperty;
 /**
  * @brief The mvVolume class renders the dataset as a volume.
  */
-class mvVolume : public mvGLObject
+class mvVolume : public mvAsyncGLObject
 {
 public:
-  typedef mvGLObject Superclass;
+  typedef mvAsyncGLObject Superclass;
 
   struct DataItem : public Superclass::DataItem
   {
     DataItem();
-
-    // Renderable data:
-    vtkSmartPointer<vtkDataObject> data;
 
     // Rendering pipeline:
     vtkNew<vtkSmartVolumeMapper> mapper;
@@ -45,7 +42,6 @@ public:
   // mvGLObjectAPI:
   void initMvContext(mvContextState &mvContext,
                      GLContextData &contextData) const override;
-  void syncApplicationState(const mvApplicationState &state) override;
   void syncContextState(const mvApplicationState &appState,
                         const mvContextState &contextState,
                         GLContextData &contextData) const override;
@@ -71,6 +67,12 @@ public:
   double splatDimensions() const;
   void setSplatDimensions(double splatDimensions);
 
+private: // mvAsyncGLObject virtual API:
+  void configureDataPipeline(const mvApplicationState &state) override;
+  bool dataPipelineNeedsUpdate() const override;
+  void executeDataPipeline() const override;
+  void retrieveDataPipelineResult() override;
+
 private:
   // Not implemented -- disable copy:
   mvVolume(const mvVolume&);
@@ -80,6 +82,9 @@ private:
   // Data pipeline:
   vtkNew<vtkCellDataToPointData> m_cell2point;
   vtkNew<vtkCheckerboardSplatter> m_splat;
+
+  // Renderable data:
+  vtkSmartPointer<vtkDataObject> m_appData;
 
   // Rendering configuration
   vtkNew<vtkColorTransferFunction> m_colorFunction;

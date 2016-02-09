@@ -29,7 +29,7 @@ mvVolume::DataItem::DataItem()
 //------------------------------------------------------------------------------
 mvVolume::mvVolume()
   : m_visible(false),
-    m_requestedRenderMode(vtkSmartVolumeMapper::GPURenderMode),
+    m_requestedRenderMode(vtkSmartVolumeMapper::DefaultRenderMode),
     m_splatDimensions(30),
     m_splatExponent(-1.0),
     m_splatRadius(0.01)
@@ -65,9 +65,12 @@ void mvVolume::initMvContext(mvContextState &mvContext,
 }
 
 //------------------------------------------------------------------------------
-void mvVolume::syncApplicationState(const mvApplicationState &state)
+void mvVolume::configureDataPipeline(const mvApplicationState &state)
 {
-  this->Superclass::syncApplicationState(state);
+  m_splat->SetSampleDimensions(m_splatDimensions, m_splatDimensions,
+                               m_splatDimensions);
+  m_splat->SetRadius(m_splatRadius * 10.);
+  m_splat->SetExponentFactor(m_splatExponent);
 
   // Splat the proper array:
   switch (state.locator().Association)
@@ -103,12 +106,49 @@ void mvVolume::syncApplicationState(const mvApplicationState &state)
             0, 0, 0, vtkDataObject::FIELD_ASSOCIATION_POINTS, "");
       break;
     }
+}
 
-  m_splat->SetSampleDimensions(m_splatDimensions, m_splatDimensions,
-                               m_splatDimensions);
-  m_splat->SetRadius(m_splatRadius * 10.);
-  m_splat->SetExponentFactor(m_splatExponent);
+//------------------------------------------------------------------------------
+bool mvVolume::dataPipelineNeedsUpdate() const
+{
+  return
+      !m_appData ||
+      m_appData->GetMTime() < m_cell2point->GetMTime() ||
+      m_appData->GetMTime() < m_splat->GetMTime();
+}
+
+//------------------------------------------------------------------------------
+void mvVolume::executeDataPipeline() const
+{
   m_splat->Update();
+}
+
+//------------------------------------------------------------------------------
+void mvVolume::retrieveDataPipelineResult()
+{
+  vtkDataObject *dObj = m_splat->GetOutputDataObject(0);
+
+  // If we have composite data, just extract the first image leaf.
+  // TODO At some point the splatter should be reworked to handle
+  // composite data.
+  if (vtkCompositeDataSet *cds = vtkCompositeDataSet::SafeDownCast(dObj))
+    {
+    vtkCompositeDataIterator *it = cds->NewIterator();
+    it->InitTraversal();
+    while (!it->IsDoneWithTraversal())
+      {
+      if (vtkImageData *image =
+          vtkImageData::SafeDownCast(it->GetCurrentDataObject()))
+        {
+        dObj = image;
+        break;
+        }
+      it->GoToNextItem();
+      }
+    it->Delete();
+    }
+
+  m_appData = dObj;
 }
 
 //------------------------------------------------------------------------------
@@ -121,44 +161,10 @@ void mvVolume::syncContextState(const mvApplicationState &appState,
   DataItem *dataItem = contextData.retrieveDataItem<DataItem>(this);
   assert(dataItem);
 
+  dataItem->mapper->SetInputDataObject(m_appData);
+  dataItem->mapper->SetRequestedRenderMode(m_requestedRenderMode);
   dataItem->actor->SetVisibility((m_visible && !appState.locator().Name.empty())
                                  ? 1 : 0);
-
-  if (vtkDataObject *appDS = m_splat->GetOutputDataObject(0))
-    {
-    if (!dataItem->data ||
-        dataItem->data->GetMTime() < appDS->GetMTime())
-      {
-      // If we have composite data, just extract the first image leaf.
-      // TODO At some point the splatter should be reworked to handle
-      // composite data.
-      if (vtkCompositeDataSet *cds = vtkCompositeDataSet::SafeDownCast(appDS))
-        {
-        vtkCompositeDataIterator *it = cds->NewIterator();
-        it->InitTraversal();
-        while (!it->IsDoneWithTraversal())
-          {
-          if (vtkImageData *image =
-              vtkImageData::SafeDownCast(it->GetCurrentDataObject()))
-            {
-            appDS = image;
-            break;
-            }
-          it->GoToNextItem();
-          }
-        it->Delete();
-        }
-      // We intentionally break the pipeline here to allow future async
-      // computation of the rendered dataset.
-      dataItem->data.TakeReference(appDS->NewInstance());
-      dataItem->data->DeepCopy(appDS);
-      }
-    }
-  else
-    {
-    dataItem->data = NULL;
-    }
-  dataItem->mapper->SetInputDataObject(dataItem->data);
 
   // Update color map.
   if (appState.colorMap().GetMTime() > std::min(m_colorFunction->GetMTime(),
