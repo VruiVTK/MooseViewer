@@ -107,11 +107,6 @@ private:
   ClippingPlane * ClippingPlanes;
   int NumberOfClippingPlanes;
 
-  /* Flashlight position and direction */
-  int * FlashlightSwitch;
-  double * FlashlightPosition;
-  double * FlashlightDirection;
-
   /* Color editor dialog */
   TransferFunction1D* ColorEditor;
 
