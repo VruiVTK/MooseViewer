@@ -8,8 +8,6 @@
 
 #include <string>
 
-#include "ArrayLocator.h"
-
 class vtkCellDataToPointData;
 class vtkCheckerboardSplatter;
 class vtkColorTransferFunction;

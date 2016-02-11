@@ -47,7 +47,6 @@ INCLUDE(InstallRequiredSystemLibraries)
 SET(${PROJECT_NAME}_SRCS
   AnimationDialog.cpp
   AnimationDialog.h
-  ArrayLocator.h
   BaseLocator.cpp
   BaseLocator.h
   ClippingPlane.cpp
@@ -87,6 +86,8 @@ SET(${PROJECT_NAME}_SRCS
   mvGLObject.h
   mvOutline.cpp
   mvOutline.h
+  mvReader.cpp
+  mvReader.h
   mvVolume.cpp
   mvVolume.h
   RGBAColor.cpp

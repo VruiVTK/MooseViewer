@@ -3,18 +3,17 @@
 #include <GL/GLContextData.h>
 
 #include <vtkActor.h>
-#include <vtkCompositeDataSet.h>
 #include <vtkCompositePolyDataMapper.h>
-#include <vtkExodusIIReader.h>
 #include <vtkExternalOpenGLRenderer.h>
 #include <vtkLookupTable.h>
+#include <vtkMultiBlockDataSet.h>
 #include <vtkSMPContourGrid.h>
 #include <vtkSpanSpace.h>
 #include <vtkUnstructuredGrid.h>
 
-#include "ArrayLocator.h"
 #include "mvApplicationState.h"
 #include "mvContextState.h"
+#include "mvReader.h"
 
 //------------------------------------------------------------------------------
 mvContours::DataItem::DataItem()
@@ -68,41 +67,45 @@ void mvContours::syncApplicationState(const mvApplicationState &state)
   this->Superclass::syncApplicationState(state);
 
   // Sync pipeline state.
-  m_contour->SetInputConnection(state.reader().GetOutputPort());
+  m_contour->SetInputDataObject(state.reader().dataObject());
 
-  // Use the correct array for contouring:
-  switch (state.locator().Association)
+  // Only modify the filter if the colorByArray is loaded.
+  auto metaData = state.reader().variableMetaData(state.colorByArray());
+  if (metaData.valid())
     {
-    case ArrayLocator::NotFound:
-    case ArrayLocator::Invalid:
-      break;
+    // Use the correct array for contouring:
+    switch (metaData.location)
+      {
+      case mvReader::VariableMetaData::Location::CellData:
+        m_contour->SetInputArrayToProcess(
+              0, 0, 0, vtkDataObject::FIELD_ASSOCIATION_CELLS,
+              state.colorByArray().c_str());
+        break;
 
-    case ArrayLocator::PointData:
-      m_contour->SetInputArrayToProcess(
-            0, 0, 0, vtkDataObject::FIELD_ASSOCIATION_POINTS,
-            state.locator().Name.c_str());
-      break;
+      case mvReader::VariableMetaData::Location::PointData:
+        m_contour->SetInputArrayToProcess(
+              0, 0, 0, vtkDataObject::FIELD_ASSOCIATION_POINTS,
+              state.colorByArray().c_str());
+        break;
 
-    case ArrayLocator::CellData:
-      m_contour->SetInputArrayToProcess(
-            0, 0, 0, vtkDataObject::FIELD_ASSOCIATION_CELLS,
-            state.locator().Name.c_str());
-      break;
+      case mvReader::VariableMetaData::Location::FieldData:
+        m_contour->SetInputArrayToProcess(
+              0, 0, 0, vtkDataObject::FIELD_ASSOCIATION_NONE,
+              state.colorByArray().c_str());
+        break;
 
-    case ArrayLocator::FieldData:
-      m_contour->SetInputArrayToProcess(
-            0, 0, 0, vtkDataObject::FIELD_ASSOCIATION_NONE,
-            state.locator().Name.c_str());
-      break;
-    }
+      default:
+        break;
+      }
 
-  // Set contour values:
-  double min = state.locator().Range[0];
-  double spread = state.locator().Range[1] - min;
-  m_contour->SetNumberOfContours(m_contourValues.size());
-  for (int i = 0; i < m_contourValues.size(); ++i)
-    {
-    m_contour->SetValue(i, (m_contourValues[i]/255.0) * spread + min);
+    // Set contour values:
+    double min = metaData.range[0];
+    double spread = metaData.range[1] - min;
+    m_contour->SetNumberOfContours(m_contourValues.size());
+    for (int i = 0; i < m_contourValues.size(); ++i)
+      {
+      m_contour->SetValue(i, (m_contourValues[i]/255.0) * spread + min);
+      }
     }
 
   // Re-execute if modified.
@@ -137,30 +140,36 @@ void mvContours::syncContextState(const mvApplicationState &appState,
     {
     dataItem->data = NULL;
     }
+
   dataItem->mapper->SetInputDataObject(dataItem->data);
-  dataItem->mapper->SetLookupTable(&appState.colorMap());
 
-  // Point the mapper at the proper scalar array.
-  switch (appState.locator().Association)
+  // Only update state if the color array exists.
+  auto metaData = appState.reader().variableMetaData(appState.colorByArray());
+  if (metaData.valid())
     {
-    case ArrayLocator::NotFound:
-    case ArrayLocator::Invalid:
-      break;
+    dataItem->mapper->SetLookupTable(&appState.colorMap());
 
-    case ArrayLocator::PointData:
-      dataItem->mapper->SetScalarModeToUsePointFieldData();
-      dataItem->mapper->SelectColorArray(appState.locator().Name.c_str());
-      break;
+    // Point the mapper at the proper scalar array.
+    switch (metaData.location)
+      {
+      case mvReader::VariableMetaData::Location::PointData:
+        dataItem->mapper->SetScalarModeToUsePointFieldData();
+        dataItem->mapper->SelectColorArray(appState.colorByArray().c_str());
+        break;
 
-    case ArrayLocator::CellData:
-      dataItem->mapper->SetScalarModeToUseCellFieldData();
-      dataItem->mapper->SelectColorArray(appState.locator().Name.c_str());
-      break;
+      case mvReader::VariableMetaData::Location::CellData:
+        dataItem->mapper->SetScalarModeToUseCellFieldData();
+        dataItem->mapper->SelectColorArray(appState.colorByArray().c_str());
+        break;
 
-    case ArrayLocator::FieldData:
-      dataItem->mapper->SetScalarModeToUseFieldData();
-      dataItem->mapper->SelectColorArray(appState.locator().Name.c_str());
-      break;
+      case mvReader::VariableMetaData::Location::FieldData:
+        dataItem->mapper->SetScalarModeToUseFieldData();
+        dataItem->mapper->SelectColorArray(appState.colorByArray().c_str());
+        break;
+
+      default:
+        break;
+      }
     }
 }
 

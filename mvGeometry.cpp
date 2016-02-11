@@ -7,12 +7,13 @@
 #include <vtkExodusIIReader.h>
 #include <vtkExternalOpenGLRenderer.h>
 #include <vtkLookupTable.h>
+#include <vtkMultiBlockDataSet.h>
 #include <vtkPolyDataMapper.h>
 #include <vtkProperty.h>
 
-#include "ArrayLocator.h"
 #include "mvApplicationState.h"
 #include "mvContextState.h"
+#include "mvReader.h"
 
 //------------------------------------------------------------------------------
 mvGeometry::DataItem::DataItem()
@@ -55,7 +56,7 @@ void mvGeometry::syncApplicationState(const mvApplicationState &state)
 {
   this->Superclass::syncApplicationState(state);
 
-  m_filter->SetInputConnection(state.reader().GetOutputPort());
+  m_filter->SetInputDataObject(state.reader().dataObject());
 
   m_filter->Update();
 }
@@ -86,31 +87,35 @@ void mvGeometry::syncContextState(const mvApplicationState &appState,
     {
     dataItem->data = NULL;
     }
+
   dataItem->mapper->SetInputDataObject(dataItem->data);
 
-  switch (appState.locator().Association)
+  // Only modify the filter if the colorByArray is loaded.
+  auto metaData = appState.reader().variableMetaData(appState.colorByArray());
+  if (metaData.valid())
     {
-    case ArrayLocator::Invalid:
-    case ArrayLocator::NotFound:
-      break;
-
-    case ArrayLocator::PointData:
+    switch (metaData.location)
+    {
+    case mvReader::VariableMetaData::Location::PointData:
       dataItem->mapper->SetScalarModeToUsePointFieldData();
       break;
 
-    case ArrayLocator::CellData:
+    case mvReader::VariableMetaData::Location::CellData:
       dataItem->mapper->SetScalarModeToUseCellFieldData();
       break;
 
-    case ArrayLocator::FieldData:
+    case mvReader::VariableMetaData::Location::FieldData:
       dataItem->mapper->SetScalarModeToUseFieldData();
+      break;
+
+    default:
       break;
     }
 
-  dataItem->mapper->SelectColorArray(appState.locator().Name.c_str());
-  dataItem->mapper->SetScalarRange(appState.locator().Range[0],
-                                   appState.locator().Range[1]);
-  dataItem->mapper->SetLookupTable(&appState.colorMap());
+    dataItem->mapper->SelectColorArray(appState.colorByArray().c_str());
+    dataItem->mapper->SetScalarRange(metaData.range);
+    dataItem->mapper->SetLookupTable(&appState.colorMap());
+    }
 
   bool vis = m_visible; // repr == NoGeometry overrides this.
   switch (m_representation)

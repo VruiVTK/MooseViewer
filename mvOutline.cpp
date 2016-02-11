@@ -5,13 +5,14 @@
 #include "vtkActor.h"
 #include "vtkCompositePolyDataMapper.h"
 #include "vtkDataObject.h"
-#include "vtkExodusIIReader.h"
 #include "vtkExternalOpenGLRenderer.h"
+#include "vtkMultiBlockDataSet.h"
 #include "vtkOutlineFilter.h"
 #include "vtkProperty.h"
 
 #include "mvApplicationState.h"
 #include "mvContextState.h"
+#include "mvReader.h"
 
 //------------------------------------------------------------------------------
 mvOutline::DataItem::DataItem()
@@ -51,7 +52,7 @@ void mvOutline::syncApplicationState(const mvApplicationState &state)
 {
   this->Superclass::syncApplicationState(state);
 
-  m_filter->SetInputConnection(state.reader().GetOutputPort());
+  m_filter->SetInputDataObject(state.reader().dataObject());
   m_filter->Update();
 }
 

@@ -4,11 +4,10 @@
 #include <vtkCheckerboardSplatter.h>
 #include <vtkColorTransferFunction.h>
 #include <vtkCompositeDataIterator.h>
-#include <vtkCompositeDataSet.h>
-#include <vtkExodusIIReader.h>
 #include <vtkExternalOpenGLRenderer.h>
 #include <vtkImageData.h>
 #include <vtkLookupTable.h>
+#include <vtkMultiBlockDataSet.h>
 #include <vtkNew.h>
 #include <vtkPiecewiseFunction.h>
 #include <vtkSmartVolumeMapper.h>
@@ -19,6 +18,7 @@
 
 #include "mvApplicationState.h"
 #include "mvContextState.h"
+#include "mvReader.h"
 
 //------------------------------------------------------------------------------
 mvVolume::DataItem::DataItem()
@@ -72,39 +72,45 @@ void mvVolume::configureDataPipeline(const mvApplicationState &state)
   m_splat->SetRadius(m_splatRadius * 10.);
   m_splat->SetExponentFactor(m_splatExponent);
 
-  // Splat the proper array:
-  switch (state.locator().Association)
+  // Only modify the filter if the colorByArray is loaded.
+  auto metaData = state.reader().variableMetaData(state.colorByArray());
+  if (metaData.valid())
     {
-    case ArrayLocator::NotFound:
-    case ArrayLocator::Invalid:
-      m_splat->SetInputConnection(state.reader().GetOutputPort());
-      m_splat->SetInputArrayToProcess(
-            0, 0, 0, vtkDataObject::FIELD_ASSOCIATION_POINTS, "");
+    // Splat the proper array:
+    switch (metaData.location)
+      {
+      case mvReader::VariableMetaData::Location::PointData:
+        m_splat->SetInputDataObject(state.reader().dataObject());
+        m_splat->SetInputArrayToProcess(
+              0, 0, 0, vtkDataObject::FIELD_ASSOCIATION_POINTS,
+              state.colorByArray().c_str());
+        break;
 
-      break;
+      case mvReader::VariableMetaData::Location::CellData:
+        m_cell2point->SetInputDataObject(state.reader().dataObject());
+        m_splat->SetInputConnection(m_cell2point->GetOutputPort());
+        m_splat->SetInputArrayToProcess(
+              0, 0, 0, vtkDataObject::FIELD_ASSOCIATION_POINTS,
+              state.colorByArray().c_str());
+        break;
 
-    case ArrayLocator::PointData:
-      m_splat->SetInputConnection(state.reader().GetOutputPort());
-      m_splat->SetInputArrayToProcess(
-            0, 0, 0, vtkDataObject::FIELD_ASSOCIATION_POINTS,
-            state.locator().Name.c_str());
-      break;
+      case mvReader::VariableMetaData::Location::FieldData:
+        std::cerr << "Cannot generate volume from generic field data. Must "
+                     "use point/cell data." << std::endl;
 
-    case ArrayLocator::CellData:
-      m_cell2point->SetInputConnection(state.reader().GetOutputPort());
-      m_splat->SetInputConnection(m_cell2point->GetOutputPort());
-      m_splat->SetInputArrayToProcess(
-            0, 0, 0, vtkDataObject::FIELD_ASSOCIATION_POINTS,
-            state.locator().Name.c_str());
-      break;
 
-    case ArrayLocator::FieldData:
-      std::cerr << "Cannot generate volume from generic field data. Must "
-                   "use point/cell data." << std::endl;
-      m_splat->SetInputConnection(state.reader().GetOutputPort());
-      m_splat->SetInputArrayToProcess(
-            0, 0, 0, vtkDataObject::FIELD_ASSOCIATION_POINTS, "");
-      break;
+      default:
+        break;
+        m_splat->SetInputDataObject(nullptr);
+        m_splat->SetInputArrayToProcess(
+              0, 0, 0, vtkDataObject::FIELD_ASSOCIATION_POINTS, "");
+        break;
+
+      }
+    }
+  else
+    {
+    m_splat->SetInputDataObject(nullptr);
     }
 }
 
@@ -112,9 +118,11 @@ void mvVolume::configureDataPipeline(const mvApplicationState &state)
 bool mvVolume::dataPipelineNeedsUpdate() const
 {
   return
-      !m_appData ||
-      m_appData->GetMTime() < m_cell2point->GetMTime() ||
-      m_appData->GetMTime() < m_splat->GetMTime();
+      m_splat->GetInputDataObject(0, 0) &&
+      m_visible &&
+      (!m_appData ||
+       m_appData->GetMTime() < m_cell2point->GetMTime() ||
+       m_appData->GetMTime() < m_splat->GetMTime());
 }
 
 //------------------------------------------------------------------------------
@@ -148,7 +156,8 @@ void mvVolume::retrieveDataPipelineResult()
     it->Delete();
     }
 
-  m_appData = dObj;
+  m_appData.TakeReference(dObj->NewInstance());
+  m_appData->ShallowCopy(dObj);
 }
 
 //------------------------------------------------------------------------------
@@ -162,26 +171,35 @@ void mvVolume::syncContextState(const mvApplicationState &appState,
   assert(dataItem);
 
   dataItem->mapper->SetInputDataObject(m_appData);
-  dataItem->mapper->SetRequestedRenderMode(m_requestedRenderMode);
-  dataItem->actor->SetVisibility((m_visible && !appState.locator().Name.empty())
-                                 ? 1 : 0);
 
-  // Update color map.
-  if (appState.colorMap().GetMTime() > std::min(m_colorFunction->GetMTime(),
-                                                m_opacityFunction->GetMTime()))
+  // Only modify the filter if the colorByArray is loaded.
+  auto metaData = appState.reader().variableMetaData(appState.colorByArray());
+  if (metaData.valid())
     {
-    m_colorFunction->RemoveAllPoints();
-    m_opacityFunction->RemoveAllPoints();
-    double step = (appState.locator().Range[1] - appState.locator().Range[0])
-                   / 255.0;
-    double rgba[4];
-    for (vtkIdType i = 0; i < 256; ++i)
+    dataItem->mapper->SetRequestedRenderMode(m_requestedRenderMode);
+    dataItem->actor->SetVisibility(m_visible ? 1 : 0);
+
+    // Update color map.
+    if (appState.colorMap().GetMTime() >
+        std::min(m_colorFunction->GetMTime(), m_opacityFunction->GetMTime()))
       {
-      const double x = appState.locator().Range[0] + (i * step);
-      appState.colorMap().GetTableValue(i, rgba);
-      m_colorFunction->AddRGBPoint(x, rgba[0], rgba[1], rgba[2]);
-      m_opacityFunction->AddPoint(x, rgba[3]);
+      m_colorFunction->RemoveAllPoints();
+      m_opacityFunction->RemoveAllPoints();
+      double step = (metaData.range[1] - metaData.range[0]) / 255.0;
+      double rgba[4];
+      for (vtkIdType i = 0; i < 256; ++i)
+        {
+        const double x = metaData.range[0] + (i * step);
+        appState.colorMap().GetTableValue(i, rgba);
+        m_colorFunction->AddRGBPoint(x, rgba[0], rgba[1], rgba[2]);
+        m_opacityFunction->AddPoint(x, rgba[3]);
+        }
       }
+    }
+
+  if (!m_appData)
+    {
+    dataItem->actor->SetVisibility(0);
     }
 }
 
