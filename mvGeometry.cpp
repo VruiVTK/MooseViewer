@@ -52,13 +52,34 @@ void mvGeometry::initMvContext(mvContextState &mvContext,
 }
 
 //------------------------------------------------------------------------------
-void mvGeometry::syncApplicationState(const mvApplicationState &state)
+void mvGeometry::configureDataPipeline(const mvApplicationState &state)
 {
-  this->Superclass::syncApplicationState(state);
-
   m_filter->SetInputDataObject(state.reader().dataObject());
+}
 
+//------------------------------------------------------------------------------
+bool mvGeometry::dataPipelineNeedsUpdate() const
+{
+  return
+      m_filter->GetInputDataObject(0, 0) &&
+      m_visible &&
+      m_representation != NoGeometry &&
+      (!m_appData ||
+       m_appData->GetMTime() < m_filter->GetMTime());
+}
+
+//------------------------------------------------------------------------------
+void mvGeometry::executeDataPipeline() const
+{
   m_filter->Update();
+}
+
+//------------------------------------------------------------------------------
+void mvGeometry::retrieveDataPipelineResult()
+{
+  vtkDataObject *dObj = m_filter->GetOutputDataObject(0);
+  m_appData.TakeReference(dObj->NewInstance());
+  m_appData->ShallowCopy(dObj);
 }
 
 //------------------------------------------------------------------------------
@@ -71,24 +92,7 @@ void mvGeometry::syncContextState(const mvApplicationState &appState,
   DataItem *dataItem = contextData.retrieveDataItem<DataItem>(this);
   assert(dataItem);
 
-  // TODO compute data in a background thread.
-  if (vtkDataObject *appData = m_filter->GetOutputDataObject(0))
-    {
-    if (!dataItem->data ||
-        dataItem->data->GetMTime() < appData->GetMTime())
-      {
-      // We intentionally break the pipeline here to allow future async
-      // computation of the rendered dataset.
-      dataItem->data.TakeReference(appData->NewInstance());
-      dataItem->data->DeepCopy(appData);
-      }
-    }
-  else
-    {
-    dataItem->data = NULL;
-    }
-
-  dataItem->mapper->SetInputDataObject(dataItem->data);
+  dataItem->mapper->SetInputDataObject(m_appData);
 
   // Only modify the filter if the colorByArray is loaded.
   auto metaData = appState.reader().variableMetaData(appState.colorByArray());
@@ -139,6 +143,11 @@ void mvGeometry::syncContextState(const mvApplicationState &appState,
       dataItem->actor->GetProperty()->SetRepresentation(VTK_SURFACE);
       dataItem->actor->GetProperty()->EdgeVisibilityOn();
       break;
+    }
+
+  if (!m_appData)
+    {
+    vis = false;
     }
 
   dataItem->actor->SetVisibility(vis ? 1 : 0);

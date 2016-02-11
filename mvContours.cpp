@@ -62,17 +62,14 @@ void mvContours::initMvContext(mvContextState &mvContext,
 }
 
 //------------------------------------------------------------------------------
-void mvContours::syncApplicationState(const mvApplicationState &state)
+void mvContours::configureDataPipeline(const mvApplicationState &state)
 {
-  this->Superclass::syncApplicationState(state);
-
-  // Sync pipeline state.
-  m_contour->SetInputDataObject(state.reader().dataObject());
-
   // Only modify the filter if the colorByArray is loaded.
   auto metaData = state.reader().variableMetaData(state.colorByArray());
   if (metaData.valid())
     {
+    m_contour->SetInputDataObject(state.reader().dataObject());
+
     // Use the correct array for contouring:
     switch (metaData.location)
       {
@@ -107,9 +104,34 @@ void mvContours::syncApplicationState(const mvApplicationState &state)
       m_contour->SetValue(i, (m_contourValues[i]/255.0) * spread + min);
       }
     }
+  else
+    {
+    m_contour->SetInputDataObject(nullptr);
+    }
+}
 
-  // Re-execute if modified.
+//------------------------------------------------------------------------------
+bool mvContours::dataPipelineNeedsUpdate() const
+{
+  return
+      m_contour->GetInputDataObject(0, 0) &&
+      m_visible &&
+      (!m_appData ||
+       m_appData->GetMTime() < m_contour->GetMTime());
+}
+
+//------------------------------------------------------------------------------
+void mvContours::executeDataPipeline() const
+{
   m_contour->Update();
+}
+
+//------------------------------------------------------------------------------
+void mvContours::retrieveDataPipelineResult()
+{
+  vtkDataObject *dObj = m_contour->GetOutputDataObject(0);
+  m_appData.TakeReference(dObj->NewInstance());
+  m_appData->ShallowCopy(dObj);
 }
 
 //------------------------------------------------------------------------------
@@ -122,32 +144,14 @@ void mvContours::syncContextState(const mvApplicationState &appState,
   DataItem *dataItem = contextData.retrieveDataItem<DataItem>(this);
   assert(dataItem);
 
-  dataItem->actor->SetVisibility(m_visible ? 1 : 0);
-
-  // TODO compute contours in a background thread.
-  if (vtkDataObject *filterOutput = m_contour->GetOutputDataObject(0))
-    {
-    if (!dataItem->data ||
-        dataItem->data->GetMTime() < filterOutput->GetMTime())
-      {
-      // We intentionally break the pipeline here to allow future async
-      // computation of the rendered dataset.
-      dataItem->data.TakeReference(filterOutput->NewInstance());
-      dataItem->data->DeepCopy(filterOutput);
-      }
-    }
-  else
-    {
-    dataItem->data = NULL;
-    }
-
-  dataItem->mapper->SetInputDataObject(dataItem->data);
+  dataItem->mapper->SetInputDataObject(m_appData);
 
   // Only update state if the color array exists.
   auto metaData = appState.reader().variableMetaData(appState.colorByArray());
   if (metaData.valid())
     {
     dataItem->mapper->SetLookupTable(&appState.colorMap());
+    dataItem->actor->SetVisibility(m_visible ? 1 : 0);
 
     // Point the mapper at the proper scalar array.
     switch (metaData.location)
@@ -170,6 +174,11 @@ void mvContours::syncContextState(const mvApplicationState &appState,
       default:
         break;
       }
+    }
+
+  if (!m_appData)
+    {
+    dataItem->actor->SetVisibility(0);
     }
 }
 

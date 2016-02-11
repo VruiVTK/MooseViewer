@@ -1,7 +1,7 @@
 #ifndef MVGEOMETRY_H
 #define MVGEOMETRY_H
 
-#include "mvGLObject.h"
+#include "mvAsyncGLObject.h"
 
 #include <vtkNew.h>
 #include <vtkSmartPointer.h>
@@ -14,17 +14,14 @@ class vtkPolyDataMapper;
 /**
  * @brief The mvGeometry class renders the dataset as polydata.
  */
-class mvGeometry : public mvGLObject
+class mvGeometry : public mvAsyncGLObject
 {
 public:
-  typedef mvGLObject Superclass;
+  typedef mvAsyncGLObject Superclass;
 
   struct DataItem : public Superclass::DataItem
   {
     DataItem();
-
-    // Renderable data:
-    vtkSmartPointer<vtkDataObject> data;
 
     // Rendering pipeline:
     vtkNew<vtkPolyDataMapper> mapper;
@@ -46,7 +43,6 @@ public:
   // mvGLObjectAPI:
   void initMvContext(mvContextState &mvContext,
                      GLContextData &contextData) const override;
-  void syncApplicationState(const mvApplicationState &state) override;
   void syncContextState(const mvApplicationState &appState,
                         const mvContextState &contextState,
                         GLContextData &contextData) const override;
@@ -69,14 +65,25 @@ public:
   Representation representation() const;
   void setRepresentation(Representation representation);
 
+private: // mvAsyncGLObject virtual API:
+  void configureDataPipeline(const mvApplicationState &state) override;
+  bool dataPipelineNeedsUpdate() const override;
+  void executeDataPipeline() const override;
+  void retrieveDataPipelineResult() override;
+
 private:
   // Not implemented -- disable copy:
   mvGeometry(const mvGeometry&);
   mvGeometry& operator=(const mvGeometry&);
 
 private:
+  // Data pipeline:
   vtkNew<vtkCompositeDataGeometryFilter> m_filter;
 
+  // Renderable data:
+  vtkSmartPointer<vtkDataObject> m_appData;
+
+  // Render settings
   double m_opacity;
   Representation m_representation;
   bool m_visible;

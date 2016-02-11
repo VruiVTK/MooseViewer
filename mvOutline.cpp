@@ -48,12 +48,33 @@ void mvOutline::initMvContext(mvContextState &mvContext,
 }
 
 //------------------------------------------------------------------------------
-void mvOutline::syncApplicationState(const mvApplicationState &state)
+void mvOutline::configureDataPipeline(const mvApplicationState &state)
 {
-  this->Superclass::syncApplicationState(state);
-
   m_filter->SetInputDataObject(state.reader().dataObject());
+}
+
+//------------------------------------------------------------------------------
+bool mvOutline::dataPipelineNeedsUpdate() const
+{
+  return
+      m_filter->GetInputDataObject(0, 0) &&
+      m_visible &&
+      (!m_appData ||
+       m_appData->GetMTime() < m_filter->GetMTime());
+}
+
+//------------------------------------------------------------------------------
+void mvOutline::executeDataPipeline() const
+{
   m_filter->Update();
+}
+
+//------------------------------------------------------------------------------
+void mvOutline::retrieveDataPipelineResult()
+{
+  vtkDataObject *dObj = m_filter->GetOutputDataObject(0);
+  m_appData.TakeReference(dObj->NewInstance());
+  m_appData->ShallowCopy(dObj);
 }
 
 //------------------------------------------------------------------------------
@@ -66,22 +87,7 @@ void mvOutline::syncContextState(const mvApplicationState &appState,
   DataItem *dataItem = contextData.retrieveDataItem<DataItem>(this);
   assert(dataItem);
 
-  if (vtkDataObject *appData = m_filter->GetOutputDataObject(0))
-    {
-    if (!dataItem->data ||
-        dataItem->data->GetMTime() < appData->GetMTime())
-      {
-      // We intentionally break the pipeline here to allow future async
-      // computation of the rendered dataset.
-      dataItem->data.TakeReference(appData->NewInstance());
-      dataItem->data->DeepCopy(appData);
-      }
-    }
-  else
-    {
-    dataItem->data = NULL;
-    }
-  dataItem->mapper->SetInputDataObject(dataItem->data);
+  dataItem->mapper->SetInputDataObject(m_appData);
 
-  dataItem->actor->SetVisibility(m_visible ? 1 : 0);
+  dataItem->actor->SetVisibility((m_visible && m_appData) ? 1 : 0);
 }

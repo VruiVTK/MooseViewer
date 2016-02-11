@@ -1,7 +1,7 @@
 #ifndef MVCONTOURS_H
 #define MVCONTOURS_H
 
-#include "mvGLObject.h"
+#include "mvAsyncGLObject.h"
 
 #include <vtkNew.h>
 #include <vtkSmartPointer.h>
@@ -23,17 +23,14 @@ class vtkSpanSpace;
  * Note that contour values are specified in the range [0, 255], and are mapped
  * to the current scalar array's data range prior to contouring.
  */
-class mvContours : public mvGLObject
+class mvContours : public mvAsyncGLObject
 {
 public:
-  typedef mvGLObject Superclass;
+  typedef mvAsyncGLObject Superclass;
 
   struct DataItem : public Superclass::DataItem
   {
     DataItem();
-
-    // Renderable data:
-    vtkSmartPointer<vtkDataObject> data;
 
     // Rendering pipeline:
     vtkNew<vtkCompositePolyDataMapper> mapper;
@@ -46,7 +43,6 @@ public:
   // mvGLObjectAPI:
   void initMvContext(mvContextState &mvContext,
                      GLContextData &contextData) const override;
-  void syncApplicationState(const mvApplicationState &state) override;
   void syncContextState(const mvApplicationState &appState,
                         const mvContextState &contextState,
                         GLContextData &contextData) const override;
@@ -65,15 +61,24 @@ public:
   std::vector<double> contourValues() const;
   void setContourValues(const std::vector<double> &contourValues);
 
+private: // mvAsyncGLObject virtual API:
+  void configureDataPipeline(const mvApplicationState &state) override;
+  bool dataPipelineNeedsUpdate() const override;
+  void executeDataPipeline() const override;
+  void retrieveDataPipelineResult() override;
+
 private:
   // Not implemented -- disable copy:
   mvContours(const mvContours&);
   mvContours& operator=(const mvContours&);
 
 private:
-  // Contouring:
+  // Data pipeline:
   vtkNew<vtkSpanSpace> m_scalarTree;
   vtkNew<vtkSMPContourGrid> m_contour;
+
+  // Renderable data:
+  vtkSmartPointer<vtkDataObject> m_appData;
 
   // Contour values:
   std::vector<double> m_contourValues;
