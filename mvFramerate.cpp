@@ -7,6 +7,8 @@
 
 #include <GL/GLContextData.h>
 
+#include <Vrui/Vrui.h>
+
 #include "mvApplicationState.h"
 #include "mvContextState.h"
 
@@ -75,6 +77,12 @@ void mvFramerate::syncApplicationState(const mvApplicationState &state)
     {
     std::rotate(m_times.begin(), m_times.begin() + 1, m_times.end());
     m_times.back() = time;
+    }
+
+  // If showing the framerate, trigger another render:
+  if (m_visible)
+    {
+    Vrui::requestUpdate();
     }
 }
 

@@ -79,6 +79,7 @@
 #include "VariablesDialog.h"
 #include "WidgetHints.h"
 
+
 //----------------------------------------------------------------------------
 MooseViewer::MooseViewer(int& argc,char**& argv)
   :Vrui::Application(argc,argv),
@@ -862,12 +863,6 @@ void MooseViewer::display(GLContextData& contextData) const
         /* Go to the next clipping plane: */
         ++clippingPlaneIndex;
       }
-    }
-
-  // If showing the framerate, trigger another render:
-  if (m_state.framerate().visible())
-    {
-    Vrui::requestUpdate();
     }
 }
 
