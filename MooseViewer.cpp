@@ -1,7 +1,6 @@
 // STL includes
 #include <algorithm>
 #include <iostream>
-#include <math.h>
 #include <sstream>
 
 // Must come before any gl.h include
@@ -9,43 +8,22 @@
 
 // VTK includes
 #include <ExternalVTKWidget.h>
-#include <vtkActor.h>
-#include <vtkAppendPolyData.h>
 #include <vtkCellData.h>
-#include <vtkCellDataToPointData.h>
-#include <vtkCheckerboardSplatter.h>
-#include <vtkColorTransferFunction.h>
-#include <vtkCompositeDataGeometryFilter.h>
 #include <vtkCompositeDataIterator.h>
-#include <vtkCompositePolyDataMapper.h>
-#include <vtkSMPContourGrid.h>
-#include <vtkCubeSource.h>
-#include <vtkImageData.h>
+#include <vtkDataSet.h>
 #include <vtkLookupTable.h>
 #include <vtkMultiBlockDataSet.h>
-#include <vtkNew.h>
-#include <vtkOutlineFilter.h>
-#include <vtkPiecewiseFunction.h>
 #include <vtkPointData.h>
-#include <vtkPolyDataMapper.h>
-#include <vtkProperty.h>
-#include <vtkSmartVolumeMapper.h>
-#include <vtkTextActor.h>
-#include <vtkUnstructuredGrid.h>
-#include <vtkSpanSpace.h>
 
 // OpenGL/Motif includes
 #include <GL/GLContextData.h>
-#include <GL/gl.h>
 #include <GLMotif/CascadeButton.h>
 #include <GLMotif/Menu.h>
-#include <GLMotif/Pager.h>
 #include <GLMotif/Popup.h>
 #include <GLMotif/PopupMenu.h>
 #include <GLMotif/RadioBox.h>
 #include <GLMotif/Separator.h>
 #include <GLMotif/ScrolledListBox.h>
-#include <GLMotif/StyleSheet.h>
 #include <GLMotif/SubMenu.h>
 #include <GLMotif/ToggleButton.h>
 #include <GLMotif/WidgetManager.h>
