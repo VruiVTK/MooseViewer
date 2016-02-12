@@ -23,7 +23,7 @@ class vtkVolumeProperty;
 class mvVolume : public mvAsyncGLObject
 {
 public:
-  typedef mvAsyncGLObject Superclass;
+  using Superclass = mvAsyncGLObject;
 
   struct DataItem : public Superclass::DataItem
   {

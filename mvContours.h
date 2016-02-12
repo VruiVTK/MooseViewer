@@ -26,7 +26,7 @@ class vtkSpanSpace;
 class mvContours : public mvAsyncGLObject
 {
 public:
-  typedef mvAsyncGLObject Superclass;
+  using Superclass = mvAsyncGLObject;
 
   struct DataItem : public Superclass::DataItem
   {

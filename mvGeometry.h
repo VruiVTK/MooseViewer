@@ -17,7 +17,7 @@ class vtkPolyDataMapper;
 class mvGeometry : public mvAsyncGLObject
 {
 public:
-  typedef mvAsyncGLObject Superclass;
+  using Superclass = mvAsyncGLObject;
 
   struct DataItem : public Superclass::DataItem
   {

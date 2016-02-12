@@ -32,7 +32,7 @@ class mvProgressCookie;
 class mvAsyncGLObject : public mvGLObject
 {
 public:
-  typedef mvGLObject Superclass;
+  using Superclass = mvGLObject;
 
   struct DataItem : public Superclass::DataItem
   { /* Placeholder for future shared state. */ };

@@ -18,7 +18,7 @@ class vtkTextProperty;
 class mvFramerate : public mvGLObject
 {
 public:
-  typedef mvGLObject Superclass;
+  using Superclass = mvGLObject;
 
   struct DataItem : public Superclass::DataItem
   {

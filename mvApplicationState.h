@@ -28,7 +28,7 @@ class WidgetHints;
 class mvApplicationState
 {
 public:
-  typedef std::vector<mvGLObject*> Objects;
+  using Objects = std::vector<mvGLObject*>;
 
   mvApplicationState();
   ~mvApplicationState();

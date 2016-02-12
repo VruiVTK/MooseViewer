@@ -734,11 +734,9 @@ void MooseViewer::frame(void)
   this->updateHistogram();
 
   // Synchronize mvGLObjects:
-  typedef mvApplicationState::Objects::iterator Iter;
-  for (Iter it = m_state.objects().begin(), itEnd = m_state.objects().end();
-       it != itEnd; ++it)
+  for (auto object : m_state.objects())
     {
-    (*it)->syncApplicationState(m_state);
+    object->syncApplicationState(m_state);
     }
 
   // Animation control:
@@ -785,11 +783,9 @@ void MooseViewer::initContext(GLContextData& contextData) const
   contextData.addDataItem(this, context);
 
   /* Synchronize mvGLObjects: */
-  typedef mvApplicationState::Objects::const_iterator Iter;
-  for (Iter it = m_state.objects().begin(), itEnd = m_state.objects().end();
-       it != itEnd; ++it)
+  for (const auto object : m_state.objects())
     {
-    (*it)->initMvContext(*context, contextData);
+    object->initMvContext(*context, contextData);
     }
 }
 
@@ -827,11 +823,9 @@ void MooseViewer::display(GLContextData& contextData) const
     }
 
   /* Synchronize mvGLObjects: */
-  typedef mvApplicationState::Objects::const_iterator Iter;
-  for (Iter it = m_state.objects().begin(), itEnd = m_state.objects().end();
-       it != itEnd; ++it)
+  for (const auto object : m_state.objects())
     {
-    (*it)->syncContextState(m_state, *context, contextData);
+    object->syncContextState(m_state, *context, contextData);
     }
 
   /* Render the scene */

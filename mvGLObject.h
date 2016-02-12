@@ -45,7 +45,7 @@ class mvContextState;
 class mvGLObject : public GLObject
 {
 public:
-  typedef GLObject Superclass;
+  using Superclass = GLObject;
 
   /**
    * All subclasses should inherit their DataItems from this.

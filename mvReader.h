@@ -38,8 +38,8 @@ class mvReader
 {
 public:
   struct VariableMetaData;
-  typedef std::set<std::string> Variables;
-  typedef std::map<std::string, VariableMetaData> VariableMetaDataMap;
+  using Variables = std::set<std::string>;
+  using VariableMetaDataMap = std::map<std::string, VariableMetaData>;
 
   mvReader();
   ~mvReader();

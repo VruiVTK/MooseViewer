@@ -17,7 +17,7 @@ class vtkOutlineFilter;
 class mvOutline : public mvAsyncGLObject
 {
 public:
-  typedef mvAsyncGLObject Superclass;
+  using Superclass = mvAsyncGLObject;
 
   struct DataItem : public Superclass::DataItem
   {

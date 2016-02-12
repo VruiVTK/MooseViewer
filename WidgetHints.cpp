@@ -14,7 +14,7 @@
 //------------------------------------------------------------------------------
 struct WidgetHints::Internal
 {
-  typedef std::vector<std::string> Path;
+  using Path = std::vector<std::string>;
 
   Path Groups;
 
