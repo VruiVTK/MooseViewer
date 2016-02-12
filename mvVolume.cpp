@@ -32,7 +32,7 @@ mvVolume::mvVolume()
     m_requestedRenderMode(vtkSmartVolumeMapper::DefaultRenderMode),
     m_splatDimensions(30),
     m_splatExponent(-1.0),
-    m_splatRadius(0.01)
+    m_splatRadius(0.0 /* == auto */)
 {
   m_splat->ScalarWarpingOn();
   m_splat->NormalWarpingOff();
@@ -69,7 +69,7 @@ void mvVolume::configureDataPipeline(const mvApplicationState &state)
 {
   m_splat->SetSampleDimensions(m_splatDimensions, m_splatDimensions,
                                m_splatDimensions);
-  m_splat->SetRadius(m_splatRadius * 10.);
+  m_splat->SetRadius(m_splatRadius);
   m_splat->SetExponentFactor(m_splatExponent);
 
   // Only modify the filter if the colorByArray is loaded.

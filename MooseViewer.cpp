@@ -716,7 +716,14 @@ GLMotif::PopupWindow* MooseViewer::createRenderingDialog(void) {
   radiusValue = new GLMotif::TextField("RadiusValue", radiusRow, 6);
   radiusValue->setFieldWidth(6);
   radiusValue->setPrecision(3);
-  radiusValue->setValue(m_state.volume().splatRadius());
+  if (m_state.volume().splatRadius() == 0.)
+    {
+    radiusValue->setString("Auto");
+    }
+  else
+    {
+    radiusValue->setValue(m_state.volume().splatRadius());
+    }
   radiusRow->manageChild();
 
   GLMotif::RowColumn * exponentRow = new GLMotif::RowColumn(
@@ -903,7 +910,14 @@ void MooseViewer::radiusSliderCallback(
   GLMotif::Slider::ValueChangedCallbackData* callBackData)
 {
   m_state.volume().setSplatRadius(static_cast<double>(callBackData->value));
-  radiusValue->setValue(callBackData->value);
+  if (callBackData->value == 0.)
+    {
+    radiusValue->setString("Auto");
+    }
+  else
+    {
+    radiusValue->setValue(callBackData->value);
+    }
 }
 
 //----------------------------------------------------------------------------
