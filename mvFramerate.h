@@ -10,6 +10,7 @@
 #include <vector>
 
 class vtkTextActor;
+class vtkTextProperty;
 
 /**
  * @brief The mvFramerate class renders the framerate as a vtkTextActor.
@@ -51,6 +52,7 @@ private:
   Misc::Timer m_timer;
   std::vector<double> m_times;
 
+  vtkNew<vtkTextProperty> m_tprop;
   bool m_visible;
 };
 

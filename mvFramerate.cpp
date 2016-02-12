@@ -19,20 +19,21 @@
 //------------------------------------------------------------------------------
 mvFramerate::DataItem::DataItem()
 {
-  actor->GetTextProperty()->SetJustificationToLeft();
-  actor->GetTextProperty()->SetVerticalJustificationToTop();
-  actor->GetTextProperty()->SetFontSize(12);
   actor->SetTextScaleModeToViewport();
-
   vtkCoordinate *coord = actor->GetPositionCoordinate();
   coord->SetCoordinateSystemToNormalizedDisplay();
-  coord->SetValue(0, 0.999);
+  coord->SetValue(0.01, 0.99);
 }
 
 //------------------------------------------------------------------------------
 mvFramerate::mvFramerate()
   : m_visible(false)
 {
+  m_tprop->SetJustificationToLeft();
+  m_tprop->SetVerticalJustificationToTop();
+  m_tprop->SetFontSize(8);
+  m_tprop->SetBackgroundColor(.25, .25, .25);
+  m_tprop->SetBackgroundOpacity(0.5);
 }
 
 //------------------------------------------------------------------------------
@@ -52,6 +53,7 @@ void mvFramerate::initMvContext(mvContextState &mvContext,
   DataItem *dataItem = new DataItem;
   contextData.addDataItem(this, dataItem);
 
+  dataItem->actor->SetTextProperty(m_tprop.Get());
   mvContext.renderer().AddActor2D(dataItem->actor.GetPointer());
 }
 
