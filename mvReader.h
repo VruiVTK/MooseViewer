@@ -13,6 +13,8 @@
 #include <string>
 #include <vector>
 
+class mvApplicationState;
+class mvProgressCookie;
 class vtkExodusIIReader;
 class vtkMultiBlockDataSet;
 
@@ -49,7 +51,7 @@ public:
    * update heavier data (e.g. dataObject(), variableMetaData(), ...) the
    * first time it is called after a background read completes.
    */
-  void update();
+  void update(const mvApplicationState &appState);
 
   /**
    * This immediately and synchronously reads the file's metadata and updates
@@ -174,6 +176,7 @@ private:
 
 private:
   std::future<void> m_future;
+  mvProgressCookie *m_cookie;
   vtkNew<vtkExodusIIReader> m_reader;
 
   vtkSmartPointer<vtkMultiBlockDataSet> m_data;

@@ -49,6 +49,7 @@ private: // mvAsyncGLObject virtual API:
   bool dataPipelineNeedsUpdate() const override;
   void executeDataPipeline() const override;
   void retrieveDataPipelineResult() override;
+  std::string progressLabel() const override { return "Updating Outline"; }
 
 private:
   // Not implemented -- disable copy:

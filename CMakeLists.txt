@@ -86,6 +86,10 @@ SET(${PROJECT_NAME}_SRCS
   mvGLObject.h
   mvOutline.cpp
   mvOutline.h
+  mvProgress.cpp
+  mvProgress.h
+  mvProgressCookie.cpp
+  mvProgressCookie.h
   mvReader.cpp
   mvReader.h
   mvVolume.cpp

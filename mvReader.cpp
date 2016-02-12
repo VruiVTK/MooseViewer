@@ -13,13 +13,18 @@
 #include <vtkPointData.h>
 #include <vtkStreamingDemandDrivenPipeline.h>
 
+#include "mvApplicationState.h"
+#include "mvProgress.h"
+#include "mvProgressCookie.h"
+
 #include <cassert>
 #include <chrono>
 #include <iostream>
 
 //------------------------------------------------------------------------------
 mvReader::mvReader()
-  : m_numberOfTimeSteps(0),
+  : m_cookie(nullptr),
+    m_numberOfTimeSteps(0),
     m_timeStep(0),
     m_timeStepRange{0, 0},
     m_timeRange{0., 0.}
@@ -35,7 +40,7 @@ mvReader::~mvReader()
 }
 
 //------------------------------------------------------------------------------
-void mvReader::update()
+void mvReader::update(const mvApplicationState &appState)
 {
   // Are we currently reading the file?
   if (m_future.valid())
@@ -54,6 +59,11 @@ void mvReader::update()
       // Sync the cached data.
       this->updateInformationCache();
       this->updateDataCache();
+
+      // Clean up the progress monitor:
+      assert("Cookie exists." && m_cookie != nullptr);
+      appState.progress().removeEntry(m_cookie);
+      m_cookie = nullptr;
       }
     else
       {
@@ -68,6 +78,9 @@ void mvReader::update()
   this->syncReaderState();
   if (this->dataNeedsUpdate())
     {
+    assert("Cookie cleaned up." && m_cookie == nullptr);
+    m_cookie = appState.progress().addEntry("Reading Data File");
+
     m_future = std::async(std::launch::async,
                           &mvReader::executeReaderData, this);
     }

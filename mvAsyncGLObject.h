@@ -5,6 +5,8 @@
 
 #include <future>
 
+class mvProgressCookie;
+
 /**
  * @brief The mvAsyncGLObject class implements an asynchronous mvGLObject.
  *
@@ -91,6 +93,12 @@ private: // Virtual API:
    */
   virtual void retrieveDataPipelineResult() = 0;
 
+  /**
+   * The string returned here will be used to label the background indicator.
+   * See mvProgress.
+   */
+  virtual std::string progressLabel() const { return "Unknown Async Process"; }
+
 private:
   /**
    * Wrapper around the data pipeline update call. Ensures that a new frame is
@@ -99,6 +107,7 @@ private:
   void internalExecutePipeline() const;
 
   std::future<void> m_monitor;
+  mvProgressCookie *m_cookie;
 };
 
 #endif // MVASYNCGLOBJECT_H

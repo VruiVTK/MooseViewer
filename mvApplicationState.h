@@ -6,6 +6,7 @@ class mvFramerate;
 class mvGeometry;
 class mvGLObject;
 class mvOutline;
+class mvProgress;
 class mvReader;
 class mvVolume;
 class vtkExodusIIReader;
@@ -61,6 +62,11 @@ public:
   mvOutline& outline() { return *m_outline; }
   const mvOutline& outline() const { return *m_outline; }
 
+  /** Async progress monitor.
+   * Unfortunately not const-correct, since this needs to be modified in
+   * mvAsyncGLObject::syncApplicationState(const mvAppState&). */
+  mvProgress& progress() const { return *m_progress; }
+
   /** File reader.
    * Access is not const-correct because VTK is not const-correct. */
   mvReader& reader() const { return *m_reader; }
@@ -87,6 +93,7 @@ private:
   mvFramerate *m_framerate;
   mvGeometry *m_geometry;
   mvOutline *m_outline;
+  mvProgress *m_progress;
   mvReader *m_reader;
   mvVolume *m_volume;
   WidgetHints *m_widgetHints;

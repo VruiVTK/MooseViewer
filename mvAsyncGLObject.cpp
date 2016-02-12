@@ -2,18 +2,27 @@
 
 #include <Vrui/Vrui.h>
 
+#include "mvApplicationState.h"
+#include "mvProgress.h"
+#include "mvProgressCookie.h"
+
 #include <cassert>
 #include <chrono>
 #include <iostream>
 
 //------------------------------------------------------------------------------
 mvAsyncGLObject::mvAsyncGLObject()
+  : m_cookie(nullptr)
 {
 }
 
 //------------------------------------------------------------------------------
 mvAsyncGLObject::~mvAsyncGLObject()
 {
+  // Don't free cookie -- mvProgress owns these and will clean them up.
+  // If mvAsyncGLObjects start being deleted before process exit, we'll
+  // to remove cookies from mvProgress from the cookie's dtor.
+
   // TODO add an abortDataPipeline virtual to stop calculations on exit.
   // This wouldn't go here (the subclass would already be destroyed), but
   // should go in some mvGLObject::aboutToExit virtual called by
@@ -41,6 +50,11 @@ void mvAsyncGLObject::syncApplicationState(const mvApplicationState &appState)
 
       // Sync application state cache:
       this->retrieveDataPipelineResult();
+
+      // Clean up the progress monitor:
+      assert("Cookie exists." && m_cookie != nullptr);
+      appState.progress().removeEntry(m_cookie);
+      m_cookie = nullptr;
       }
     else
       {
@@ -54,6 +68,9 @@ void mvAsyncGLObject::syncApplicationState(const mvApplicationState &appState)
   this->configureDataPipeline(appState);
   if (this->dataPipelineNeedsUpdate())
     {
+    assert("Cookie cleaned up." && m_cookie == nullptr);
+    m_cookie = appState.progress().addEntry(this->progressLabel());
+
     // Launch background calculation.
     m_monitor = std::async(std::launch::async,
                            &mvAsyncGLObject::internalExecutePipeline, this);

@@ -142,7 +142,7 @@ MooseViewer::~MooseViewer(void)
 void MooseViewer::Initialize()
 {
   // Start async file read.
-  m_state.reader().update();
+  m_state.reader().update(m_state);
 
   if (!this->widgetHintsFile.empty())
     {
@@ -188,7 +188,7 @@ void MooseViewer::Initialize()
     {
     std::cout << "Waiting for initial file read to complete..." << std::endl;
     }
-  m_state.reader().update(); // Update cached data object
+  m_state.reader().update(m_state); // Update cached data object
 }
 
 //----------------------------------------------------------------------------
@@ -745,7 +745,7 @@ GLMotif::PopupWindow* MooseViewer::createRenderingDialog(void) {
 void MooseViewer::frame(void)
 {
   // Update internal state:
-  m_state.reader().update();
+  m_state.reader().update(m_state);
   this->updateHistogram();
 
   // Synchronize mvGLObjects:
@@ -763,13 +763,13 @@ void MooseViewer::frame(void)
     if (currentTimeStep < m_state.reader().timeStepRange()[1])
       {
       m_state.reader().setTimeStep(currentTimeStep + 1);
-      m_state.reader().update();
+      m_state.reader().update(m_state);
       Vrui::scheduleUpdate(Vrui::getApplicationTime() + 1.0/125.0);
       }
     else if(this->Loop)
       {
       m_state.reader().setTimeStep(m_state.reader().timeStepRange()[0]);
-      m_state.reader().update();
+      m_state.reader().update(m_state);
       Vrui::scheduleUpdate(Vrui::getApplicationTime() + 1.0/125.0);
       }
     else
