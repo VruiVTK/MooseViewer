@@ -1,7 +1,6 @@
 // STL includes
 #include <algorithm>
 #include <iostream>
-#include <math.h>
 #include <sstream>
 
 // Must come before any gl.h include
@@ -9,44 +8,22 @@
 
 // VTK includes
 #include <ExternalVTKWidget.h>
-#include <vtkActor.h>
-#include <vtkAppendPolyData.h>
 #include <vtkCellData.h>
-#include <vtkCellDataToPointData.h>
-#include <vtkCheckerboardSplatter.h>
-#include <vtkColorTransferFunction.h>
-#include <vtkCompositeDataGeometryFilter.h>
 #include <vtkCompositeDataIterator.h>
-#include <vtkCompositePolyDataMapper.h>
-#include <vtkSMPContourGrid.h>
-#include <vtkCubeSource.h>
-#include <vtkExodusIIReader.h>
-#include <vtkImageData.h>
+#include <vtkDataSet.h>
 #include <vtkLookupTable.h>
 #include <vtkMultiBlockDataSet.h>
-#include <vtkNew.h>
-#include <vtkOutlineFilter.h>
-#include <vtkPiecewiseFunction.h>
 #include <vtkPointData.h>
-#include <vtkPolyDataMapper.h>
-#include <vtkProperty.h>
-#include <vtkSmartVolumeMapper.h>
-#include <vtkTextActor.h>
-#include <vtkUnstructuredGrid.h>
-#include <vtkSpanSpace.h>
 
 // OpenGL/Motif includes
 #include <GL/GLContextData.h>
-#include <GL/gl.h>
 #include <GLMotif/CascadeButton.h>
 #include <GLMotif/Menu.h>
-#include <GLMotif/Pager.h>
 #include <GLMotif/Popup.h>
 #include <GLMotif/PopupMenu.h>
 #include <GLMotif/RadioBox.h>
 #include <GLMotif/Separator.h>
 #include <GLMotif/ScrolledListBox.h>
-#include <GLMotif/StyleSheet.h>
 #include <GLMotif/SubMenu.h>
 #include <GLMotif/ToggleButton.h>
 #include <GLMotif/WidgetManager.h>
@@ -61,7 +38,6 @@
 
 // MooseViewer includes
 #include "AnimationDialog.h"
-#include "ArrayLocator.h"
 #include "BaseLocator.h"
 #include "ClippingPlane.h"
 #include "ClippingPlaneLocator.h"
@@ -74,11 +50,13 @@
 #include "mvFramerate.h"
 #include "mvGeometry.h"
 #include "mvOutline.h"
+#include "mvReader.h"
 #include "mvVolume.h"
 #include "ScalarWidget.h"
 #include "TransferFunction1D.h"
 #include "VariablesDialog.h"
 #include "WidgetHints.h"
+
 
 //----------------------------------------------------------------------------
 MooseViewer::MooseViewer(int& argc,char**& argv)
@@ -87,10 +65,11 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   ClippingPlanes(NULL),
   colorByVariablesMenu(0),
   ContoursDialog(NULL),
-  FirstFrame(true),
+  Histogram(new float[256]),
   IsPlaying(false),
   Loop(false),
   mainMenu(NULL),
+  m_colorMapCache(new double[256 * 4]),
   NumberOfClippingPlanes(6),
   opacityValue(NULL),
   renderingDialog(NULL),
@@ -107,13 +86,18 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   properties.setColorBufferSize(0,1);
   Vrui::requestWindowProperties(properties);
 
-  // mvLGObjects must be initialized before MooseViewer so that syncContext will
-  // work.
-  typedef mvApplicationState::Objects::const_iterator Iter;
-  for (Iter it = m_state.objects().begin(), itEnd = m_state.objects().end();
-       it != itEnd; ++it)
+  std::fill(m_colorMapCache, m_colorMapCache + 4 * 256, -1.); // invalid
+  std::fill(this->Histogram, this->Histogram + 256, 0.f);
+
+  this->ScalarRange[0] = 0.0;
+  this->ScalarRange[1] = 255.0;
+
+  /* Initialize the clipping planes */
+  ClippingPlanes = new ClippingPlane[NumberOfClippingPlanes];
+  for(int i = 0; i < NumberOfClippingPlanes; ++i)
     {
-    this->dependsOn(*it);
+    ClippingPlanes[i].setAllocated(false);
+    ClippingPlanes[i].setActive(false);
     }
 }
 
@@ -122,9 +106,7 @@ MooseViewer::~MooseViewer(void)
 {
   delete[] m_colorMapCache;
   delete[] this->ClippingPlanes;
-  delete[] this->DataBounds;
   delete[] this->Histogram;
-  delete[] this->ScalarRange;
 
   delete this->AnimationControl;
   delete this->ColorEditor;
@@ -137,6 +119,9 @@ MooseViewer::~MooseViewer(void)
 //----------------------------------------------------------------------------
 void MooseViewer::Initialize()
 {
+  // Start async file read.
+  m_state.reader().update(m_state);
+
   if (!this->widgetHintsFile.empty())
     {
     m_state.widgetHints().loadFile(this->widgetHintsFile);
@@ -148,6 +133,7 @@ void MooseViewer::Initialize()
 
   /* Create the user interface: */
   this->variablesDialog = new VariablesDialog;
+  this->updateVariablesDialog();
   this->variablesDialog->getScrolledListBox()->getListBox()->
       getSelectionChangedCallbacks().add(
         this, &MooseViewer::changeVariablesCallback);
@@ -156,57 +142,44 @@ void MooseViewer::Initialize()
   mainMenu=createMainMenu();
   Vrui::setMainMenu(mainMenu);
 
-  this->variables.clear();
+  /* Initialize the color editor */
+  this->ColorEditor = new TransferFunction1D(this);
+  this->ColorEditor->createTransferFunction1D(CINVERSE_RAINBOW,
+    UP_RAMP, 0.0, 1.0);
+  this->ColorEditor->getColorMapChangedCallbacks().add(
+    this, &MooseViewer::colorMapChangedCallback);
+  this->ColorEditor->getAlphaChangedCallbacks().add(this,
+    &MooseViewer::alphaChangedCallback);
+  updateColorMap();
 
-  this->DataBounds = new double[6];
+  /* Contours */
+  this->ContoursDialog = new Contours(this);
+  this->ContoursDialog->getAlphaChangedCallbacks().add(this,
+    &MooseViewer::contourValueChangedCallback);
 
-  /* Color Map */
-  m_colorMapCache = new double[4*256];
-  std::fill(m_colorMapCache, m_colorMapCache + 4 * 256, -1.); // invalid
+  /* Initialize the Animation control */
+  this->AnimationControl = new AnimationDialog(this);
 
-  /* Histogram */
-  this->Histogram = new float[256];
-  for(int j = 0; j < 256; ++j)
+  // TODO This is ugly, it'd be great to find a way around this.
+  // Force sync reader output:
+  while (m_state.reader().running(std::chrono::seconds(1)))
     {
-    this->Histogram[j] = 0.0;
+    std::cout << "Waiting for initial file read to complete..." << std::endl;
     }
-
-  this->ScalarRange = new double[2];
-  this->ScalarRange[0] = 0.0;
-  this->ScalarRange[1] = 255.0;
-
-  /* Initialize the clipping planes */
-  ClippingPlanes = new ClippingPlane[NumberOfClippingPlanes];
-  for(int i = 0; i < NumberOfClippingPlanes; ++i)
-    {
-    ClippingPlanes[i].setAllocated(false);
-    ClippingPlanes[i].setActive(false);
-    }
-
+  m_state.reader().update(m_state); // Update cached data object
 }
 
 //----------------------------------------------------------------------------
 void MooseViewer::setFileName(const std::string &name)
 {
-  if (this->FileName == name)
-    {
-    return;
-    }
-
-  this->FileName = name;
-
-  m_state.reader().SetFileName(this->FileName.c_str());
-  m_state.reader().UpdateInformation();
-  this->updateVariablesDialog();
-  m_state.reader().GenerateObjectIdCellArrayOn();
-  m_state.reader().GenerateGlobalElementIdArrayOn();
-  m_state.reader().GenerateGlobalNodeIdArrayOn();
+  m_state.reader().setFileName(name);
+  m_state.reader().updateInformation();
 }
 
 //----------------------------------------------------------------------------
 const std::string& MooseViewer::getFileName(void)
 {
-  return this->FileName;
+  return m_state.reader().fileName();
 }
 
 //----------------------------------------------------------------------------
@@ -502,86 +475,11 @@ GLMotif::Popup* MooseViewer::createColorByVariablesMenu(void)
 //----------------------------------------------------------------------------
 void MooseViewer::updateVariablesDialog(void)
 {
-  // Build sorted list of variables:
-  std::set<std::string> vars;
-  vars.insert(m_state.reader().GetPedigreeNodeIdArrayName());
-  vars.insert(m_state.reader().GetObjectIdArrayName());
-  vars.insert(m_state.reader().GetPedigreeElementIdArrayName());
-  for (int i = 0; i < m_state.reader().GetNumberOfPointResultArrays(); ++i)
-    {
-    vars.insert(m_state.reader().GetPointResultArrayName(i));
-    }
-  for (int i = 0; i < m_state.reader().GetNumberOfElementResultArrays(); ++i)
-    {
-    vars.insert(m_state.reader().GetElementResultArrayName(i));
-    }
-
   // Add to dialog:
   this->variablesDialog->clearAllVariables();
-  typedef std::set<std::string>::const_iterator IterT;
-  for (IterT it = vars.begin(), itEnd = vars.end(); it != itEnd; ++it)
+  for (const auto &var : m_state.reader().availableVariables())
     {
-    this->variablesDialog->addVariable(*it);
-    }
-}
-
-//----------------------------------------------------------------------------
-std::string MooseViewer::getSelectedColorByArrayName(void) const
-{
-  std::string selectedToggle;
-  GLMotif::RadioBox* radioBox =
-    static_cast<GLMotif::RadioBox*> (colorByVariablesMenu->getChild(0));
-  if (radioBox && (radioBox->getNumRows() > 0))
-    {
-    GLMotif::ToggleButton* selectedToggleButton =
-      selectedToggleButton = radioBox->getSelectedToggle();
-    if (selectedToggleButton)
-      {
-      selectedToggle.assign(selectedToggleButton->getString());
-      }
-    }
-  return selectedToggle;
-}
-
-//----------------------------------------------------------------------------
-vtkSmartPointer<vtkDataArray> MooseViewer::getSelectedArray(int & type) const
-{
-  vtkSmartPointer<vtkDataArray> dataArray;
-  std::string selectedArray = this->getSelectedColorByArrayName();
-  if (selectedArray.empty())
-    {
-    return dataArray;
-    }
-
-  vtkSmartPointer<vtkCompositeDataGeometryFilter> compositeFilter =
-    vtkSmartPointer<vtkCompositeDataGeometryFilter>::New();
-  compositeFilter->SetInputConnection(m_state.reader().GetOutputPort());
-  compositeFilter->Update();
-
-  dataArray = vtkDataArray::SafeDownCast(
-    compositeFilter->GetOutput()->GetPointData(
-      )->GetArray(selectedArray.c_str()));
-  if (!dataArray)
-    {
-    dataArray = vtkDataArray::SafeDownCast(
-      compositeFilter->GetOutput()->GetCellData(
-        )->GetArray(selectedArray.c_str()));
-    if (!dataArray)
-      {
-      std::cerr << "The selected array is neither PointDataArray"\
-        " nor CellDataArray" << std::endl;
-      return dataArray;
-      }
-    else
-      {
-      type = 1; // CellData
-      return dataArray;
-      }
-    }
-  else
-    {
-    type = 0;
-    return dataArray; // PointData
+    this->variablesDialog->addVariable(var);
     }
 }
 
@@ -589,43 +487,51 @@ vtkSmartPointer<vtkDataArray> MooseViewer::getSelectedArray(int & type) const
 void MooseViewer::updateColorByVariablesMenu(void)
 {
   /* Preserve the selection */
-  std::string selectedToggle = this->getSelectedColorByArrayName();
+  std::string selectedToggle = m_state.colorByArray();
 
   /* Clear the menu first */
-  int i;
-  for (i = this->colorByVariablesMenu->getNumRows(); i >= 0; --i)
+  for (int i = this->colorByVariablesMenu->getNumRows(); i >= 0; --i)
     {
     colorByVariablesMenu->removeWidgets(i);
     }
 
-  if (this->variables.size() > 0)
+  if (m_state.reader().requestedVariables().size() > 0)
     {
-    GLMotif::RadioBox* colorby_RadioBox =
-      new GLMotif::RadioBox("Color RadioBox",colorByVariablesMenu,true);
+    using GLMotif::RadioBox;
+    using GLMotif::ToggleButton;
 
+    RadioBox *box = new RadioBox("Color RadioBox", colorByVariablesMenu);
+
+    int currentIndex = 0;
     int selectedIndex = -1;
-
-    typedef std::set<std::string>::const_iterator IterT;
-    for (IterT it = this->variables.begin(), itEnd = this->variables.end();
-         it != itEnd; ++it)
+    for (const auto &var : m_state.reader().requestedVariables())
       {
-      GLMotif::ToggleButton* button = new GLMotif::ToggleButton(
-        it->c_str(), colorby_RadioBox, it->c_str());
+      ToggleButton *button = new ToggleButton(var.c_str(), box, var.c_str());
       button->getValueChangedCallbacks().add(
         this, &MooseViewer::changeColorByVariablesCallback);
       button->setToggle(false);
       if (!selectedToggle.empty() && (selectedIndex < 0) &&
-          (selectedToggle.compare(*it) == 0))
+          (selectedToggle.compare(var) == 0))
         {
-        selectedIndex = std::distance(this->variables.begin(), it);
+        selectedIndex = currentIndex;
         }
+      ++currentIndex;
       }
 
     selectedIndex = selectedIndex > 0 ? selectedIndex : 0;
-    colorby_RadioBox->setSelectedToggle(selectedIndex);
-    colorby_RadioBox->setSelectionMode(GLMotif::RadioBox::ALWAYS_ONE);
+    box->setSelectedToggle(selectedIndex);
+    box->setSelectionMode(RadioBox::ALWAYS_ONE);
+
+    if (ToggleButton *toggle = box->getSelectedToggle())
+      {
+      m_state.setColorByArray(toggle->getName());
+      }
+    else
+      {
+      m_state.setColorByArray("");
+      }
+
     this->updateScalarRange();
-    this->updateHistogram();
     }
 }
 
@@ -788,7 +694,14 @@ GLMotif::PopupWindow* MooseViewer::createRenderingDialog(void) {
   radiusValue = new GLMotif::TextField("RadiusValue", radiusRow, 6);
   radiusValue->setFieldWidth(6);
   radiusValue->setPrecision(3);
-  radiusValue->setValue(m_state.volume().splatRadius());
+  if (m_state.volume().splatRadius() == 0.)
+    {
+    radiusValue->setString("Auto");
+    }
+  else
+    {
+    radiusValue->setValue(m_state.volume().splatRadius());
+    }
   radiusRow->manageChild();
 
   GLMotif::RowColumn * exponentRow = new GLMotif::RowColumn(
@@ -816,71 +729,30 @@ GLMotif::PopupWindow* MooseViewer::createRenderingDialog(void) {
 //----------------------------------------------------------------------------
 void MooseViewer::frame(void)
 {
-  // TODO This would be best moved to an updateReader() method eventually:
-  if(this->FirstFrame)
+  // Update internal state:
+  m_state.reader().update(m_state);
+  this->updateHistogram();
+
+  // Synchronize mvGLObjects:
+  for (auto object : m_state.objects())
     {
-    /* Initialize the color editor */
-    this->ColorEditor = new TransferFunction1D(this);
-    this->ColorEditor->createTransferFunction1D(CINVERSE_RAINBOW,
-      UP_RAMP, 0.0, 1.0);
-    this->ColorEditor->getColorMapChangedCallbacks().add(
-      this, &MooseViewer::colorMapChangedCallback);
-    this->ColorEditor->getAlphaChangedCallbacks().add(this,
-      &MooseViewer::alphaChangedCallback);
-    updateColorMap();
-
-    /* Contours */
-    this->ContoursDialog = new Contours(this);
-    this->ContoursDialog->getAlphaChangedCallbacks().add(this,
-      &MooseViewer::contourValueChangedCallback);
-
-    /* Initialize the Animation control */
-    this->AnimationControl = new AnimationDialog(this);
-
-    /* Compute the data center and Radius once */
-    this->Center[0] = (this->DataBounds[0] + this->DataBounds[1])/2.0;
-    this->Center[1] = (this->DataBounds[2] + this->DataBounds[3])/2.0;
-    this->Center[2] = (this->DataBounds[4] + this->DataBounds[5])/2.0;
-
-    this->Radius = sqrt((this->DataBounds[1] - this->DataBounds[0])*
-                        (this->DataBounds[1] - this->DataBounds[0]) +
-                        (this->DataBounds[3] - this->DataBounds[2])*
-                        (this->DataBounds[3] - this->DataBounds[2]) +
-                        (this->DataBounds[5] - this->DataBounds[4])*
-                        (this->DataBounds[5] - this->DataBounds[4]));
-    /* Scale the Radius */
-    this->Radius *= 0.75;
-    /* Initialize Vrui navigation transformation: */
-    centerDisplayCallback(0);
-    this->FirstFrame = false;
+    object->syncApplicationState(m_state);
     }
 
-  // Get scalar array metadata.
-  std::string arrayName = this->getSelectedColorByArrayName();
-
-  // TODO this really only needs to be reset when the file is reread or the
-  // array name changes.
-  m_state.locator() = ArrayLocator(m_state.reader().GetOutput(), arrayName);
-
-  /* Synchronize mvGLObjects: */
-  typedef mvApplicationState::Objects::iterator Iter;
-  for (Iter it = m_state.objects().begin(), itEnd = m_state.objects().end();
-       it != itEnd; ++it)
-    {
-    (*it)->syncApplicationState(m_state);
-    }
-
+  // Animation control:
   if (this->IsPlaying)
     {
-    int currentTimeStep = m_state.reader().GetTimeStep();
-    if (currentTimeStep < m_state.reader().GetTimeStepRange()[1])
+    int currentTimeStep = m_state.reader().timeStep();
+    if (currentTimeStep < m_state.reader().timeStepRange()[1])
       {
-      m_state.reader().SetTimeStep(currentTimeStep + 1);
+      m_state.reader().setTimeStep(currentTimeStep + 1);
+      m_state.reader().update(m_state);
       Vrui::scheduleUpdate(Vrui::getApplicationTime() + 1.0/125.0);
       }
     else if(this->Loop)
       {
-      m_state.reader().SetTimeStep(m_state.reader().GetTimeStepRange()[0]);
+      m_state.reader().setTimeStep(m_state.reader().timeStepRange()[0]);
+      m_state.reader().update(m_state);
       Vrui::scheduleUpdate(Vrui::getApplicationTime() + 1.0/125.0);
       }
     else
@@ -903,37 +775,17 @@ void MooseViewer::initContext(GLContextData& contextData) const
       << glewInitResult << ")." << std::endl;
     }
 
-  // TODO move to a updateReader method at some point.
-  this->DataBounds[0] = DataBounds[2] = DataBounds[4] = VTK_DOUBLE_MAX;
-  this->DataBounds[1] = DataBounds[3] = DataBounds[5] = VTK_DOUBLE_MIN;
-  m_state.reader().Update();
-  vtkCompositeDataIterator *it = m_state.reader().GetOutput()->NewIterator();
-  double leafBounds[6];
-  for (it->InitTraversal(); !it->IsDoneWithTraversal(); it->GoToNextItem())
-    {
-    if (vtkDataSet *ds = vtkDataSet::SafeDownCast(it->GetCurrentDataObject()))
-      {
-      ds->GetBounds(leafBounds);
-      this->DataBounds[0] = std::min(this->DataBounds[0], leafBounds[0]);
-      this->DataBounds[1] = std::max(this->DataBounds[1], leafBounds[1]);
-      this->DataBounds[2] = std::min(this->DataBounds[2], leafBounds[2]);
-      this->DataBounds[3] = std::max(this->DataBounds[3], leafBounds[3]);
-      this->DataBounds[4] = std::min(this->DataBounds[4], leafBounds[4]);
-      this->DataBounds[5] = std::max(this->DataBounds[5], leafBounds[5]);
-      }
-    }
-  it->Delete();
+  // Initialize the display:
+  this->centerDisplay();
 
   /* Create a new context data item */
   mvContextState* context = new mvContextState;
   contextData.addDataItem(this, context);
 
   /* Synchronize mvGLObjects: */
-  typedef mvApplicationState::Objects::const_iterator Iter;
-  for (Iter it = m_state.objects().begin(), itEnd = m_state.objects().end();
-       it != itEnd; ++it)
+  for (const auto object : m_state.objects())
     {
-    (*it)->initMvContext(*context, contextData);
+    object->initMvContext(*context, contextData);
     }
 }
 
@@ -963,20 +815,17 @@ void MooseViewer::display(GLContextData& contextData) const
   /* Get context data item */
   mvContextState* context = contextData.retrieveDataItem<mvContextState>(this);
 
-  /* Color by selected array */
-  if (!m_state.locator().Name.empty())
+  /* Update color map. */
+  auto metaData = m_state.reader().variableMetaData(m_state.colorByArray());
+  if (metaData.valid())
     {
-    // TODO This only needs to be updated when Locator updates.
-    m_state.colorMap().SetTableRange(m_state.locator().Range[0],
-                                     m_state.locator().Range[1]);
+    m_state.colorMap().SetTableRange(metaData.range);
     }
 
   /* Synchronize mvGLObjects: */
-  typedef mvApplicationState::Objects::const_iterator Iter;
-  for (Iter it = m_state.objects().begin(), itEnd = m_state.objects().end();
-       it != itEnd; ++it)
+  for (const auto object : m_state.objects())
     {
-    (*it)->syncContextState(m_state, *context, contextData);
+    object->syncContextState(m_state, *context, contextData);
     }
 
   /* Render the scene */
@@ -994,12 +843,6 @@ void MooseViewer::display(GLContextData& contextData) const
         ++clippingPlaneIndex;
       }
     }
-
-  // If showing the framerate, trigger another render:
-  if (m_state.framerate().visible())
-    {
-    Vrui::requestUpdate();
-    }
 }
 
 //----------------------------------------------------------------------------
@@ -1009,14 +852,9 @@ void MooseViewer::toggleFPSCallback(Misc::CallbackData *cbData)
 }
 
 //----------------------------------------------------------------------------
-void MooseViewer::centerDisplayCallback(Misc::CallbackData* callBackData)
+void MooseViewer::centerDisplayCallback(Misc::CallbackData*)
 {
-  if(!this->DataBounds)
-    {
-    std::cerr << "ERROR: Data bounds not set!!" << std::endl;
-    return;
-    }
-  Vrui::setNavigationTransformation(this->Center, this->Radius);
+  this->centerDisplay();
 }
 
 //----------------------------------------------------------------------------
@@ -1044,7 +882,14 @@ void MooseViewer::radiusSliderCallback(
   GLMotif::Slider::ValueChangedCallbackData* callBackData)
 {
   m_state.volume().setSplatRadius(static_cast<double>(callBackData->value));
-  radiusValue->setValue(callBackData->value);
+  if (callBackData->value == 0.)
+    {
+    radiusValue->setString("Auto");
+    }
+  else
+    {
+    radiusValue->setValue(callBackData->value);
+    }
 }
 
 //----------------------------------------------------------------------------
@@ -1273,39 +1118,13 @@ void MooseViewer::changeVariablesCallback(
     }
 
   std::string array(callBackData->listBox->getItem(callBackData->item));
-
-  int numPointResultArrays = m_state.reader().GetNumberOfPointResultArrays();
-  int numElementResultArrays = m_state.reader().GetNumberOfElementResultArrays();
-
-  int i;
-  for (i = 0; i < numPointResultArrays; ++i)
-    {
-    if (array == m_state.reader().GetPointResultArrayName(i))
-      {
-      m_state.reader().SetPointResultArrayStatus(array.c_str(), enable ? 1 : 0);
-      break;
-      }
-    }
-  if (i == numPointResultArrays)
-    {
-    for (i = 0; i < numElementResultArrays; ++i)
-      {
-      if (array == m_state.reader().GetElementResultArrayName(i))
-        {
-        m_state.reader().SetElementResultArrayStatus(array.c_str(),
-                                                  enable ? 1 : 0);
-        break;
-        }
-      }
-    }
-
   if (enable)
     {
-    this->variables.insert(array);
+    m_state.reader().requestVariable(array);
     }
   else
     {
-    this->variables.erase(array);
+    m_state.reader().unrequestVariable(array);
     }
 
   this->updateColorByVariablesMenu();
@@ -1315,11 +1134,23 @@ void MooseViewer::changeVariablesCallback(
 void MooseViewer::changeColorByVariablesCallback(
   GLMotif::ToggleButton::ValueChangedCallbackData* callBackData)
 {
-  if (this->variables.size() == 1)
+  // If there's only one variable, ignore the request to disable it.
+  if (m_state.reader().requestedVariables().size() == 1)
     {
-    callBackData->toggle->setToggle(true);
+    if (!callBackData->set)
+      {
+      callBackData->toggle->setToggle(true);
+      }
+    return;
     }
-  this->updateHistogram();
+
+  if (m_state.colorByArray() == callBackData->toggle->getName())
+    {
+    return;
+    }
+
+  m_state.setColorByArray(callBackData->toggle->getName());
+
   this->updateScalarRange();
   Vrui::requestUpdate();
 }
@@ -1385,33 +1216,73 @@ float * MooseViewer::getHistogram(void)
 //----------------------------------------------------------------------------
 void MooseViewer::updateHistogram(void)
 {
-  /* Clear the histogram */
-  for(int j = 0; j < 256; ++j)
+  if (this->HistogramMTime > m_state.reader().dataObject()->GetMTime() &&
+      this->HistogramMTime > m_state.colorByMTime())
     {
-    this->Histogram[j] = 0.0;
-    }
-
-  int type = -1;
-  vtkSmartPointer<vtkDataArray> dataArray = this->getSelectedArray(type);
-  if (!dataArray || (type < 0))
-    {
+    // Up to date.
     return;
     }
 
-  double * scalarRange = dataArray->GetRange();
-  if (fabs(scalarRange[1] - scalarRange[0]) < 1e-6)
+  std::fill(this->Histogram, this->Histogram + 256, 0.f);
+
+  auto metaData = m_state.reader().variableMetaData(m_state.colorByArray());
+  if (metaData.valid())
     {
-    return;
+    vtkCompositeDataIterator *it = m_state.reader().dataObject()->NewIterator();
+    for (it->InitTraversal(); !it->IsDoneWithTraversal(); it->GoToNextItem())
+      {
+      vtkDataSet *ds = vtkDataSet::SafeDownCast(it->GetCurrentDataObject());
+      if (!ds)
+        {
+        continue;
+        }
+
+      vtkDataArray *array = nullptr;
+      switch (metaData.location)
+        {
+        case mvReader::VariableMetaData::Location::PointData:
+          array = ds->GetPointData()->GetArray(m_state.colorByArray().c_str());
+          break;
+
+        case mvReader::VariableMetaData::Location::CellData:
+          array = ds->GetCellData()->GetArray(m_state.colorByArray().c_str());
+          break;
+
+        case mvReader::VariableMetaData::Location::FieldData:
+          array = ds->GetFieldData()->GetArray(m_state.colorByArray().c_str());
+          break;
+
+        default:
+          break;
+        }
+
+      if (!array)
+        {
+        continue;
+        }
+
+      vtkIdType numTuples = array->GetNumberOfTuples();
+      double min = metaData.range[0];
+      double spread = metaData.range[1] - min;
+      if (spread < 1e-6) // Constant data...
+        {
+        continue;
+        }
+      else
+        {
+        for (vtkIdType tuple = 0; tuple < numTuples; ++tuple)
+          {
+          size_t bin = static_cast<size_t>(
+                (array->GetComponent(tuple, 0) - min) * 255. / spread);
+          assert(bin < 256);
+          ++this->Histogram[bin];
+          }
+        }
+      }
+    it->Delete();
     }
 
-  // Divide the range into 256 bins
-  for (int i = 0; i < dataArray->GetNumberOfTuples(); ++i)
-    {
-    double * tuple = dataArray->GetTuple(i);
-    int bin = static_cast<int>((tuple[0] - scalarRange[0])*255.0 /
-      (scalarRange[1] - scalarRange[0]));
-    this->Histogram[bin] += 1;
-    }
+  this->HistogramMTime.Modified();
 
   this->ColorEditor->setHistogram(this->Histogram);
   this->ContoursDialog->setHistogram(this->Histogram);
@@ -1421,22 +1292,13 @@ void MooseViewer::updateHistogram(void)
 //----------------------------------------------------------------------------
 void MooseViewer::updateScalarRange(void)
 {
-  int type = -1;
-  vtkSmartPointer<vtkDataArray> dataArray = this->getSelectedArray(type);
-  if (!dataArray || (type < 0))
+  auto metaData = m_state.reader().variableMetaData(m_state.colorByArray());
+  if (metaData.valid())
     {
-    return;
+    this->ScalarRange[0] = metaData.range[0];
+    this->ScalarRange[1] = metaData.range[1];
     }
-
-  double * scalarRange = dataArray->GetRange();
-  if (fabs(scalarRange[1] - scalarRange[0]) < 1e-6)
-    {
-    return;
-    }
-
-  this->ScalarRange[0] = scalarRange[0];
-  this->ScalarRange[1] = scalarRange[1];
-  this->ColorEditor->setScalarRange(scalarRange);
+  this->ColorEditor->setScalarRange(this->ScalarRange);
 }
 
 //----------------------------------------------------------------------------
@@ -1503,4 +1365,14 @@ void MooseViewer::setScalarMaximum(double max)
     this->ScalarRange[1] = max;
     }
   Vrui::requestUpdate();
+}
+
+//----------------------------------------------------------------------------
+void MooseViewer::centerDisplay() const
+{
+  auto bbox = m_state.reader().bounds();
+  double center[3];
+  bbox.GetCenter(center);
+  Vrui::setNavigationTransformation(Vrui::Point(center),
+                                    0.75 * bbox.GetDiagonalLength());
 }

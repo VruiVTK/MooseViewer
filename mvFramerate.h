@@ -10,6 +10,7 @@
 #include <vector>
 
 class vtkTextActor;
+class vtkTextProperty;
 
 /**
  * @brief The mvFramerate class renders the framerate as a vtkTextActor.
@@ -17,7 +18,9 @@ class vtkTextActor;
 class mvFramerate : public mvGLObject
 {
 public:
-  struct DataItem : public mvGLObject::DataItem
+  using Superclass = mvGLObject;
+
+  struct DataItem : public Superclass::DataItem
   {
     DataItem();
     vtkNew<vtkTextActor> actor;
@@ -27,13 +30,12 @@ public:
   ~mvFramerate();
 
   // mvGLObjectAPI:
-  void initContext(GLContextData &contextData) const;
   void initMvContext(mvContextState &mvContext,
-                     GLContextData &contextData) const;
-  void syncApplicationState(const mvApplicationState &state);
+                     GLContextData &contextData) const override;
+  void syncApplicationState(const mvApplicationState &state) override;
   void syncContextState(const mvApplicationState &appState,
                         const mvContextState &contextState,
-                        GLContextData &contextData) const;
+                        GLContextData &contextData) const override;
 
   /**
    * Toggle visibility of the contour props on/off.
@@ -50,6 +52,7 @@ private:
   Misc::Timer m_timer;
   std::vector<double> m_times;
 
+  vtkNew<vtkTextProperty> m_tprop;
   bool m_visible;
 };
 

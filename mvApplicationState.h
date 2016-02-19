@@ -1,16 +1,19 @@
 #ifndef MVAPPLICATIONSTATE_H
 #define MVAPPLICATIONSTATE_H
 
-class ArrayLocator;
 class mvContours;
-class mvVolume;
 class mvFramerate;
 class mvGeometry;
 class mvGLObject;
 class mvOutline;
+class mvProgress;
+class mvReader;
+class mvVolume;
 class vtkExodusIIReader;
 class vtkLookupTable;
 class WidgetHints;
+
+#include <vtkTimeStamp.h>
 
 #include <string>
 #include <vector>
@@ -25,7 +28,7 @@ class WidgetHints;
 class mvApplicationState
 {
 public:
-  typedef std::vector<mvGLObject*> Objects;
+  using Objects = std::vector<mvGLObject*>;
 
   mvApplicationState();
   ~mvApplicationState();
@@ -33,6 +36,11 @@ public:
   /** List of all mvGLObjects. */
   Objects& objects() { return m_objects; }
   const Objects& objects() const { return m_objects; }
+
+  /** Currently selected array for scalar color mapping, etc. */
+  const std::string& colorByArray() const { return m_colorByArray; }
+  void setColorByArray(const std::string &a);
+  unsigned long colorByMTime() const { return m_colorByMTime.GetMTime(); }
 
   /** Color map.
    * Access is not const-correct because VTK is not const-correct. */
@@ -50,17 +58,18 @@ public:
   mvGeometry& geometry() { return *m_geometry; }
   const mvGeometry& geometry() const { return *m_geometry; }
 
-  /** Array locator. */
-  ArrayLocator& locator() { return *m_locator; }
-  const ArrayLocator& locator() const { return *m_locator; }
-
   /** Render dataset outline. */
   mvOutline& outline() { return *m_outline; }
   const mvOutline& outline() const { return *m_outline; }
 
+  /** Async progress monitor.
+   * Unfortunately not const-correct, since this needs to be modified in
+   * mvAsyncGLObject::syncApplicationState(const mvAppState&). */
+  mvProgress& progress() const { return *m_progress; }
+
   /** File reader.
    * Access is not const-correct because VTK is not const-correct. */
-  vtkExodusIIReader& reader() const { return *m_reader; }
+  mvReader& reader() const { return *m_reader; }
 
   /** Volume rendering object. */
   mvVolume& volume() { return *m_volume; }
@@ -78,14 +87,25 @@ private:
   Objects m_objects;
 
   vtkLookupTable *m_colorMap;
+  std::string m_colorByArray;
+  vtkTimeStamp m_colorByMTime;
   mvContours *m_contours;
   mvFramerate *m_framerate;
   mvGeometry *m_geometry;
-  ArrayLocator *m_locator;
   mvOutline *m_outline;
-  vtkExodusIIReader *m_reader;
+  mvProgress *m_progress;
+  mvReader *m_reader;
   mvVolume *m_volume;
   WidgetHints *m_widgetHints;
 };
+
+inline void mvApplicationState::setColorByArray(const std::string &a)
+{
+  if (a != m_colorByArray)
+    {
+    m_colorByArray = a;
+    m_colorByMTime.Modified();
+    }
+}
 
 #endif // MVAPPLICATIONSTATE_H

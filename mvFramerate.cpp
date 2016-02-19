@@ -7,6 +7,8 @@
 
 #include <GL/GLContextData.h>
 
+#include <Vrui/Vrui.h>
+
 #include "mvApplicationState.h"
 #include "mvContextState.h"
 
@@ -17,20 +19,21 @@
 //------------------------------------------------------------------------------
 mvFramerate::DataItem::DataItem()
 {
-  actor->GetTextProperty()->SetJustificationToLeft();
-  actor->GetTextProperty()->SetVerticalJustificationToTop();
-  actor->GetTextProperty()->SetFontSize(12);
   actor->SetTextScaleModeToViewport();
-
   vtkCoordinate *coord = actor->GetPositionCoordinate();
   coord->SetCoordinateSystemToNormalizedDisplay();
-  coord->SetValue(0, 0.999);
+  coord->SetValue(0.01, 0.99);
 }
 
 //------------------------------------------------------------------------------
 mvFramerate::mvFramerate()
   : m_visible(false)
 {
+  m_tprop->SetJustificationToLeft();
+  m_tprop->SetVerticalJustificationToTop();
+  m_tprop->SetFontSize(8);
+  m_tprop->SetBackgroundColor(.25, .25, .25);
+  m_tprop->SetBackgroundOpacity(0.5);
 }
 
 //------------------------------------------------------------------------------
@@ -39,33 +42,25 @@ mvFramerate::~mvFramerate()
 }
 
 //------------------------------------------------------------------------------
-void mvFramerate::initContext(GLContextData &contextData) const
+void mvFramerate::initMvContext(mvContextState &mvContext,
+                                GLContextData &contextData) const
 {
-  this->mvGLObject::initContext(contextData);
+  this->Superclass::initMvContext(mvContext, contextData);
 
   assert("Duplicate context initialization detected!" &&
          !contextData.retrieveDataItem<DataItem>(this));
 
   DataItem *dataItem = new DataItem;
   contextData.addDataItem(this, dataItem);
-}
 
-//------------------------------------------------------------------------------
-void mvFramerate::initMvContext(mvContextState &mvContext,
-                                GLContextData &contextData) const
-{
-  this->mvGLObject::initMvContext(mvContext, contextData);
-
-  DataItem *dataItem = contextData.retrieveDataItem<DataItem>(this);
-  assert(dataItem);
-
+  dataItem->actor->SetTextProperty(m_tprop.Get());
   mvContext.renderer().AddActor2D(dataItem->actor.GetPointer());
 }
 
 //------------------------------------------------------------------------------
 void mvFramerate::syncApplicationState(const mvApplicationState &state)
 {
-  this->mvGLObject::syncApplicationState(state);
+  this->Superclass::syncApplicationState(state);
 
   const size_t FPSCacheSize = 64;
 
@@ -85,6 +80,12 @@ void mvFramerate::syncApplicationState(const mvApplicationState &state)
     std::rotate(m_times.begin(), m_times.begin() + 1, m_times.end());
     m_times.back() = time;
     }
+
+  // If showing the framerate, trigger another render:
+  if (m_visible)
+    {
+    Vrui::requestUpdate();
+    }
 }
 
 //------------------------------------------------------------------------------
@@ -92,7 +93,7 @@ void mvFramerate::syncContextState(const mvApplicationState &appState,
                                    const mvContextState &contextState,
                                    GLContextData &contextData) const
 {
-  this->mvGLObject::syncContextState(appState, contextState, contextData);
+  this->Superclass::syncContextState(appState, contextState, contextData);
 
   DataItem *dataItem = contextData.retrieveDataItem<DataItem>(this);
   assert(dataItem);

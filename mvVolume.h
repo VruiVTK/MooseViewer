@@ -1,14 +1,12 @@
 #ifndef MVVOLUME_H
 #define MVVOLUME_H
 
-#include "mvGLObject.h"
+#include "mvAsyncGLObject.h"
 
 #include <vtkNew.h>
 #include <vtkSmartPointer.h>
 
 #include <string>
-
-#include "ArrayLocator.h"
 
 class vtkCellDataToPointData;
 class vtkCheckerboardSplatter;
@@ -22,15 +20,14 @@ class vtkVolumeProperty;
 /**
  * @brief The mvVolume class renders the dataset as a volume.
  */
-class mvVolume : public mvGLObject
+class mvVolume : public mvAsyncGLObject
 {
 public:
-  struct DataItem : public mvGLObject::DataItem
+  using Superclass = mvAsyncGLObject;
+
+  struct DataItem : public Superclass::DataItem
   {
     DataItem();
-
-    // Renderable data:
-    vtkSmartPointer<vtkDataObject> data;
 
     // Rendering pipeline:
     vtkNew<vtkSmartVolumeMapper> mapper;
@@ -41,13 +38,11 @@ public:
   ~mvVolume();
 
   // mvGLObjectAPI:
-  void initContext(GLContextData &contextData) const;
   void initMvContext(mvContextState &mvContext,
-                     GLContextData &contextData) const;
-  void syncApplicationState(const mvApplicationState &state);
+                     GLContextData &contextData) const override;
   void syncContextState(const mvApplicationState &appState,
                         const mvContextState &contextState,
-                        GLContextData &contextData) const;
+                        GLContextData &contextData) const override;
 
   /**
    * Toggle visibility of the props on/off.
@@ -70,6 +65,13 @@ public:
   double splatDimensions() const;
   void setSplatDimensions(double splatDimensions);
 
+private: // mvAsyncGLObject virtual API:
+  void configureDataPipeline(const mvApplicationState &state) override;
+  bool dataPipelineNeedsUpdate() const override;
+  void executeDataPipeline() const override;
+  void retrieveDataPipelineResult() override;
+  std::string progressLabel() const override { return "Updating Volume"; }
+
 private:
   // Not implemented -- disable copy:
   mvVolume(const mvVolume&);
@@ -79,6 +81,9 @@ private:
   // Data pipeline:
   vtkNew<vtkCellDataToPointData> m_cell2point;
   vtkNew<vtkCheckerboardSplatter> m_splat;
+
+  // Renderable data:
+  vtkSmartPointer<vtkDataObject> m_appData;
 
   // Rendering configuration
   vtkNew<vtkColorTransferFunction> m_colorFunction;

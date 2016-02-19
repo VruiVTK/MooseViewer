@@ -1,4 +1,4 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.1)
 
 IF(POLICY CMP0020)
   CMAKE_POLICY(SET CMP0020 NEW)
@@ -7,6 +7,9 @@ ENDIF()
 PROJECT(MooseViewer)
 
 SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+
+# Use c++11:
+set(CMAKE_CXX_STANDARD 11)
 
 INCLUDE(FindPkgConfig)
 
@@ -44,7 +47,6 @@ INCLUDE(InstallRequiredSystemLibraries)
 SET(${PROJECT_NAME}_SRCS
   AnimationDialog.cpp
   AnimationDialog.h
-  ArrayLocator.h
   BaseLocator.cpp
   BaseLocator.h
   ClippingPlane.cpp
@@ -70,6 +72,8 @@ SET(${PROJECT_NAME}_SRCS
   MooseViewer.h
   mvApplicationState.cpp
   mvApplicationState.h
+  mvAsyncGLObject.cpp
+  mvAsyncGLObject.h
   mvContextState.cpp
   mvContextState.h
   mvContours.cpp
@@ -82,6 +86,12 @@ SET(${PROJECT_NAME}_SRCS
   mvGLObject.h
   mvOutline.cpp
   mvOutline.h
+  mvProgress.cpp
+  mvProgress.h
+  mvProgressCookie.cpp
+  mvProgressCookie.h
+  mvReader.cpp
+  mvReader.h
   mvVolume.cpp
   mvVolume.h
   RGBAColor.cpp

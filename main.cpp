@@ -92,8 +92,6 @@ int main(int argc, char* argv[])
     MooseViewer application(argc, argv);
     application.setShowFPS(showFPS);
     application.setWidgetHintsFile(widgetHints);
-    application.Initialize();
-
     if(!name.empty())
       {
       application.setFileName(name.c_str());
@@ -102,6 +100,7 @@ int main(int argc, char* argv[])
       {
       application.setRequestedRenderMode(renderMode);
       }
+    application.Initialize();
     application.run();
     return 0;
     }

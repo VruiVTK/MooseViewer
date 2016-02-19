@@ -20,6 +20,7 @@
 
 // VTK includes
 #include <vtkSmartPointer.h>
+#include <vtkTimeStamp.h>
 
 // STL includes
 #include <vector>
@@ -40,9 +41,9 @@ class ClippingPlane;
 class Contours;
 class TransferFunction1D;
 class mvContours;
+class mvReader;
 class VariablesDialog;
 class vtkDataArray;
-class vtkExodusIIReader;
 class vtkLookupTable;
 
 class MooseViewer:public Vrui::Application,public GLObject
@@ -69,34 +70,11 @@ private:
   /* Update the menus */
   void updateVariablesDialog(void);
   void updateColorByVariablesMenu(void);
-  std::string getSelectedColorByArrayName(void) const;
-
-  // Note: this should only be used during testing/debugging. Internally,
-  // it executes a composite geometry filter...
-  vtkSmartPointer<vtkDataArray> getSelectedArray(int & type) const;
 
   /* Variables dialog */
   VariablesDialog *variablesDialog;
 
   GLMotif::SubMenu* colorByVariablesMenu;
-
-  /* Variables vector */
-  std::set<std::string> variables;
-
-  /* Name of file to load */
-  std::string FileName;
-
-  /* bounds */
-  double* DataBounds;
-
-  /* First Frame */
-  bool FirstFrame;
-
-  /* Data Center */
-  Vrui::Point Center;
-
-  /* Data Radius  */
-  Vrui::Scalar Radius;
 
   BaseLocatorList baseLocators;
 
@@ -106,11 +84,6 @@ private:
   /* Clipping Plane */
   ClippingPlane * ClippingPlanes;
   int NumberOfClippingPlanes;
-
-  /* Flashlight position and direction */
-  int * FlashlightSwitch;
-  double * FlashlightPosition;
-  double * FlashlightDirection;
 
   /* Color editor dialog */
   TransferFunction1D* ColorEditor;
@@ -124,6 +97,7 @@ private:
 
   /* Draw histogram */
   float* Histogram;
+  vtkTimeStamp HistogramMTime;
   void updateHistogram(void);
 
   /* Contours dialog */
@@ -135,7 +109,7 @@ private:
   GLMotif::TextField* exponentValue;
 
   /* Custom scalar range */
-  double* ScalarRange;
+  double ScalarRange[2];
 
   /* Constructors and destructors: */
 public:
@@ -145,8 +119,8 @@ public:
   void Initialize();
 
   /* vtkExodusIIReader */
-  vtkExodusIIReader& reader() { return m_state.reader(); }
-  const vtkExodusIIReader& reader() const { return m_state.reader(); }
+  mvReader& reader() { return m_state.reader(); }
+  const mvReader& reader() const { return m_state.reader(); }
 
   /* Methods to set/get the filename to read */
   void setFileName(const std::string &name);
@@ -192,9 +166,12 @@ public:
   void setScalarMinimum(double min);
   void setScalarMaximum(double max);
 
+  /* Does the work of centering the display. */
+  void centerDisplay() const;
+
   /* Callback methods */
   void toggleFPSCallback(Misc::CallbackData* cbData);
-  void centerDisplayCallback(Misc::CallbackData* cbData);
+  void centerDisplayCallback(Misc::CallbackData*);
   void opacitySliderCallback(GLMotif::Slider::ValueChangedCallbackData* cbData);
   void sampleSliderCallback(GLMotif::Slider::ValueChangedCallbackData* cbData);
   void radiusSliderCallback(GLMotif::Slider::ValueChangedCallbackData* cbData);

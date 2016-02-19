@@ -1,7 +1,11 @@
 #include "mvGLObject.h"
 
+#include <iostream>
+#include <cstdlib>
+
 //------------------------------------------------------------------------------
 mvGLObject::mvGLObject()
+  : Superclass(/*autoInit=*/ false)
 {
 }
 
@@ -13,6 +17,9 @@ mvGLObject::~mvGLObject()
 //------------------------------------------------------------------------------
 void mvGLObject::initContext(GLContextData &) const
 {
+  std::cerr << "mvGLObject::initContext should never be called. Use "
+               "mvGLObject::initMvContext instead." << std::endl;
+  abort();
 }
 
 //------------------------------------------------------------------------------

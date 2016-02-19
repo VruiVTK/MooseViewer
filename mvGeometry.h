@@ -1,7 +1,7 @@
 #ifndef MVGEOMETRY_H
 #define MVGEOMETRY_H
 
-#include "mvGLObject.h"
+#include "mvAsyncGLObject.h"
 
 #include <vtkNew.h>
 #include <vtkSmartPointer.h>
@@ -14,15 +14,14 @@ class vtkPolyDataMapper;
 /**
  * @brief The mvGeometry class renders the dataset as polydata.
  */
-class mvGeometry : public mvGLObject
+class mvGeometry : public mvAsyncGLObject
 {
 public:
-  struct DataItem : public mvGLObject::DataItem
+  using Superclass = mvAsyncGLObject;
+
+  struct DataItem : public Superclass::DataItem
   {
     DataItem();
-
-    // Renderable data:
-    vtkSmartPointer<vtkDataObject> data;
 
     // Rendering pipeline:
     vtkNew<vtkPolyDataMapper> mapper;
@@ -42,13 +41,11 @@ public:
   ~mvGeometry();
 
   // mvGLObjectAPI:
-  void initContext(GLContextData &contextData) const;
   void initMvContext(mvContextState &mvContext,
-                     GLContextData &contextData) const;
-  void syncApplicationState(const mvApplicationState &state);
+                     GLContextData &contextData) const override;
   void syncContextState(const mvApplicationState &appState,
                         const mvContextState &contextState,
-                        GLContextData &contextData) const;
+                        GLContextData &contextData) const override;
 
   /**
    * Toggle visibility of the contour props on/off.
@@ -68,14 +65,26 @@ public:
   Representation representation() const;
   void setRepresentation(Representation representation);
 
+private: // mvAsyncGLObject virtual API:
+  void configureDataPipeline(const mvApplicationState &state) override;
+  bool dataPipelineNeedsUpdate() const override;
+  void executeDataPipeline() const override;
+  void retrieveDataPipelineResult() override;
+  std::string progressLabel() const override { return "Updating Geometry"; }
+
 private:
   // Not implemented -- disable copy:
   mvGeometry(const mvGeometry&);
   mvGeometry& operator=(const mvGeometry&);
 
 private:
+  // Data pipeline:
   vtkNew<vtkCompositeDataGeometryFilter> m_filter;
 
+  // Renderable data:
+  vtkSmartPointer<vtkDataObject> m_appData;
+
+  // Render settings
   double m_opacity;
   Representation m_representation;
   bool m_visible;

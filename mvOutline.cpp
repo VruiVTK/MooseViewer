@@ -5,13 +5,14 @@
 #include "vtkActor.h"
 #include "vtkCompositePolyDataMapper.h"
 #include "vtkDataObject.h"
-#include "vtkExodusIIReader.h"
 #include "vtkExternalOpenGLRenderer.h"
+#include "vtkMultiBlockDataSet.h"
 #include "vtkOutlineFilter.h"
 #include "vtkProperty.h"
 
 #include "mvApplicationState.h"
 #include "mvContextState.h"
+#include "mvReader.h"
 
 //------------------------------------------------------------------------------
 mvOutline::DataItem::DataItem()
@@ -32,36 +33,48 @@ mvOutline::~mvOutline()
 }
 
 //------------------------------------------------------------------------------
-void mvOutline::initContext(GLContextData &contextData) const
+void mvOutline::initMvContext(mvContextState &mvContext,
+                              GLContextData &contextData) const
 {
-  this->mvGLObject::initContext(contextData);
+  this->Superclass::initMvContext(mvContext, contextData);
 
   assert("Duplicate context initialization detected!" &&
          !contextData.retrieveDataItem<DataItem>(this));
 
   DataItem *dataItem = new DataItem;
   contextData.addDataItem(this, dataItem);
-}
-
-//------------------------------------------------------------------------------
-void mvOutline::initMvContext(mvContextState &mvContext,
-                              GLContextData &contextData) const
-{
-  this->mvGLObject::initMvContext(mvContext, contextData);
-
-  DataItem *dataItem = contextData.retrieveDataItem<DataItem>(this);
-  assert(dataItem);
 
   mvContext.renderer().AddActor(dataItem->actor.GetPointer());
 }
 
 //------------------------------------------------------------------------------
-void mvOutline::syncApplicationState(const mvApplicationState &state)
+void mvOutline::configureDataPipeline(const mvApplicationState &state)
 {
-  this->mvGLObject::syncApplicationState(state);
+  m_filter->SetInputDataObject(state.reader().dataObject());
+}
 
-  m_filter->SetInputConnection(state.reader().GetOutputPort());
+//------------------------------------------------------------------------------
+bool mvOutline::dataPipelineNeedsUpdate() const
+{
+  return
+      m_filter->GetInputDataObject(0, 0) &&
+      m_visible &&
+      (!m_appData ||
+       m_appData->GetMTime() < m_filter->GetMTime());
+}
+
+//------------------------------------------------------------------------------
+void mvOutline::executeDataPipeline() const
+{
   m_filter->Update();
+}
+
+//------------------------------------------------------------------------------
+void mvOutline::retrieveDataPipelineResult()
+{
+  vtkDataObject *dObj = m_filter->GetOutputDataObject(0);
+  m_appData.TakeReference(dObj->NewInstance());
+  m_appData->ShallowCopy(dObj);
 }
 
 //------------------------------------------------------------------------------
@@ -69,27 +82,12 @@ void mvOutline::syncContextState(const mvApplicationState &appState,
                                  const mvContextState &contextState,
                                  GLContextData &contextData) const
 {
-  this->mvGLObject::syncContextState(appState, contextState, contextData);
+  this->Superclass::syncContextState(appState, contextState, contextData);
 
   DataItem *dataItem = contextData.retrieveDataItem<DataItem>(this);
   assert(dataItem);
 
-  if (vtkDataObject *appData = m_filter->GetOutputDataObject(0))
-    {
-    if (!dataItem->data ||
-        dataItem->data->GetMTime() < appData->GetMTime())
-      {
-      // We intentionally break the pipeline here to allow future async
-      // computation of the rendered dataset.
-      dataItem->data.TakeReference(appData->NewInstance());
-      dataItem->data->DeepCopy(appData);
-      }
-    }
-  else
-    {
-    dataItem->data = NULL;
-    }
-  dataItem->mapper->SetInputDataObject(dataItem->data);
+  dataItem->mapper->SetInputDataObject(m_appData);
 
-  dataItem->actor->SetVisibility(m_visible ? 1 : 0);
+  dataItem->actor->SetVisibility((m_visible && m_appData) ? 1 : 0);
 }

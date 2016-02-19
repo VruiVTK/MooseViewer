@@ -7,12 +7,13 @@
 #include <vtkExodusIIReader.h>
 #include <vtkExternalOpenGLRenderer.h>
 #include <vtkLookupTable.h>
+#include <vtkMultiBlockDataSet.h>
 #include <vtkPolyDataMapper.h>
 #include <vtkProperty.h>
 
-#include "ArrayLocator.h"
 #include "mvApplicationState.h"
 #include "mvContextState.h"
+#include "mvReader.h"
 
 //------------------------------------------------------------------------------
 mvGeometry::DataItem::DataItem()
@@ -36,37 +37,49 @@ mvGeometry::~mvGeometry()
 }
 
 //------------------------------------------------------------------------------
-void mvGeometry::initContext(GLContextData &contextData) const
+void mvGeometry::initMvContext(mvContextState &mvContext,
+                               GLContextData &contextData) const
 {
-  this->mvGLObject::initContext(contextData);
+  this->Superclass::initMvContext(mvContext, contextData);
 
   assert("Duplicate context initialization detected!" &&
          !contextData.retrieveDataItem<DataItem>(this));
 
   DataItem *dataItem = new DataItem;
   contextData.addDataItem(this, dataItem);
-}
-
-//------------------------------------------------------------------------------
-void mvGeometry::initMvContext(mvContextState &mvContext,
-                               GLContextData &contextData) const
-{
-  this->mvGLObject::initMvContext(mvContext, contextData);
-
-  DataItem *dataItem = contextData.retrieveDataItem<DataItem>(this);
-  assert(dataItem);
 
   mvContext.renderer().AddActor(dataItem->actor.GetPointer());
 }
 
 //------------------------------------------------------------------------------
-void mvGeometry::syncApplicationState(const mvApplicationState &state)
+void mvGeometry::configureDataPipeline(const mvApplicationState &state)
 {
-  this->mvGLObject::syncApplicationState(state);
+  m_filter->SetInputDataObject(state.reader().dataObject());
+}
 
-  m_filter->SetInputConnection(state.reader().GetOutputPort());
+//------------------------------------------------------------------------------
+bool mvGeometry::dataPipelineNeedsUpdate() const
+{
+  return
+      m_filter->GetInputDataObject(0, 0) &&
+      m_visible &&
+      m_representation != NoGeometry &&
+      (!m_appData ||
+       m_appData->GetMTime() < m_filter->GetMTime());
+}
 
+//------------------------------------------------------------------------------
+void mvGeometry::executeDataPipeline() const
+{
   m_filter->Update();
+}
+
+//------------------------------------------------------------------------------
+void mvGeometry::retrieveDataPipelineResult()
+{
+  vtkDataObject *dObj = m_filter->GetOutputDataObject(0);
+  m_appData.TakeReference(dObj->NewInstance());
+  m_appData->ShallowCopy(dObj);
 }
 
 //------------------------------------------------------------------------------
@@ -74,52 +87,39 @@ void mvGeometry::syncContextState(const mvApplicationState &appState,
                                   const mvContextState &contextState,
                                   GLContextData &contextData) const
 {
-  this->mvGLObject::syncContextState(appState, contextState, contextData);
+  this->Superclass::syncContextState(appState, contextState, contextData);
 
   DataItem *dataItem = contextData.retrieveDataItem<DataItem>(this);
   assert(dataItem);
 
-  // TODO compute data in a background thread.
-  if (vtkDataObject *appData = m_filter->GetOutputDataObject(0))
-    {
-    if (!dataItem->data ||
-        dataItem->data->GetMTime() < appData->GetMTime())
-      {
-      // We intentionally break the pipeline here to allow future async
-      // computation of the rendered dataset.
-      dataItem->data.TakeReference(appData->NewInstance());
-      dataItem->data->DeepCopy(appData);
-      }
-    }
-  else
-    {
-    dataItem->data = NULL;
-    }
-  dataItem->mapper->SetInputDataObject(dataItem->data);
+  dataItem->mapper->SetInputDataObject(m_appData);
 
-  switch (appState.locator().Association)
+  // Only modify the filter if the colorByArray is loaded.
+  auto metaData = appState.reader().variableMetaData(appState.colorByArray());
+  if (metaData.valid())
     {
-    case ArrayLocator::Invalid:
-    case ArrayLocator::NotFound:
-      break;
-
-    case ArrayLocator::PointData:
+    switch (metaData.location)
+    {
+    case mvReader::VariableMetaData::Location::PointData:
       dataItem->mapper->SetScalarModeToUsePointFieldData();
       break;
 
-    case ArrayLocator::CellData:
+    case mvReader::VariableMetaData::Location::CellData:
       dataItem->mapper->SetScalarModeToUseCellFieldData();
       break;
 
-    case ArrayLocator::FieldData:
+    case mvReader::VariableMetaData::Location::FieldData:
       dataItem->mapper->SetScalarModeToUseFieldData();
+      break;
+
+    default:
       break;
     }
 
-  dataItem->mapper->SelectColorArray(appState.locator().Name.c_str());
-  dataItem->mapper->SetScalarRange(appState.locator().Range[0],
-                                   appState.locator().Range[1]);
-  dataItem->mapper->SetLookupTable(&appState.colorMap());
+    dataItem->mapper->SelectColorArray(appState.colorByArray().c_str());
+    dataItem->mapper->SetScalarRange(metaData.range);
+    dataItem->mapper->SetLookupTable(&appState.colorMap());
+    }
 
   bool vis = m_visible; // repr == NoGeometry overrides this.
   switch (m_representation)
@@ -143,6 +143,11 @@ void mvGeometry::syncContextState(const mvApplicationState &appState,
       dataItem->actor->GetProperty()->SetRepresentation(VTK_SURFACE);
       dataItem->actor->GetProperty()->EdgeVisibilityOn();
       break;
+    }
+
+  if (!m_appData)
+    {
+    vis = false;
     }
 
   dataItem->actor->SetVisibility(vis ? 1 : 0);
