@@ -30,7 +30,6 @@
 
 // VRUI includes
 #include <Vrui/Application.h>
-#include <Vrui/Tool.h>
 #include <Vrui/ToolManager.h>
 #include <Vrui/Vrui.h>
 #include <Vrui/VRWindow.h>
@@ -38,9 +37,6 @@
 
 // MooseViewer includes
 #include "AnimationDialog.h"
-#include "BaseLocator.h"
-#include "ClippingPlane.h"
-#include "ClippingPlaneLocator.h"
 #include "ColorMap.h"
 #include "Contours.h"
 #include "MooseViewer.h"
@@ -49,8 +45,11 @@
 #include "mvContours.h"
 #include "mvFramerate.h"
 #include "mvGeometry.h"
+#include "mvInteractorTool.h"
+#include "mvMouseRotationTool.h"
 #include "mvOutline.h"
 #include "mvReader.h"
+#include "mvSlice.h"
 #include "mvVolume.h"
 #include "ScalarWidget.h"
 #include "TransferFunction1D.h"
@@ -61,8 +60,6 @@
 //----------------------------------------------------------------------------
 MooseViewer::MooseViewer(int& argc,char**& argv)
   :Vrui::Application(argc,argv),
-  analysisTool(0),
-  ClippingPlanes(NULL),
   colorByVariablesMenu(0),
   ContoursDialog(NULL),
   Histogram(new float[256]),
@@ -70,7 +67,6 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   Loop(false),
   mainMenu(NULL),
   m_colorMapCache(new double[256 * 4]),
-  NumberOfClippingPlanes(6),
   opacityValue(NULL),
   renderingDialog(NULL),
   sampleValue(NULL),
@@ -92,20 +88,20 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   this->ScalarRange[0] = 0.0;
   this->ScalarRange[1] = 255.0;
 
-  /* Initialize the clipping planes */
-  ClippingPlanes = new ClippingPlane[NumberOfClippingPlanes];
-  for(int i = 0; i < NumberOfClippingPlanes; ++i)
-    {
-    ClippingPlanes[i].setAllocated(false);
-    ClippingPlanes[i].setActive(false);
-    }
+  // Add tool factories:
+  Vrui::ToolManager *toolMgr = Vrui::getToolManager();
+
+  Vrui::ToolFactory *factory = new mvInteractorToolFactory(*toolMgr);
+  toolMgr->addClass(factory, Vrui::ToolManager::defaultToolFactoryDestructor);
+
+  factory = new mvMouseRotationToolFactory(*toolMgr);
+  toolMgr->addClass(factory, Vrui::ToolManager::defaultToolFactoryDestructor);
 }
 
 //----------------------------------------------------------------------------
 MooseViewer::~MooseViewer(void)
 {
   delete[] m_colorMapCache;
-  delete[] this->ClippingPlanes;
   delete[] this->Histogram;
 
   delete this->AnimationControl;
@@ -430,28 +426,15 @@ GLMotif::Popup * MooseViewer::createAnalysisToolsMenu(void)
   GLMotif::RadioBox * analysisTools_RadioBox = new GLMotif::RadioBox(
     "analysisTools", analysisToolsMenu, true);
 
-  // Set to the default selected option. If left NULL, the first representation
-  // is chosen.
-  GLMotif::ToggleButton *selected = NULL;
-
   if (m_state.widgetHints().isEnabled("ClippingPlane"))
     {
     GLMotif::ToggleButton* showClippingPlane=new GLMotif::ToggleButton(
           "ClippingPlane",analysisTools_RadioBox,"Clipping Plane");
     showClippingPlane->getValueChangedCallbacks().add(
           this,&MooseViewer::changeAnalysisToolsCallback);
-    selected = showClippingPlane;
     }
 
-  analysisTools_RadioBox->setSelectionMode(GLMotif::RadioBox::ALWAYS_ONE);
-  if (selected != NULL)
-    {
-    analysisTools_RadioBox->setSelectedToggle(selected);
-    }
-  else
-    {
-    analysisTools_RadioBox->setSelectedToggle(0);
-    }
+  analysisTools_RadioBox->setSelectionMode(GLMotif::RadioBox::ATMOST_ONE);
 
   analysisToolsMenu->manageChild();
   m_state.widgetHints().popGroup();
@@ -792,26 +775,6 @@ void MooseViewer::initContext(GLContextData& contextData) const
 //----------------------------------------------------------------------------
 void MooseViewer::display(GLContextData& contextData) const
 {
-  int numberOfSupportedClippingPlanes;
-  glGetIntegerv(GL_MAX_CLIP_PLANES, &numberOfSupportedClippingPlanes);
-  int clippingPlaneIndex = 0;
-  for (int i = 0; i < NumberOfClippingPlanes &&
-    clippingPlaneIndex < numberOfSupportedClippingPlanes; ++i)
-    {
-    if (ClippingPlanes[i].isActive())
-      {
-        /* Enable the clipping plane: */
-        glEnable(GL_CLIP_PLANE0 + clippingPlaneIndex);
-        GLdouble clippingPlane[4];
-        for (int j = 0; j < 3; ++j)
-            clippingPlane[j] = ClippingPlanes[i].getPlane().getNormal()[j];
-        clippingPlane[3] = -ClippingPlanes[i].getPlane().getOffset();
-        glClipPlane(GL_CLIP_PLANE0 + clippingPlaneIndex, clippingPlane);
-        /* Go to the next clipping plane: */
-        ++clippingPlaneIndex;
-      }
-    }
-
   /* Get context data item */
   mvContextState* context = contextData.retrieveDataItem<mvContextState>(this);
 
@@ -830,19 +793,6 @@ void MooseViewer::display(GLContextData& contextData) const
 
   /* Render the scene */
   context->widget().GetRenderWindow()->Render();
-
-  clippingPlaneIndex = 0;
-  for (int i = 0; i < NumberOfClippingPlanes &&
-    clippingPlaneIndex < numberOfSupportedClippingPlanes; ++i)
-    {
-    if (ClippingPlanes[i].isActive())
-      {
-        /* Disable the clipping plane: */
-        glDisable(GL_CLIP_PLANE0 + clippingPlaneIndex);
-        /* Go to the next clipping plane: */
-        ++clippingPlaneIndex;
-      }
-    }
 }
 
 //----------------------------------------------------------------------------
@@ -965,7 +915,7 @@ void MooseViewer::changeAnalysisToolsCallback(
   /* Set the new analysis tool: */
   if (strcmp(callBackData->toggle->getName(), "ClippingPlane") == 0)
   {
-    this->analysisTool = 0;
+    m_state.slice().setVisible(callBackData->set);
   }
 }
 
@@ -1031,65 +981,6 @@ void MooseViewer::showAnimationDialogCallback(
       Vrui::popdownPrimaryWidget(this->AnimationControl);
     }
   }
-}
-
-//----------------------------------------------------------------------------
-ClippingPlane * MooseViewer::getClippingPlanes(void)
-{
-  return this->ClippingPlanes;
-}
-
-//----------------------------------------------------------------------------
-int MooseViewer::getNumberOfClippingPlanes(void)
-{
-  return this->NumberOfClippingPlanes;
-}
-
-//----------------------------------------------------------------------------
-void MooseViewer::toolCreationCallback(
-  Vrui::ToolManager::ToolCreationCallbackData * callbackData)
-{
-  /* Check if the new tool is a locator tool: */
-  Vrui::LocatorTool* locatorTool =
-    dynamic_cast<Vrui::LocatorTool*> (callbackData->tool);
-  if (locatorTool != 0)
-    {
-    BaseLocator* newLocator;
-    if (analysisTool == 0)
-      {
-      /* Create a clipping plane locator object and
-       * associate it with the new tool:
-       */
-      newLocator = new ClippingPlaneLocator(locatorTool, this);
-      }
-
-    /* Add new locator to list: */
-    baseLocators.push_back(newLocator);
-    }
-}
-
-//----------------------------------------------------------------------------
-void MooseViewer::toolDestructionCallback(
-  Vrui::ToolManager::ToolDestructionCallbackData * callbackData)
-{
-  /* Check if the to-be-destroyed tool is a locator tool: */
-  Vrui::LocatorTool* locatorTool =
-    dynamic_cast<Vrui::LocatorTool*> (callbackData->tool);
-  if (locatorTool != 0)
-    {
-    /* Find the data locator associated with the tool in the list: */
-    for (BaseLocatorList::iterator blIt = baseLocators.begin();
-      blIt != baseLocators.end(); ++blIt)
-      {
-      if ((*blIt)->getTool() == locatorTool)
-        {
-        /* Remove the locator: */
-        delete *blIt;
-        baseLocators.erase(blIt);
-        break;
-        }
-      }
-    }
 }
 
 //----------------------------------------------------------------------------

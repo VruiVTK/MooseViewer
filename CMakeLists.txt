@@ -47,12 +47,6 @@ INCLUDE(InstallRequiredSystemLibraries)
 SET(${PROJECT_NAME}_SRCS
   AnimationDialog.cpp
   AnimationDialog.h
-  BaseLocator.cpp
-  BaseLocator.h
-  ClippingPlane.cpp
-  ClippingPlane.h
-  ClippingPlaneLocator.cpp
-  ClippingPlaneLocator.h
   ColorMapCallbackData.cpp
   ColorMapCallbackData.h
   ColorMapChangedCallbackData.cpp
@@ -84,6 +78,12 @@ SET(${PROJECT_NAME}_SRCS
   mvGeometry.h
   mvGLObject.cpp
   mvGLObject.h
+  mvInteractor.cpp
+  mvInteractor.h
+  mvInteractorTool.cpp
+  mvInteractorTool.h
+  mvMouseRotationTool.cpp
+  mvMouseRotationTool.h
   mvOutline.cpp
   mvOutline.h
   mvProgress.cpp
@@ -92,6 +92,8 @@ SET(${PROJECT_NAME}_SRCS
   mvProgressCookie.h
   mvReader.cpp
   mvReader.h
+  mvSlice.cpp
+  mvSlice.h
   mvVolume.cpp
   mvVolume.h
   RGBAColor.cpp

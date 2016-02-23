@@ -34,6 +34,8 @@ void mvAsyncGLObject::syncApplicationState(const mvApplicationState &appState)
 {
   this->Superclass::syncApplicationState(appState);
 
+  this->frame(appState);
+
   // Check if an asynch update is in process:
   if (m_monitor.valid())
     {

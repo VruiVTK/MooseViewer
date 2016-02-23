@@ -36,8 +36,6 @@ namespace GLMotif
 }
 
 class AnimationDialog;
-class BaseLocator;
-class ClippingPlane;
 class Contours;
 class TransferFunction1D;
 class mvContours;
@@ -48,8 +46,6 @@ class vtkLookupTable;
 
 class MooseViewer:public Vrui::Application,public GLObject
 {
-/* Embedded classes: */
-  typedef std::vector<BaseLocator*> BaseLocatorList;
 private:
   mvApplicationState m_state;
 
@@ -75,15 +71,6 @@ private:
   VariablesDialog *variablesDialog;
 
   GLMotif::SubMenu* colorByVariablesMenu;
-
-  BaseLocatorList baseLocators;
-
-  /* Analysis Tools */
-  int analysisTool;
-
-  /* Clipping Plane */
-  ClippingPlane * ClippingPlanes;
-  int NumberOfClippingPlanes;
 
   /* Color editor dialog */
   TransferFunction1D* ColorEditor;
@@ -137,10 +124,6 @@ public:
   bool IsPlaying;
   bool Loop;
 
-  /* Clipping Planes */
-  ClippingPlane * getClippingPlanes(void);
-  int getNumberOfClippingPlanes(void);
-
   /* Get Flashlight position and direction */
   int * getFlashlightSwitch(void);
   double * getFlashlightPosition(void);
@@ -191,9 +174,6 @@ public:
   void updateColorMap(void);
   void contourValueChangedCallback(Misc::CallbackData* callBackData);
   void updateScalarRange(void);
-
-  virtual void toolCreationCallback(Vrui::ToolManager::ToolCreationCallbackData* cbData);
-  virtual void toolDestructionCallback(Vrui::ToolManager::ToolDestructionCallbackData* cbData);
 };
 
 #endif //_MOOSEVIEWER_H
