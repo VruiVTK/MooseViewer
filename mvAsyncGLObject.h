@@ -42,11 +42,20 @@ public:
 
   /**
    * Implements thread handling and data syncing. Note that this implementation
-   * is final -- subclasses may not reimplement this.
+   * is final -- subclasses may not reimplement this. If per-frame updates are
+   * needed, use the virtual frame() method, but be sure not to modify the data
+   * pipeline.
    */
   void syncApplicationState(const mvApplicationState &appState) final;
 
 private: // Virtual API:
+
+  /**
+   * Called once per frame. This can be used to update object state, but do
+   * NOT modify the data pipeline from this method, as it will be called
+   * regardless of whether an asychronous update is happening.
+   */
+  virtual void frame(const mvApplicationState &appState) { /* no-op */ }
 
   /**
    * Update the data pipeline objects here. Ensure that any vtkObjects touched

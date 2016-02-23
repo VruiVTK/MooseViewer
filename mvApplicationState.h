@@ -5,9 +5,11 @@ class mvContours;
 class mvFramerate;
 class mvGeometry;
 class mvGLObject;
+class mvInteractor;
 class mvOutline;
 class mvProgress;
 class mvReader;
+class mvSlice;
 class mvVolume;
 class vtkExodusIIReader;
 class vtkLookupTable;
@@ -58,6 +60,10 @@ public:
   mvGeometry& geometry() { return *m_geometry; }
   const mvGeometry& geometry() const { return *m_geometry; }
 
+  /** Analysis tool interaction. */
+  mvInteractor& interactor() { return *m_interactor; }
+  const mvInteractor& interactor() const { return *m_interactor; }
+
   /** Render dataset outline. */
   mvOutline& outline() { return *m_outline; }
   const mvOutline& outline() const { return *m_outline; }
@@ -70,6 +76,10 @@ public:
   /** File reader.
    * Access is not const-correct because VTK is not const-correct. */
   mvReader& reader() const { return *m_reader; }
+
+  /** Slicer. */
+  mvSlice& slice() { return *m_slice; }
+  const mvSlice& slice() const { return *m_slice; }
 
   /** Volume rendering object. */
   mvVolume& volume() { return *m_volume; }
@@ -92,9 +102,11 @@ private:
   mvContours *m_contours;
   mvFramerate *m_framerate;
   mvGeometry *m_geometry;
+  mvInteractor *m_interactor;
   mvOutline *m_outline;
   mvProgress *m_progress;
   mvReader *m_reader;
+  mvSlice *m_slice;
   mvVolume *m_volume;
   WidgetHints *m_widgetHints;
 };
