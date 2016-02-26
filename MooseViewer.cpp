@@ -426,11 +426,11 @@ GLMotif::Popup * MooseViewer::createAnalysisToolsMenu(void)
   GLMotif::RadioBox * analysisTools_RadioBox = new GLMotif::RadioBox(
     "analysisTools", analysisToolsMenu, true);
 
-  if (m_state.widgetHints().isEnabled("ClippingPlane"))
+  if (m_state.widgetHints().isEnabled("Slice"))
     {
-    GLMotif::ToggleButton* showClippingPlane=new GLMotif::ToggleButton(
-          "ClippingPlane",analysisTools_RadioBox,"Clipping Plane");
-    showClippingPlane->getValueChangedCallbacks().add(
+    GLMotif::ToggleButton *showSlice = new GLMotif::ToggleButton(
+          "Slice", analysisTools_RadioBox, "Slice");
+    showSlice->getValueChangedCallbacks().add(
           this,&MooseViewer::changeAnalysisToolsCallback);
     }
 
@@ -913,7 +913,7 @@ void MooseViewer::changeAnalysisToolsCallback(
   GLMotif::ToggleButton::ValueChangedCallbackData* callBackData)
 {
   /* Set the new analysis tool: */
-  if (strcmp(callBackData->toggle->getName(), "ClippingPlane") == 0)
+  if (strcmp(callBackData->toggle->getName(), "Slice") == 0)
   {
     m_state.slice().setVisible(callBackData->set);
   }
