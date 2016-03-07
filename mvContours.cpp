@@ -3,10 +3,12 @@
 #include <GL/GLContextData.h>
 
 #include <vtkActor.h>
-#include <vtkCompositePolyDataMapper.h>
+#include <vtkCompositeDataGeometryFilter.h>
 #include <vtkExternalOpenGLRenderer.h>
+#include <vtkFlyingEdges3D.h>
 #include <vtkLookupTable.h>
 #include <vtkMultiBlockDataSet.h>
+#include <vtkPolyDataMapper.h>
 #include <vtkSMPContourGrid.h>
 #include <vtkSpanSpace.h>
 #include <vtkUnstructuredGrid.h>
@@ -16,7 +18,97 @@
 #include "mvReader.h"
 
 //------------------------------------------------------------------------------
-mvContours::DataItem::DataItem()
+mvContours::LoResDataPipeline::LoResDataPipeline()
+{
+  this->contour->ComputeNormalsOff();
+  this->contour->ComputeGradientsOff();
+
+  this->geometry->SetInputConnection(this->contour->GetOutputPort());
+}
+
+//------------------------------------------------------------------------------
+void mvContours::LoResDataPipeline::configure(
+    const ObjectState &objState, const mvApplicationState &appState)
+{
+  // Only modify the filter if the colorByArray is loaded.
+  auto metaData = appState.reader().variableMetaData(appState.colorByArray());
+  if (!metaData.valid())
+    {
+    this->contour->SetInputDataObject(nullptr);
+    return;
+    }
+
+  this->contour->SetInputDataObject(appState.reader().reducedDataObject());
+
+  // Use the correct array for contouring:
+  switch (metaData.location)
+    {
+    case mvReader::VariableMetaData::Location::CellData:
+      this->contour->SetInputArrayToProcess(
+            0, 0, 0, vtkDataObject::FIELD_ASSOCIATION_CELLS,
+            appState.colorByArray().c_str());
+      break;
+
+    case mvReader::VariableMetaData::Location::PointData:
+      this->contour->SetInputArrayToProcess(
+            0, 0, 0, vtkDataObject::FIELD_ASSOCIATION_POINTS,
+            appState.colorByArray().c_str());
+      break;
+
+    case mvReader::VariableMetaData::Location::FieldData:
+      this->contour->SetInputArrayToProcess(
+            0, 0, 0, vtkDataObject::FIELD_ASSOCIATION_NONE,
+            appState.colorByArray().c_str());
+      break;
+
+    default:
+      break;
+    }
+
+  // Set contour values:
+  const ContourState &state = static_cast<const ContourState&>(objState);
+  double min = metaData.range[0];
+  double spread = metaData.range[1] - min;
+  this->contour->SetNumberOfContours(state.contourValues.size());
+  for (int i = 0; i < state.contourValues.size(); ++i)
+    {
+    this->contour->SetValue(i, (state.contourValues[i]/255.0) * spread + min);
+    }
+}
+
+//------------------------------------------------------------------------------
+bool mvContours::LoResDataPipeline::needsUpdate(const ObjectState &objState,
+                                                const LODData &result) const
+{
+  const ContourState& state = static_cast<const ContourState&>(objState);
+  const LoResLODData& data = static_cast<const LoResLODData&>(result);
+
+  return
+      state.visible &&
+      this->contour->GetInputDataObject(0, 0) &&
+      (!data.contours ||
+       data.contours->GetMTime() < this->contour->GetMTime() ||
+       data.contours->GetMTime() < this->geometry->GetMTime());
+}
+
+//------------------------------------------------------------------------------
+void mvContours::LoResDataPipeline::execute()
+{
+  this->geometry->Update();
+}
+
+//------------------------------------------------------------------------------
+void mvContours::LoResDataPipeline::exportResult(LODData &result) const
+{
+  LoResLODData& data = static_cast<LoResLODData&>(result);
+
+  vtkDataObject *newContours = this->geometry->GetOutputDataObject(0);
+  data.contours.TakeReference(newContours->NewInstance());
+  data.contours->ShallowCopy(newContours);
+}
+
+//------------------------------------------------------------------------------
+mvContours::LoResRenderPipeline::LoResRenderPipeline()
 {
   this->mapper->SetScalarVisibility(1);
   this->mapper->SetScalarModeToDefault();
@@ -27,18 +119,226 @@ mvContours::DataItem::DataItem()
 }
 
 //------------------------------------------------------------------------------
-mvContours::mvContours()
-  : m_visible(true)
+void mvContours::LoResRenderPipeline::init(const ObjectState &objState,
+                                           mvContextState &contextState)
 {
-  m_scalarTree->SetResolution(100);
-  m_contour->ComputeScalarsOn();
+  contextState.renderer().AddActor(this->actor.Get());
+}
 
-  // BUG: These options cause artifacts with the SMP filter. Reported as VTK
+//------------------------------------------------------------------------------
+void mvContours::LoResRenderPipeline::update(const ObjectState &objState,
+                                             const mvApplicationState &appState,
+                                             const mvContextState &contextState,
+                                             const LODData &result)
+{
+  const ContourState& state = static_cast<const ContourState&>(objState);
+  const LoResLODData& data = static_cast<const LoResLODData&>(result);
+
+  // Only update state if the color array exists.
+  auto metaData = appState.reader().variableMetaData(appState.colorByArray());
+  if (!metaData.valid() || !state.visible || !data.contours)
+    {
+    this->disable();
+    return;
+    }
+
+  this->mapper->SetInputDataObject(data.contours.Get());
+  this->mapper->SetLookupTable(&appState.colorMap());
+  this->mapper->SelectColorArray(appState.colorByArray().c_str());
+
+  // Point the mapper at the proper scalar array.
+  switch (metaData.location)
+    {
+    case mvReader::VariableMetaData::Location::PointData:
+      this->mapper->SetScalarModeToUsePointFieldData();
+      break;
+
+    case mvReader::VariableMetaData::Location::CellData:
+      this->mapper->SetScalarModeToUseCellFieldData();
+      break;
+
+    case mvReader::VariableMetaData::Location::FieldData:
+      this->mapper->SetScalarModeToUseFieldData();
+      break;
+
+    default:
+      break;
+    }
+
+  this->actor->SetVisibility(1);
+}
+
+//------------------------------------------------------------------------------
+void mvContours::LoResRenderPipeline::disable()
+{
+  this->actor->SetVisibility(0);
+}
+
+//------------------------------------------------------------------------------
+mvContours::HiResDataPipeline::HiResDataPipeline()
+{
+  this->contour->GenerateTrianglesOn();
+  this->contour->ComputeScalarsOn();
+
+  // These cause artifacts with the SMPContourGrid filter. Reported as VTK
   // bug 15969.
-//  m_contour->SetScalarTree(m_scalarTree.GetPointer());
-//  m_contour->UseScalarTreeOn();
-//  m_contour->MergePiecesOn();
-  m_contour->MergePiecesOff();
+  this->contour->MergePiecesOff();
+  this->contour->UseScalarTreeOff();
+
+  this->geometry->SetInputConnection(this->contour->GetOutputPort());
+}
+
+//------------------------------------------------------------------------------
+void mvContours::HiResDataPipeline::configure(
+    const ObjectState &objState, const mvApplicationState &appState)
+{
+  // Only modify the filter if the colorByArray is loaded.
+  auto metaData = appState.reader().variableMetaData(appState.colorByArray());
+  if (!metaData.valid())
+    {
+    this->contour->SetInputDataObject(nullptr);
+    return;
+    }
+
+  this->contour->SetInputDataObject(appState.reader().dataObject());
+
+  // Use the correct array for contouring:
+  switch (metaData.location)
+    {
+    case mvReader::VariableMetaData::Location::CellData:
+      this->contour->SetInputArrayToProcess(
+            0, 0, 0, vtkDataObject::FIELD_ASSOCIATION_CELLS,
+            appState.colorByArray().c_str());
+      break;
+
+    case mvReader::VariableMetaData::Location::PointData:
+      this->contour->SetInputArrayToProcess(
+            0, 0, 0, vtkDataObject::FIELD_ASSOCIATION_POINTS,
+            appState.colorByArray().c_str());
+      break;
+
+    case mvReader::VariableMetaData::Location::FieldData:
+      this->contour->SetInputArrayToProcess(
+            0, 0, 0, vtkDataObject::FIELD_ASSOCIATION_NONE,
+            appState.colorByArray().c_str());
+      break;
+
+    default:
+      break;
+    }
+
+  // Set contour values:
+  const ContourState &state = static_cast<const ContourState&>(objState);
+  double min = metaData.range[0];
+  double spread = metaData.range[1] - min;
+  this->contour->SetNumberOfContours(state.contourValues.size());
+  for (int i = 0; i < state.contourValues.size(); ++i)
+    {
+    this->contour->SetValue(i, (state.contourValues[i]/255.0) * spread + min);
+    }
+}
+
+//------------------------------------------------------------------------------
+bool mvContours::HiResDataPipeline::needsUpdate(const ObjectState &objState,
+                                                const LODData &result) const
+{
+  const ContourState& state = static_cast<const ContourState&>(objState);
+  const HiResLODData& data = static_cast<const HiResLODData&>(result);
+
+  return
+      state.visible &&
+      this->contour->GetInputDataObject(0, 0) &&
+      (!data.contours ||
+       data.contours->GetMTime() < this->contour->GetMTime() ||
+       data.contours->GetMTime() < this->geometry->GetMTime());
+}
+
+//------------------------------------------------------------------------------
+void mvContours::HiResDataPipeline::execute()
+{
+  this->geometry->Update();
+}
+
+//------------------------------------------------------------------------------
+void mvContours::HiResDataPipeline::exportResult(LODData &result) const
+{
+  HiResLODData& data = static_cast<HiResLODData&>(result);
+
+  vtkDataObject *newContours = this->geometry->GetOutputDataObject(0);
+  data.contours.TakeReference(newContours->NewInstance());
+  data.contours->ShallowCopy(newContours);
+}
+
+//------------------------------------------------------------------------------
+mvContours::HiResRenderPipeline::HiResRenderPipeline()
+{
+  this->mapper->SetScalarVisibility(1);
+  this->mapper->SetScalarModeToDefault();
+  this->mapper->SetColorModeToMapScalars();
+  this->mapper->UseLookupTableScalarRangeOn();
+
+  this->actor->SetMapper(this->mapper.GetPointer());
+}
+
+//------------------------------------------------------------------------------
+void mvContours::HiResRenderPipeline::init(const ObjectState &objState,
+                                           mvContextState &contextState)
+{
+  contextState.renderer().AddActor(this->actor.Get());
+}
+
+//------------------------------------------------------------------------------
+void mvContours::HiResRenderPipeline::update(const ObjectState &objState,
+                                             const mvApplicationState &appState,
+                                             const mvContextState &contextState,
+                                             const LODData &result)
+{
+  const ContourState& state = static_cast<const ContourState&>(objState);
+  const LoResLODData& data = static_cast<const LoResLODData&>(result);
+
+  // Only update state if the color array exists.
+  auto metaData = appState.reader().variableMetaData(appState.colorByArray());
+  if (!metaData.valid() || !state.visible || !data.contours)
+    {
+    this->disable();
+    return;
+    }
+
+  this->mapper->SetInputDataObject(data.contours.Get());
+  this->mapper->SetLookupTable(&appState.colorMap());
+  this->mapper->SelectColorArray(appState.colorByArray().c_str());
+
+  // Point the mapper at the proper scalar array.
+  switch (metaData.location)
+    {
+    case mvReader::VariableMetaData::Location::PointData:
+      this->mapper->SetScalarModeToUsePointFieldData();
+      break;
+
+    case mvReader::VariableMetaData::Location::CellData:
+      this->mapper->SetScalarModeToUseCellFieldData();
+      break;
+
+    case mvReader::VariableMetaData::Location::FieldData:
+      this->mapper->SetScalarModeToUseFieldData();
+      break;
+
+    default:
+      break;
+    }
+
+  this->actor->SetVisibility(1);
+}
+
+//------------------------------------------------------------------------------
+void mvContours::HiResRenderPipeline::disable()
+{
+  this->actor->SetVisibility(0);
+}
+
+//------------------------------------------------------------------------------
+mvContours::mvContours()
+{
 }
 
 //------------------------------------------------------------------------------
@@ -47,149 +347,66 @@ mvContours::~mvContours()
 }
 
 //------------------------------------------------------------------------------
-void mvContours::initMvContext(mvContextState &mvContext,
-                               GLContextData &contextData) const
+mvLODAsyncGLObject::ObjectState *mvContours::createObjectState() const
 {
-  this->Superclass::initMvContext(mvContext, contextData);
-
-  assert("Duplicate context initialization detected!" &&
-         !contextData.retrieveDataItem<DataItem>(this));
-
-  DataItem *dataItem = new DataItem;
-  contextData.addDataItem(this, dataItem);
-
-  mvContext.renderer().AddActor(dataItem->actor.GetPointer());
+  return new ContourState;
 }
 
 //------------------------------------------------------------------------------
-void mvContours::configureDataPipeline(const mvApplicationState &state)
+mvLODAsyncGLObject::DataPipeline *
+mvContours::createDataPipeline(LevelOfDetail lod) const
 {
-  // Only modify the filter if the colorByArray is loaded.
-  auto metaData = state.reader().variableMetaData(state.colorByArray());
-  if (metaData.valid())
+  switch (lod)
     {
-    m_contour->SetInputDataObject(state.reader().dataObject());
+    case LevelOfDetail::Hint:
+      return nullptr;
 
-    // Use the correct array for contouring:
-    switch (metaData.location)
-      {
-      case mvReader::VariableMetaData::Location::CellData:
-        m_contour->SetInputArrayToProcess(
-              0, 0, 0, vtkDataObject::FIELD_ASSOCIATION_CELLS,
-              state.colorByArray().c_str());
-        break;
+    case LevelOfDetail::LoRes:
+      return new LoResDataPipeline;
 
-      case mvReader::VariableMetaData::Location::PointData:
-        m_contour->SetInputArrayToProcess(
-              0, 0, 0, vtkDataObject::FIELD_ASSOCIATION_POINTS,
-              state.colorByArray().c_str());
-        break;
+    case LevelOfDetail::HiRes:
+      return new HiResDataPipeline;
 
-      case mvReader::VariableMetaData::Location::FieldData:
-        m_contour->SetInputArrayToProcess(
-              0, 0, 0, vtkDataObject::FIELD_ASSOCIATION_NONE,
-              state.colorByArray().c_str());
-        break;
-
-      default:
-        break;
-      }
-
-    // Set contour values:
-    double min = metaData.range[0];
-    double spread = metaData.range[1] - min;
-    m_contour->SetNumberOfContours(m_contourValues.size());
-    for (int i = 0; i < m_contourValues.size(); ++i)
-      {
-      m_contour->SetValue(i, (m_contourValues[i]/255.0) * spread + min);
-      }
-    }
-  else
-    {
-    m_contour->SetInputDataObject(nullptr);
+    default:
+      return nullptr;
     }
 }
 
 //------------------------------------------------------------------------------
-bool mvContours::dataPipelineNeedsUpdate() const
+mvLODAsyncGLObject::RenderPipeline *
+mvContours::createRenderPipeline(LevelOfDetail lod) const
 {
-  return
-      m_contour->GetInputDataObject(0, 0) &&
-      m_visible &&
-      (!m_appData ||
-       m_appData->GetMTime() < m_contour->GetMTime());
-}
-
-//------------------------------------------------------------------------------
-void mvContours::executeDataPipeline() const
-{
-  m_contour->Update();
-}
-
-//------------------------------------------------------------------------------
-void mvContours::retrieveDataPipelineResult()
-{
-  vtkDataObject *dObj = m_contour->GetOutputDataObject(0);
-  m_appData.TakeReference(dObj->NewInstance());
-  m_appData->ShallowCopy(dObj);
-}
-
-//------------------------------------------------------------------------------
-void mvContours::syncContextState(const mvApplicationState &appState,
-                                  const mvContextState &contextState,
-                                  GLContextData &contextData) const
-{
-  this->Superclass::syncContextState(appState, contextState, contextData);
-
-  DataItem *dataItem = contextData.retrieveDataItem<DataItem>(this);
-  assert(dataItem);
-
-  dataItem->mapper->SetInputDataObject(m_appData);
-
-  // Only update state if the color array exists.
-  auto metaData = appState.reader().variableMetaData(appState.colorByArray());
-  if (metaData.valid())
+  switch (lod)
     {
-    dataItem->mapper->SetLookupTable(&appState.colorMap());
-    dataItem->actor->SetVisibility(m_visible ? 1 : 0);
+    case LevelOfDetail::Hint:
+      return nullptr;
 
-    // Point the mapper at the proper scalar array.
-    switch (metaData.location)
-      {
-      case mvReader::VariableMetaData::Location::PointData:
-        dataItem->mapper->SetScalarModeToUsePointFieldData();
-        dataItem->mapper->SelectColorArray(appState.colorByArray().c_str());
-        break;
+    case LevelOfDetail::LoRes:
+      return new LoResRenderPipeline;
 
-      case mvReader::VariableMetaData::Location::CellData:
-        dataItem->mapper->SetScalarModeToUseCellFieldData();
-        dataItem->mapper->SelectColorArray(appState.colorByArray().c_str());
-        break;
+    case LevelOfDetail::HiRes:
+      return new HiResRenderPipeline;
 
-      case mvReader::VariableMetaData::Location::FieldData:
-        dataItem->mapper->SetScalarModeToUseFieldData();
-        dataItem->mapper->SelectColorArray(appState.colorByArray().c_str());
-        break;
-
-      default:
-        break;
-      }
-    }
-
-  if (!m_appData)
-    {
-    dataItem->actor->SetVisibility(0);
+    default:
+      return nullptr;
     }
 }
 
 //------------------------------------------------------------------------------
-std::vector<double> mvContours::contourValues() const
+mvLODAsyncGLObject::LODData* mvContours::createLODData(LevelOfDetail lod) const
 {
-  return m_contourValues;
-}
+  switch (lod)
+    {
+    case LevelOfDetail::Hint:
+      return nullptr;
 
-//------------------------------------------------------------------------------
-void mvContours::setContourValues(const std::vector<double> &contourValues)
-{
-  m_contourValues = contourValues;
+    case LevelOfDetail::LoRes:
+      return new LoResLODData;
+
+    case LevelOfDetail::HiRes:
+      return new HiResLODData;
+
+    default:
+      return nullptr;
+    }
 }
