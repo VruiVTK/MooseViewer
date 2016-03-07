@@ -82,6 +82,8 @@ SET(${PROJECT_NAME}_SRCS
   mvInteractor.h
   mvInteractorTool.cpp
   mvInteractorTool.h
+  mvLODAsyncGLObject.cpp
+  mvLODAsyncGLObject.h
   mvMouseRotationTool.cpp
   mvMouseRotationTool.h
   mvOutline.cpp

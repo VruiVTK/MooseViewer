@@ -96,6 +96,11 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
 
   factory = new mvMouseRotationToolFactory(*toolMgr);
   toolMgr->addClass(factory, Vrui::ToolManager::defaultToolFactoryDestructor);
+
+  for (auto object : m_state.objects())
+    {
+    object->init(m_state);
+    }
 }
 
 //----------------------------------------------------------------------------
