@@ -1,7 +1,7 @@
 #ifndef MVSLICE_H
 #define MVSLICE_H
 
-#include "mvAsyncGLObject.h"
+#include "mvLODAsyncGLObject.h"
 
 #include <vtkNew.h>
 #include <vtkSmartPointer.h>
@@ -12,6 +12,7 @@ class vtkActor;
 class vtkCompositePolyDataMapper;
 class vtkCutter;
 class vtkDataObject;
+class vtkFlyingEdgesPlaneCutter;
 class vtkImageData;
 class vtkPlane;
 class vtkPolyDataMapper;
@@ -23,85 +24,194 @@ class vtkSMPContourGrid;
  *
  * mvSlice renders a slice (see plane()) cut from the dataset.
  */
-class mvSlice : public mvAsyncGLObject
+class mvSlice : public mvLODAsyncGLObject
 {
 public:
-  using Superclass = mvAsyncGLObject;
+  using Superclass = mvLODAsyncGLObject;
 
   struct Plane
   {
-    Plane() : normal{ 0., 0., 1. }, origin{ 0., 0., 0. } {}
-    std::array<double, 3> normal;
-    std::array<double, 3> origin;
+    std::array<double, 3> normal{{1., 1., 1.}};
+    std::array<double, 3> origin{{0., 0., 0.}};
   };
 
-  struct DataItem : public Superclass::DataItem
+  // Slice state: --------------------------------------------------------------
+  struct SliceState : public Superclass::ObjectState
   {
-    DataItem();
+    void update(const mvApplicationState &appState) override;
+    Plane plane;
+    bool visible{false};
+  };
 
-    // Interaction hint:
-    vtkNew<vtkPolyDataMapper> hintMapper;
-    vtkNew<vtkActor> hintActor;
+  // Hint LOD: -----------------------------------------------------------------
+  // Renders a simple plane cut from the dataset's boundaries.
+  // No scalar lookups.
+  struct HintDataPipeline : public Superclass::DataPipeline
+  {
+    vtkNew<vtkPlane> plane;
+    vtkNew<vtkImageData> box;
+    vtkNew<vtkCutter> cutter;
 
-    // Rendering pipeline:
+    HintDataPipeline();
+
+    // Always show something -- the hint is cheap enough to get away with this.
+    bool forceSynchronousUpdates() const override { return true; }
+
+    void configure(const ObjectState &objState,
+                   const mvApplicationState &appState) override;
+    bool needsUpdate(const ObjectState &objState,
+                     const LODData &result) const override;
+    void execute() override;
+    void exportResult(LODData &result) const override;
+  };
+
+  struct HintLODData : public Superclass::LODData
+  {
+    vtkSmartPointer<vtkDataObject> slice;
+  };
+
+  struct HintRenderPipeline : public Superclass::RenderPipeline
+  {
+    vtkNew<vtkPolyDataMapper> mapper;
+    vtkNew<vtkActor> actor;
+
+    HintRenderPipeline();
+    void init(const ObjectState &objState,
+              mvContextState &contextState) override;
+    void update(const ObjectState &objState,
+                const mvApplicationState &appState,
+                const mvContextState &contextState,
+                const LODData &result) override;
+    void disable();
+  };
+
+  // LoRes LOD: ----------------------------------------------------------------
+  // Uses vtkFlyingEdgesPlaneCutter to quickly extract a slice of the reduced
+  // dataset.
+  struct LoResDataPipeline : public Superclass::DataPipeline
+  {
+    vtkNew<vtkPlane> plane;
+    vtkNew<vtkFlyingEdgesPlaneCutter> cutter;
+
+    LoResDataPipeline();
+    void configure(const ObjectState &objState,
+                   const mvApplicationState &appState) override;
+    bool needsUpdate(const ObjectState &objState,
+                     const LODData &result) const override;
+    void execute() override;
+    void exportResult(LODData &result) const override;
+  };
+
+  struct LoResLODData : public Superclass::LODData
+  {
+    vtkSmartPointer<vtkDataObject> slice;
+  };
+
+  struct LoResRenderPipeline : public Superclass::RenderPipeline
+  {
     vtkNew<vtkCompositePolyDataMapper> mapper;
     vtkNew<vtkActor> actor;
+
+    LoResRenderPipeline();
+    void init(const ObjectState &objState,
+              mvContextState &contextState) override;
+    void update(const ObjectState &objState,
+                const mvApplicationState &appState,
+                const mvContextState &contextState,
+                const LODData &result) override;
+    void disable();
   };
 
+  // HiRes LOD: ----------------------------------------------------------------
+  // Uses vtkSMPContourGrid to cut a slice from the full dataset.
+  struct HiResDataPipeline : public Superclass::DataPipeline
+  {
+    vtkNew<vtkPlane> plane;
+    vtkNew<vtkSampleImplicitFunctionFilter> addPlane;
+    vtkNew<vtkSMPContourGrid> cutter;
+
+    HiResDataPipeline();
+    void configure(const ObjectState &objState,
+                   const mvApplicationState &appState) override;
+    bool needsUpdate(const ObjectState &objState,
+                     const LODData &result) const override;
+    void execute() override;
+    void exportResult(LODData &result) const override;
+  };
+
+  struct HiResLODData : public Superclass::LODData
+  {
+    vtkSmartPointer<vtkDataObject> slice;
+  };
+
+  struct HiResRenderPipeline : public Superclass::RenderPipeline
+  {
+    vtkNew<vtkCompositePolyDataMapper> mapper;
+    vtkNew<vtkActor> actor;
+
+    HiResRenderPipeline();
+    void init(const ObjectState &objState,
+              mvContextState &contextState) override;
+    void update(const ObjectState &objState,
+                const mvApplicationState &appState,
+                const mvContextState &contextState,
+                const LODData &result) override;
+    void disable();
+  };
+
+  // mvSlice API: --------------------------------------------------------------
   mvSlice();
   ~mvSlice();
-
-  // mvGLObjectAPI:
-  void initMvContext(mvContextState &mvContext,
-                     GLContextData &contextData) const override;
-  void syncContextState(const mvApplicationState &appState,
-                        const mvContextState &contextState,
-                        GLContextData &contextData) const override;
 
   /**
    * Toggle visibility of the slice on/off.
    */
-  bool visible() const { return m_visible; }
-  void setVisible(bool visible) { m_visible = visible; }
+  bool visible() const;
+  void setVisible(bool visible);
 
   /**
    * The slice plane.
    */
-  const Plane& plane() const { return m_plane; }
-  void setPlane(const Plane &p) { m_plane = p; }
+  const Plane& plane() const;
+  void setPlane(const Plane &p);
 
-private: // mvAsyncGLObject virtual API:
-  void frame(const mvApplicationState &state) override;
-  void configureDataPipeline(const mvApplicationState &state) override;
-  bool dataPipelineNeedsUpdate() const override;
-  void executeDataPipeline() const override;
-  void retrieveDataPipelineResult() override;
-  std::string progressLabel() const override { return "Updating Slice"; }
+private: // mvLODAsyncGLObject virtual API:
+
+  std::string progressLabel() const { return "Slice"; }
+
+  ObjectState* createObjectState() const override;
+  DataPipeline* createDataPipeline(LevelOfDetail lod) const override;
+  RenderPipeline* createRenderPipeline(LevelOfDetail lod) const override;
+  LODData* createLODData(LevelOfDetail lod) const override;
 
 private:
   // Not implemented -- disable copy:
   mvSlice(const mvSlice&);
   mvSlice& operator=(const mvSlice&);
-
-private:
-  // Hint cutter -- fast:
-  vtkNew<vtkPlane> m_hintFunction;
-  vtkNew<vtkImageData> m_hintBox;
-  vtkNew<vtkCutter> m_hintCutter;
-
-  // Data pipeline:
-  vtkNew<vtkPlane> m_function;
-  vtkNew<vtkSampleImplicitFunctionFilter> m_addPlane;
-  vtkNew<vtkSMPContourGrid> m_cutter;
-
-  // Renderable data:
-  vtkSmartPointer<vtkDataObject> m_appData;
-
-  // Contour values:
-  Plane m_plane;
-
-  // Render settings:
-  bool m_visible;
 };
+
+//------------------------------------------------------------------------------
+inline bool mvSlice::visible() const
+{
+  return this->objectState<SliceState>().visible;
+}
+
+//------------------------------------------------------------------------------
+inline void mvSlice::setVisible(bool v)
+{
+  this->objectState<SliceState>().visible = v;
+}
+
+//------------------------------------------------------------------------------
+inline const mvSlice::Plane &mvSlice::plane() const
+{
+  return this->objectState<SliceState>().plane;
+}
+
+//------------------------------------------------------------------------------
+inline void mvSlice::setPlane(const mvSlice::Plane &p)
+{
+  this->objectState<SliceState>().plane = p;
+}
 
 #endif // MVSLICES_H

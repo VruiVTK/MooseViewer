@@ -8,6 +8,7 @@
 #include <vtkCompositePolyDataMapper.h>
 #include <vtkCutter.h>
 #include <vtkExternalOpenGLRenderer.h>
+#include <vtkFlyingEdgesPlaneCutter.h>
 #include <vtkImageData.h>
 #include <vtkLookupTable.h>
 #include <vtkMultiBlockDataSet.h>
@@ -16,7 +17,6 @@
 #include <vtkProperty.h>
 #include <vtkSampleImplicitFunctionFilter.h>
 #include <vtkSMPContourGrid.h>
-#include <vtkUnstructuredGrid.h>
 
 #include "mvApplicationState.h"
 #include "mvContextState.h"
@@ -27,51 +27,430 @@
 #include <iostream>
 
 //------------------------------------------------------------------------------
-mvSlice::DataItem::DataItem()
+void mvSlice::SliceState::update(const mvApplicationState &appState)
 {
-  this->hintMapper->ScalarVisibilityOff();
+  if (!this->visible || !appState.interactor().isInteracting())
+    {
+    return;
+    }
 
-  this->hintActor->SetMapper(this->hintMapper.Get());
-  this->hintActor->GetProperty()->SetColor(1., 1., 1.);
-  this->hintActor->GetProperty()->SetOpacity(0.25);
+  switch (appState.interactor().state())
+    {
+    case mvInteractor::NoInteraction:
+      break;
 
+    case mvInteractor::Translating:
+      {
+      const Vrui::Vector &v = appState.interactor().current().getTranslation();
+      this->plane.origin[0] = v[0];
+      this->plane.origin[1] = v[1];
+      this->plane.origin[2] = v[2];
+      }
+      break;
+
+    case mvInteractor::Rotating:
+      {
+      const Vrui::Rotation &rot = appState.interactor().delta().getRotation();
+      Vrui::Vector n(this->plane.normal.data());
+      n = rot.transform(n);
+      std::copy(n.getComponents(), n.getComponents() + 3,
+                this->plane.normal.begin());
+      }
+      break;
+
+    default:
+      std::cerr << "Unknown interaction state: "
+                << appState.interactor().state() << "\n";
+      break;
+    }
+}
+
+//------------------------------------------------------------------------------
+mvSlice::HintDataPipeline::HintDataPipeline()
+{
+  this->cutter->SetInputData(this->box.Get());
+  this->cutter->SetCutFunction(this->plane.Get());
+  this->cutter->GenerateTrianglesOn();
+  this->cutter->GenerateCutScalarsOff();
+  this->cutter->SetNumberOfContours(1);
+  this->cutter->SetValue(0, 0.);
+}
+
+//------------------------------------------------------------------------------
+void mvSlice::HintDataPipeline::configure(const ObjectState &objState,
+                                          const mvApplicationState &appState)
+{
+  const SliceState& sliceState = static_cast<const SliceState&>(objState);
+
+  // Cut a plane from a simple image data:
+  this->box->SetExtent(0, 1, 0, 1, 0, 1);
+  this->box->SetOrigin(const_cast<double*>(
+                             appState.reader().bounds().GetMinPoint()));
+  this->box->SetSpacing(appState.reader().bounds().GetLength(0),
+                        appState.reader().bounds().GetLength(1),
+                        appState.reader().bounds().GetLength(2));
+
+  // Setup the plane:
+  this->plane->SetNormal(const_cast<double*>(sliceState.plane.normal.data()));
+  this->plane->SetOrigin(const_cast<double*>(sliceState.plane.origin.data()));
+}
+
+//------------------------------------------------------------------------------
+bool mvSlice::HintDataPipeline::needsUpdate(const ObjectState &objState,
+                                            const LODData &result) const
+{
+  const SliceState& sliceState = static_cast<const SliceState&>(objState);
+  const HintLODData& data = static_cast<const HintLODData&>(result);
+
+  return
+      sliceState.visible &&
+      (!data.slice.Get() ||
+       data.slice->GetMTime() < this->box->GetMTime() ||
+       data.slice->GetMTime() < this->plane->GetMTime() ||
+       data.slice->GetMTime() < this->cutter->GetMTime());
+}
+
+//------------------------------------------------------------------------------
+void mvSlice::HintDataPipeline::execute()
+{
+  this->cutter->Update();
+}
+
+//------------------------------------------------------------------------------
+void mvSlice::HintDataPipeline::exportResult(LODData &result) const
+{
+  HintLODData& data = static_cast<HintLODData&>(result);
+
+  vtkDataObject *newSlice = this->cutter->GetOutputDataObject(0);
+  data.slice.TakeReference(newSlice->NewInstance());
+  data.slice->ShallowCopy(newSlice);
+}
+
+//------------------------------------------------------------------------------
+mvSlice::HintRenderPipeline::HintRenderPipeline()
+{
+  this->mapper->ScalarVisibilityOff();
+
+  this->actor->SetMapper(this->mapper.Get());
+  this->actor->GetProperty()->SetColor(1., 1., 1.);
+  this->actor->GetProperty()->SetOpacity(0.25);
+}
+
+//------------------------------------------------------------------------------
+void mvSlice::HintRenderPipeline::init(const ObjectState &,
+                                       mvContextState &contextState)
+{
+  contextState.renderer().AddActor(this->actor.Get());
+}
+
+//------------------------------------------------------------------------------
+void mvSlice::HintRenderPipeline::update(const ObjectState &objState,
+                                         const mvApplicationState &,
+                                         const mvContextState &,
+                                         const LODData &result)
+{
+  const SliceState& sliceState = static_cast<const SliceState&>(objState);
+  const HintLODData& data = static_cast<const HintLODData&>(result);
+
+  if (!sliceState.visible || !data.slice.Get())
+    {
+    this->disable();
+    return;
+    }
+
+  this->mapper->SetInputDataObject(data.slice.Get());
+  this->actor->VisibilityOn();
+}
+
+//------------------------------------------------------------------------------
+void mvSlice::HintRenderPipeline::disable()
+{
+  this->actor->VisibilityOff();
+}
+
+//------------------------------------------------------------------------------
+mvSlice::LoResDataPipeline::LoResDataPipeline()
+{
+  this->cutter->SetPlane(this->plane.Get());
+  this->cutter->ComputeNormalsOff();
+  this->cutter->InterpolateAttributesOn();
+}
+
+//------------------------------------------------------------------------------
+void mvSlice::LoResDataPipeline::configure(const ObjectState &objState,
+                                           const mvApplicationState &appState)
+{
+  const SliceState& sliceState = static_cast<const SliceState&>(objState);
+
+  // Only support point scalars:
+  auto metaData = appState.reader().variableMetaData(appState.colorByArray());
+  if (!metaData.valid() ||
+      metaData.location != mvReader::VariableMetaData::Location::PointData)
+    {
+    this->cutter->SetInputDataObject(nullptr);
+    return;
+    }
+
+  // Use the reduced dataset:
+  this->cutter->SetInputDataObject(appState.reader().reducedDataObject());
+  this->cutter->SetInputArrayToProcess(0, 0, 0,
+                                       vtkDataObject::FIELD_ASSOCIATION_POINTS,
+                                       appState.colorByArray().c_str());
+
+
+  // Casts are for VTK (not const-correct)
+  this->plane->SetNormal(const_cast<double*>(sliceState.plane.normal.data()));
+  this->plane->SetOrigin(const_cast<double*>(sliceState.plane.origin.data()));
+}
+
+//------------------------------------------------------------------------------
+bool mvSlice::LoResDataPipeline::needsUpdate(const ObjectState &objState,
+                                             const LODData &result) const
+{
+  const SliceState& sliceState = static_cast<const SliceState&>(objState);
+  const LoResLODData& data = static_cast<const LoResLODData&>(result);
+
+  return
+      sliceState.visible &&
+      this->cutter->GetInputDataObject(0, 0) &&
+      (!data.slice ||
+       data.slice->GetMTime() < this->plane->GetMTime() ||
+       data.slice->GetMTime() < this->cutter->GetMTime());
+}
+
+//------------------------------------------------------------------------------
+void mvSlice::LoResDataPipeline::execute()
+{
+  this->cutter->Update();
+}
+
+//------------------------------------------------------------------------------
+void mvSlice::LoResDataPipeline::exportResult(LODData &result) const
+{
+  LoResLODData& data = static_cast<LoResLODData&>(result);
+
+  vtkDataObject *newSlice = this->cutter->GetOutputDataObject(0);
+  data.slice.TakeReference(newSlice->NewInstance());
+  data.slice->ShallowCopy(newSlice);
+}
+
+//------------------------------------------------------------------------------
+mvSlice::LoResRenderPipeline::LoResRenderPipeline()
+{
   this->mapper->SetScalarVisibility(1);
   this->mapper->SetScalarModeToDefault();
   this->mapper->SetColorModeToMapScalars();
   this->mapper->UseLookupTableScalarRangeOn();
 
-  this->actor->SetMapper(this->mapper.GetPointer());
+  this->actor->SetMapper(this->mapper.Get());
+}
+
+//------------------------------------------------------------------------------
+void mvSlice::LoResRenderPipeline::init(const ObjectState &objState,
+                                        mvContextState &contextState)
+{
+  contextState.renderer().AddActor(this->actor.Get());
+}
+
+//------------------------------------------------------------------------------
+void mvSlice::LoResRenderPipeline::update(const ObjectState &objState,
+                                          const mvApplicationState &appState,
+                                          const mvContextState &contextState,
+                                          const LODData &result)
+{
+  const SliceState& sliceState = static_cast<const SliceState&>(objState);
+  const LoResLODData& data = static_cast<const LoResLODData&>(result);
+
+  if (!sliceState.visible || !data.slice.Get())
+    {
+    this->disable();
+    return;
+    }
+
+  this->mapper->SetInputDataObject(data.slice.Get());
+
+  auto metaData = appState.reader().variableMetaData(appState.colorByArray());
+  if (metaData.valid())
+    {
+    this->mapper->SetLookupTable(&appState.colorMap());
+
+    // Point the mapper at the proper scalar array.
+    switch (metaData.location)
+      {
+      case mvReader::VariableMetaData::Location::PointData:
+        this->mapper->SetScalarModeToUsePointFieldData();
+        this->mapper->SelectColorArray(appState.colorByArray().c_str());
+        break;
+
+      case mvReader::VariableMetaData::Location::CellData:
+        this->mapper->SetScalarModeToUseCellFieldData();
+        this->mapper->SelectColorArray(appState.colorByArray().c_str());
+        break;
+
+      case mvReader::VariableMetaData::Location::FieldData:
+        this->mapper->SetScalarModeToUseFieldData();
+        this->mapper->SelectColorArray(appState.colorByArray().c_str());
+        break;
+
+      default:
+        break;
+      }
+    }
+
+  this->actor->VisibilityOn();
+}
+
+//------------------------------------------------------------------------------
+void mvSlice::LoResRenderPipeline::disable()
+{
+  this->actor->VisibilityOff();
+}
+
+//------------------------------------------------------------------------------
+mvSlice::HiResDataPipeline::HiResDataPipeline()
+{
+  this->addPlane->SetImplicitFunction(this->plane.Get());
+  this->addPlane->ComputeGradientsOff();
+  this->addPlane->SetScalarArrayName("mvSlice Plane");
+
+  this->cutter->SetInputConnection(this->addPlane->GetOutputPort());
+  this->cutter->GenerateTrianglesOn();
+  this->cutter->ComputeScalarsOn();
+  this->cutter->SetNumberOfContours(1);
+  this->cutter->SetValue(0, 0.);
+
+  // BUG: These options cause artifacts with the SMP filter. Reported as VTK
+  // bug 15969.
+//  this->contour->SetScalarTree(m_scalarTree.GetPointer());
+//  this->contour->UseScalarTreeOn();
+//  this->contour->MergePiecesOn();
+  this->cutter->MergePiecesOff();
+}
+
+//------------------------------------------------------------------------------
+void mvSlice::HiResDataPipeline::configure(const ObjectState &objState,
+                                           const mvApplicationState &appState)
+{
+  const SliceState& sliceState = static_cast<const SliceState&>(objState);
+
+  this->addPlane->SetInputDataObject(appState.reader().dataObject());
+
+  this->cutter->SetInputArrayToProcess(0, 0, 0,
+                                       vtkDataObject::FIELD_ASSOCIATION_POINTS,
+                                       "mvSlice Plane");
+
+  // Casts are for VTK (not const-correct)
+  this->plane->SetNormal(const_cast<double*>(sliceState.plane.normal.data()));
+  this->plane->SetOrigin(const_cast<double*>(sliceState.plane.origin.data()));
+}
+
+//------------------------------------------------------------------------------
+bool mvSlice::HiResDataPipeline::needsUpdate(const ObjectState &objState,
+                                             const LODData &result) const
+{
+  const SliceState& sliceState = static_cast<const SliceState&>(objState);
+  const HiResLODData& data = static_cast<const HiResLODData&>(result);
+
+  return
+      sliceState.visible &&
+      this->addPlane->GetInputDataObject(0, 0) &&
+      (!data.slice ||
+       data.slice->GetMTime() < this->plane->GetMTime() ||
+       data.slice->GetMTime() < this->addPlane->GetMTime() ||
+       data.slice->GetMTime() < this->cutter->GetMTime());
+}
+
+//------------------------------------------------------------------------------
+void mvSlice::HiResDataPipeline::execute()
+{
+  this->cutter->Update();
+}
+
+//------------------------------------------------------------------------------
+void mvSlice::HiResDataPipeline::exportResult(LODData &result) const
+{
+  HiResLODData& data = static_cast<HiResLODData&>(result);
+
+  vtkDataObject *newSlice = this->cutter->GetOutputDataObject(0);
+  data.slice.TakeReference(newSlice->NewInstance());
+  data.slice->ShallowCopy(newSlice);
+}
+
+//------------------------------------------------------------------------------
+mvSlice::HiResRenderPipeline::HiResRenderPipeline()
+{
+  this->mapper->SetScalarVisibility(1);
+  this->mapper->SetScalarModeToDefault();
+  this->mapper->SetColorModeToMapScalars();
+  this->mapper->UseLookupTableScalarRangeOn();
+
+  this->actor->SetMapper(this->mapper.Get());
+}
+
+//------------------------------------------------------------------------------
+void mvSlice::HiResRenderPipeline::init(const ObjectState &objState,
+                                        mvContextState &contextState)
+{
+  contextState.renderer().AddActor(this->actor.Get());
+}
+
+//------------------------------------------------------------------------------
+void mvSlice::HiResRenderPipeline::update(const ObjectState &objState,
+                                          const mvApplicationState &appState,
+                                          const mvContextState &contextState,
+                                          const LODData &result)
+{
+  const SliceState& sliceState = static_cast<const SliceState&>(objState);
+  const HiResLODData& data = static_cast<const HiResLODData&>(result);
+
+  if (!sliceState.visible || !data.slice.Get())
+    {
+    this->disable();
+    return;
+    }
+
+  this->mapper->SetInputDataObject(data.slice.Get());
+
+  auto metaData = appState.reader().variableMetaData(appState.colorByArray());
+  if (metaData.valid())
+    {
+    this->mapper->SetLookupTable(&appState.colorMap());
+
+    // Point the mapper at the proper scalar array.
+    switch (metaData.location)
+      {
+      case mvReader::VariableMetaData::Location::PointData:
+        this->mapper->SetScalarModeToUsePointFieldData();
+        this->mapper->SelectColorArray(appState.colorByArray().c_str());
+        break;
+
+      case mvReader::VariableMetaData::Location::CellData:
+        this->mapper->SetScalarModeToUseCellFieldData();
+        this->mapper->SelectColorArray(appState.colorByArray().c_str());
+        break;
+
+      case mvReader::VariableMetaData::Location::FieldData:
+        this->mapper->SetScalarModeToUseFieldData();
+        this->mapper->SelectColorArray(appState.colorByArray().c_str());
+        break;
+
+      default:
+        break;
+      }
+    }
+
+  this->actor->VisibilityOn();
+}
+
+//------------------------------------------------------------------------------
+void mvSlice::HiResRenderPipeline::disable()
+{
+  this->actor->VisibilityOff();
 }
 
 //------------------------------------------------------------------------------
 mvSlice::mvSlice()
-  : m_visible(false)
 {
-  m_plane.normal = {1., 1., 1.};
-  m_plane.origin = {0., 0., 0.};
-
-  m_hintCutter->GenerateTrianglesOn();
-  m_hintCutter->GenerateCutScalarsOff();
-  m_hintCutter->SetNumberOfContours(1);
-  m_hintCutter->SetValue(0, 0.);
-  m_hintCutter->SetInputData(m_hintBox.Get());
-  m_hintCutter->SetCutFunction(m_hintFunction.Get());
-
-  m_addPlane->SetImplicitFunction(m_function.Get());
-  m_addPlane->ComputeGradientsOff();
-
-  m_cutter->SetInputConnection(m_addPlane->GetOutputPort());
-  m_cutter->GenerateTrianglesOn();
-  m_cutter->ComputeScalarsOn();
-  m_cutter->SetNumberOfContours(1);
-  m_cutter->SetValue(0, 0.);
-
-  // BUG: These options cause artifacts with the SMP filter. Reported as VTK
-  // bug 15969.
-//  m_contour->SetScalarTree(m_scalarTree.GetPointer());
-//  m_contour->UseScalarTreeOn();
-//  m_contour->MergePiecesOn();
-  m_cutter->MergePiecesOff();
 }
 
 //------------------------------------------------------------------------------
@@ -80,173 +459,67 @@ mvSlice::~mvSlice()
 }
 
 //------------------------------------------------------------------------------
-void mvSlice::initMvContext(mvContextState &mvContext,
-                            GLContextData &contextData) const
+mvLODAsyncGLObject::ObjectState *mvSlice::createObjectState() const
 {
-  this->Superclass::initMvContext(mvContext, contextData);
-
-  assert("Duplicate context initialization detected!" &&
-         !contextData.retrieveDataItem<DataItem>(this));
-
-  DataItem *dataItem = new DataItem;
-  contextData.addDataItem(this, dataItem);
-
-  dataItem->hintMapper->SetInputConnection(m_hintCutter->GetOutputPort());
-  mvContext.renderer().AddActor(dataItem->hintActor.Get());
-
-  mvContext.renderer().AddActor(dataItem->actor.Get());
+  return new SliceState;
 }
 
 //------------------------------------------------------------------------------
-void mvSlice::frame(const mvApplicationState &state)
+mvLODAsyncGLObject::DataPipeline*
+mvSlice::createDataPipeline(LevelOfDetail lod) const
 {
-  // Update the hinter if needed:
-  if (m_visible && state.interactor().isInteracting())
+  switch (lod)
     {
-    // Update the plane:
-    switch (state.interactor().state())
-      {
-      case mvInteractor::NoInteraction:
-        return;
+    case LevelOfDetail::Hint:
+      return new HintDataPipeline;
 
-      case mvInteractor::Translating:
-        {
-        const Vrui::Vector &vec = state.interactor().current().getTranslation();
-        m_plane.origin[0] = vec[0];
-        m_plane.origin[1] = vec[1];
-        m_plane.origin[2] = vec[2];
-        }
-        break;
+    case LevelOfDetail::LoRes:
+      return new LoResDataPipeline;
 
-      case mvInteractor::Rotating:
-        {
-        const Vrui::Rotation &rot = state.interactor().delta().getRotation();
-        Vrui::Vector n(m_plane.normal.data());
-        n = rot.transform(n);
-        std::copy(n.getComponents(), n.getComponents() + 3,
-                  m_plane.normal.begin());
-        }
-        break;
+    case LevelOfDetail::HiRes:
+      return new HiResDataPipeline;
 
-      default:
-        std::cerr << "Unknown interaction state: "
-                  << state.interactor().state() << "\n";
-        return;
-      }
-
-    // Cut a plane from a simple image data:
-    m_hintBox->SetExtent(0, 1, 0, 1, 0, 1);
-    m_hintBox->SetOrigin(const_cast<double*>(
-                           state.reader().bounds().GetMinPoint()));
-    m_hintBox->SetSpacing(state.reader().bounds().GetLength(0),
-                          state.reader().bounds().GetLength(1),
-                          state.reader().bounds().GetLength(2));
-
-    // Setup the plane:
-    m_hintFunction->SetNormal(m_plane.normal.data());
-    m_hintFunction->SetOrigin(m_plane.origin.data());
-
-    // Always update here; otherwise the update will be triggered from the
-    // (potentially threaded) rendering code on-demand.
-    m_hintCutter->Update();
+    default:
+      return nullptr;
     }
 }
 
 //------------------------------------------------------------------------------
-void mvSlice::configureDataPipeline(const mvApplicationState &state)
+mvLODAsyncGLObject::RenderPipeline*
+mvSlice::createRenderPipeline(LevelOfDetail lod) const
 {
-  m_addPlane->SetInputDataObject(state.reader().dataObject());
-
-  // Sync planes:
-  // Casts are for VTK (not const-correct)
-  m_function->SetNormal(const_cast<double*>(m_plane.normal.data()));
-  m_function->SetOrigin(const_cast<double*>(m_plane.origin.data()));
-}
-
-//------------------------------------------------------------------------------
-bool mvSlice::dataPipelineNeedsUpdate() const
-{
-  return
-      m_addPlane->GetInputDataObject(0, 0) &&
-      m_visible &&
-      (!m_appData ||
-       m_appData->GetMTime() < m_addPlane->GetMTime() ||
-       m_appData->GetMTime() < m_cutter->GetMTime() ||
-       m_appData->GetMTime() < m_function->GetMTime());
-}
-
-//------------------------------------------------------------------------------
-void mvSlice::executeDataPipeline() const
-{
-  m_cutter->Update();
-}
-
-//------------------------------------------------------------------------------
-void mvSlice::retrieveDataPipelineResult()
-{
-  vtkDataObject *dObj = m_cutter->GetOutputDataObject(0);
-  m_appData.TakeReference(dObj->NewInstance());
-  m_appData->ShallowCopy(dObj);
-}
-
-//------------------------------------------------------------------------------
-void mvSlice::syncContextState(const mvApplicationState &appState,
-                               const mvContextState &contextState,
-                               GLContextData &contextData) const
-{
-  this->Superclass::syncContextState(appState, contextState, contextData);
-
-  DataItem *dataItem = contextData.retrieveDataItem<DataItem>(this);
-  assert(dataItem);
-
-  // Determine what should be drawn:
-  auto metaData = appState.reader().variableMetaData(appState.colorByArray());
-  enum Target { None, Hint, Full } target = None;
-  if (m_visible)
+  switch (lod)
     {
-    if (!appState.interactor().isInteracting() &&
-        m_appData &&
-        metaData.valid())
-      {
-      target = Full;
-      }
-    else if (appState.interactor().isInteracting())
-      {
-      target = Hint;
-      }
+    case LevelOfDetail::Hint:
+      return new HintRenderPipeline;
+
+    case LevelOfDetail::LoRes:
+      return new LoResRenderPipeline;
+
+    case LevelOfDetail::HiRes:
+      return new HiResRenderPipeline;
+
+    default:
+      return nullptr;
     }
+}
 
-  // Update visibilities:
-  dataItem->hintActor->SetVisibility(target == Hint ? 1 : 0);
-  dataItem->actor->SetVisibility(target == Full ? 1 : 0);
-
-  dataItem->mapper->SetInputDataObject(m_appData);
-
-  // Only update state if the color array exists.
-  if (metaData.valid())
+//------------------------------------------------------------------------------
+mvLODAsyncGLObject::LODData*
+mvSlice::createLODData(LevelOfDetail lod) const
+{
+  switch (lod)
     {
-    dataItem->mapper->SetLookupTable(&appState.colorMap());
+    case LevelOfDetail::Hint:
+      return new HintLODData;
 
-    // Point the mapper at the proper scalar array.
-    switch (metaData.location)
-      {
-      case mvReader::VariableMetaData::Location::PointData:
-        dataItem->mapper->SetScalarModeToUsePointFieldData();
-        dataItem->mapper->SelectColorArray(appState.colorByArray().c_str());
-        break;
+    case LevelOfDetail::LoRes:
+      return new LoResLODData;
 
-      case mvReader::VariableMetaData::Location::CellData:
-        dataItem->mapper->SetScalarModeToUseCellFieldData();
-        dataItem->mapper->SelectColorArray(appState.colorByArray().c_str());
-        break;
+    case LevelOfDetail::HiRes:
+      return new HiResLODData;
 
-      case mvReader::VariableMetaData::Location::FieldData:
-        dataItem->mapper->SetScalarModeToUseFieldData();
-        dataItem->mapper->SelectColorArray(appState.colorByArray().c_str());
-        break;
-
-      default:
-        break;
-      }
+    default:
+      return nullptr;
     }
 }
