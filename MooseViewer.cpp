@@ -1209,6 +1209,7 @@ void MooseViewer::showContoursDialogCallback(
       /* Open the slices dialog at the same position as the main menu: */
       Vrui::getWidgetManager()->popupPrimaryWidget(ContoursDialog,
         Vrui::getWidgetManager()->calcWidgetTransformation(mainMenu));
+      this->setContourVisible(true);
       }
     else
       {
