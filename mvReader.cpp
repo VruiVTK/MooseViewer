@@ -36,10 +36,6 @@ mvReader::mvReader()
     m_timeRange{0., 0.},
     m_benchmark(false)
 {
-  m_reader->GenerateObjectIdCellArrayOn();
-  m_reader->GenerateGlobalElementIdArrayOn();
-  m_reader->GenerateGlobalNodeIdArrayOn();
-
   m_reducerSeed->SetDimensions(64, 64, 64);
   m_reducer->SetKernel(m_reducerKernel.Get());
   m_reducer->SetInputDataObject(m_reducerSeed.Get());
@@ -272,9 +268,6 @@ void mvReader::updateInformationCache()
 
   // Set available arrays:
   m_availableVariables.clear();
-  m_availableVariables.insert(m_reader->GetPedigreeNodeIdArrayName());
-  m_availableVariables.insert(m_reader->GetObjectIdArrayName());
-  m_availableVariables.insert(m_reader->GetPedigreeElementIdArrayName());
   const int numPointArrays = m_reader->GetNumberOfPointResultArrays();
   for (int i = 0; i < numPointArrays; ++i)
     {
