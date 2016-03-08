@@ -101,6 +101,13 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
     {
     object->init(m_state);
     }
+
+  // TESTING: Enable benchmarking output:
+  m_state.reader().setBenchmark(true);
+  m_state.slice().setBenchmark(true);
+  m_state.contours().setBenchmark(true);
+  m_state.volume().setBenchmark(true);
+  m_state.geometry().setBenchmark(true);
 }
 
 //----------------------------------------------------------------------------

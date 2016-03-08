@@ -385,7 +385,7 @@ bool mvReader::reducerNeedsUpdate()
 //------------------------------------------------------------------------------
 bool mvReader::invalidateReducedData()
 {
-  if (m_benchmark)
+  if (m_reducedData && m_benchmark)
     {
     std::cerr << "Reduced data invalidated.\n";
     }
