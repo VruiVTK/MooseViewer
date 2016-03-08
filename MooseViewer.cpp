@@ -652,17 +652,17 @@ GLMotif::PopupWindow* MooseViewer::createRenderingDialog(void) {
     "SampleLabel", sampleRow, "Volume Sampling Dimensions");
   GLMotif::Slider* sampleSlider = new GLMotif::Slider(
     "SampleSlider", sampleRow, GLMotif::Slider::HORIZONTAL, ss.fontHeight*10.0f);
-  sampleSlider->setValue(m_state.volume().splatExponent());
-  sampleSlider->setValueRange(20, 200.0, 10.0);
+  sampleSlider->setValue(m_state.volume().sharpness());
+  sampleSlider->setValueRange(8.0, 512.0, 8.0);
   sampleSlider->getValueChangedCallbacks().add(
     this, &MooseViewer::sampleSliderCallback);
   sampleValue = new GLMotif::TextField("SampleValue", sampleRow, 6);
   sampleValue->setFieldWidth(6);
   sampleValue->setPrecision(3);
   std::stringstream stringstr;
-  stringstr << m_state.volume().splatDimensions() << " x "
-            << m_state.volume().splatDimensions() << " x "
-            << m_state.volume().splatDimensions();
+  stringstr << m_state.volume().dimension() << " x "
+            << m_state.volume().dimension() << " x "
+            << m_state.volume().dimension();
   sampleValue->setString(stringstr.str().c_str());
   sampleRow->manageChild();
 
@@ -675,40 +675,41 @@ GLMotif::PopupWindow* MooseViewer::createRenderingDialog(void) {
   GLMotif::Slider* radiusSlider = new GLMotif::Slider(
     "RadiusSlider", radiusRow, GLMotif::Slider::HORIZONTAL,
     ss.fontHeight*10.0f);
-  radiusSlider->setValue(m_state.volume().splatRadius());
-  radiusSlider->setValueRange(0.0, 0.1, 0.01);
+  radiusSlider->setValue(m_state.volume().radius());
+  radiusSlider->setValueRange(0.0, 10.0, 0.01);
   radiusSlider->getValueChangedCallbacks().add(
     this, &MooseViewer::radiusSliderCallback);
   radiusValue = new GLMotif::TextField("RadiusValue", radiusRow, 6);
   radiusValue->setFieldWidth(6);
   radiusValue->setPrecision(3);
-  if (m_state.volume().splatRadius() == 0.)
+  if (m_state.volume().radius() == 0.)
     {
     radiusValue->setString("Auto");
     }
   else
     {
-    radiusValue->setValue(m_state.volume().splatRadius());
+    radiusValue->setValue(m_state.volume().radius());
     }
   radiusRow->manageChild();
 
-  GLMotif::RowColumn * exponentRow = new GLMotif::RowColumn(
-    "ExponentRow", dialog, false);
-  exponentRow->setOrientation(GLMotif::RowColumn::HORIZONTAL);
-  exponentRow->setPacking(GLMotif::RowColumn::PACK_GRID);
+  GLMotif::RowColumn * sharpnessRow = new GLMotif::RowColumn(
+        "SharpnessRow", dialog, false);
+  sharpnessRow->setOrientation(GLMotif::RowColumn::HORIZONTAL);
+  sharpnessRow->setPacking(GLMotif::RowColumn::PACK_GRID);
   GLMotif::Label* expLabel = new GLMotif::Label(
-    "ExpLabel", exponentRow, "Volume Sampling Exponent");
-  GLMotif::Slider* exponentSlider = new GLMotif::Slider(
-    "ExponentSlider", exponentRow, GLMotif::Slider::HORIZONTAL, ss.fontHeight*10.0f);
-  exponentSlider->setValue(m_state.volume().splatExponent());
-  exponentSlider->setValueRange(-5.0, 5.0, 1.0);
-  exponentSlider->getValueChangedCallbacks().add(
-    this, &MooseViewer::exponentSliderCallback);
-  exponentValue = new GLMotif::TextField("ExponentValue", exponentRow, 6);
-  exponentValue->setFieldWidth(6);
-  exponentValue->setPrecision(3);
-  exponentValue->setValue(m_state.volume().splatExponent());
-  exponentRow->manageChild();
+        "SharpnessLabel", sharpnessRow, "Volume Sampling Sharpness");
+  GLMotif::Slider* sharpnessSlider = new GLMotif::Slider(
+        "SharpnessSlider", sharpnessRow, GLMotif::Slider::HORIZONTAL,
+        ss.fontHeight*10.0f);
+  sharpnessSlider->setValue(m_state.volume().sharpness());
+  sharpnessSlider->setValueRange(0.1, 5.0, .1);
+  sharpnessSlider->getValueChangedCallbacks().add(
+        this, &MooseViewer::sharpnessSliderCallback);
+  sharpnessValue = new GLMotif::TextField("SharpnessValue", sharpnessRow, 6);
+  sharpnessValue->setFieldWidth(6);
+  sharpnessValue->setPrecision(3);
+  sharpnessValue->setValue(m_state.volume().sharpness());
+  sharpnessRow->manageChild();
 
   dialog->manageChild();
   return dialogPopup;
@@ -824,11 +825,11 @@ void MooseViewer::opacitySliderCallback(
 void MooseViewer::sampleSliderCallback(
   GLMotif::Slider::ValueChangedCallbackData* callBackData)
 {
-  m_state.volume().setSplatDimensions(static_cast<double>(callBackData->value));
+  m_state.volume().setDimension(static_cast<double>(callBackData->value));
   std::stringstream ss;
-  ss << m_state.volume().splatDimensions() << " x "
-     << m_state.volume().splatDimensions() << " x "
-     << m_state.volume().splatDimensions();
+  ss << m_state.volume().dimension() << " x "
+     << m_state.volume().dimension() << " x "
+     << m_state.volume().dimension();
   sampleValue->setString(ss.str().c_str());
 }
 
@@ -836,7 +837,7 @@ void MooseViewer::sampleSliderCallback(
 void MooseViewer::radiusSliderCallback(
   GLMotif::Slider::ValueChangedCallbackData* callBackData)
 {
-  m_state.volume().setSplatRadius(static_cast<double>(callBackData->value));
+  m_state.volume().setRadius(static_cast<double>(callBackData->value));
   if (callBackData->value == 0.)
     {
     radiusValue->setString("Auto");
@@ -848,11 +849,11 @@ void MooseViewer::radiusSliderCallback(
 }
 
 //----------------------------------------------------------------------------
-void MooseViewer::exponentSliderCallback(
+void MooseViewer::sharpnessSliderCallback(
   GLMotif::Slider::ValueChangedCallbackData* callBackData)
 {
-  m_state.volume().setSplatExponent(static_cast<double>(callBackData->value));
-  exponentValue->setValue(callBackData->value);
+  m_state.volume().setSharpness(static_cast<double>(callBackData->value));
+  sharpnessValue->setValue(callBackData->value);
 }
 
 //----------------------------------------------------------------------------
@@ -1235,13 +1236,13 @@ void MooseViewer::setContourVisible(bool visible)
 //----------------------------------------------------------------------------
 void MooseViewer::setRequestedRenderMode(int mode)
 {
-  m_state.volume().setRequestedRenderMode(mode);
+  m_state.volume().setRenderMode(mode);
 }
 
 //----------------------------------------------------------------------------
 int MooseViewer::getRequestedRenderMode(void) const
 {
-  return m_state.volume().requestedRenderMode();
+  return m_state.volume().renderMode();
 }
 
 //----------------------------------------------------------------------------
