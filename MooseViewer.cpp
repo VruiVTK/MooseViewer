@@ -889,31 +889,37 @@ void MooseViewer::changeRepresentationCallback(
   if (strcmp(callBackData->toggle->getName(), "ShowSurface") == 0)
     {
     m_state.geometry().setRepresentation(mvGeometry::Surface);
+    m_state.geometry().setVisible(true);
     m_state.volume().setVisible(false);
     }
   else if (strcmp(callBackData->toggle->getName(), "ShowSurfaceWithEdges") == 0)
     {
     m_state.geometry().setRepresentation(mvGeometry::SurfaceWithEdges);
+    m_state.geometry().setVisible(true);
     m_state.volume().setVisible(false);
     }
   else if (strcmp(callBackData->toggle->getName(), "ShowWireframe") == 0)
     {
     m_state.geometry().setRepresentation(mvGeometry::Wireframe);
+    m_state.geometry().setVisible(true);
     m_state.volume().setVisible(false);
     }
   else if (strcmp(callBackData->toggle->getName(), "ShowPoints") == 0)
     {
     m_state.geometry().setRepresentation(mvGeometry::Points);
+    m_state.geometry().setVisible(true);
     m_state.volume().setVisible(false);
     }
   else if (strcmp(callBackData->toggle->getName(), "ShowNone") == 0)
     {
     m_state.geometry().setRepresentation(mvGeometry::NoGeometry);
+    m_state.geometry().setVisible(false);
     m_state.volume().setVisible(false);
     }
   else if (strcmp(callBackData->toggle->getName(), "ShowVolume") == 0)
     {
     m_state.geometry().setRepresentation(mvGeometry::NoGeometry);
+    m_state.geometry().setVisible(false);
     m_state.volume().setVisible(true);
     }
   else if (strcmp(callBackData->toggle->getName(), "ShowOutline") == 0)
