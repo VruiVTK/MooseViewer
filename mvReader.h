@@ -15,8 +15,12 @@
 
 class mvApplicationState;
 class mvProgressCookie;
+class vtkDataObject;
 class vtkExodusIIReader;
+class vtkImageData;
 class vtkMultiBlockDataSet;
+class vtkPointInterpolator;
+class vtkVoronoiKernel;
 
 /**
  * @brief The mvReader class manages loading the current dataset from a
@@ -145,6 +149,14 @@ public:
    */
   vtkMultiBlockDataSet *dataObject() const;
 
+  /**
+   * The dataObject as a sampled vtkImageData. This is used for providing low
+   * detail LOD representations.
+   *
+   * The result may be nullptr.
+   */
+  vtkDataObject* reducedDataObject() const;
+
   /** The bounds of the current dataObject. May be invalid. */
   const vtkBoundingBox& bounds() const { return m_bounds; }
 
@@ -166,6 +178,11 @@ public:
   void timeRange(double r[2]);
   /** @} */
 
+  /** Set true to print timing information to std::cerr. @{ */
+  bool benchmark() const { return m_benchmark; }
+  void setBenchmark(bool benchmark) { m_benchmark = benchmark; }
+  /** @} */
+
 private:
   void syncReaderState();
   bool dataNeedsUpdate();
@@ -174,6 +191,12 @@ private:
   void updateInformationCache();
   void updateDataCache();
 
+  void syncReducerState(const mvApplicationState &appState);
+  bool reducerNeedsUpdate();
+  bool invalidateReducedData();
+  void executeReducer();
+  void updateReducedData();
+
 private:
   std::future<void> m_future;
   mvProgressCookie *m_cookie;
@@ -181,6 +204,13 @@ private:
 
   vtkSmartPointer<vtkMultiBlockDataSet> m_data;
   VariableMetaDataMap m_variableMap;
+
+  std::future<void> m_reducerFuture;
+  mvProgressCookie *m_reducerCookie;
+  vtkNew<vtkImageData> m_reducerSeed;
+  vtkNew<vtkVoronoiKernel> m_reducerKernel;
+  vtkNew<vtkPointInterpolator> m_reducer;
+  vtkSmartPointer<vtkDataObject> m_reducedData;
 
   std::string m_fileName;
 
@@ -193,6 +223,8 @@ private:
 
   Variables m_availableVariables;
   Variables m_requestedVariables;
+
+  bool m_benchmark;
 };
 
 /**

@@ -1,15 +1,15 @@
 #include "mvVolume.h"
 
-#include <vtkCellDataToPointData.h>
-#include <vtkCheckerboardSplatter.h>
 #include <vtkColorTransferFunction.h>
 #include <vtkCompositeDataIterator.h>
 #include <vtkExternalOpenGLRenderer.h>
+#include <vtkGaussianKernel.h>
 #include <vtkImageData.h>
 #include <vtkLookupTable.h>
 #include <vtkMultiBlockDataSet.h>
 #include <vtkNew.h>
 #include <vtkPiecewiseFunction.h>
+#include <vtkPointInterpolator.h>
 #include <vtkSmartVolumeMapper.h>
 #include <vtkVolume.h>
 #include <vtkVolumeProperty.h>
@@ -21,26 +21,244 @@
 #include "mvReader.h"
 
 //------------------------------------------------------------------------------
-mvVolume::DataItem::DataItem()
+mvVolume::VolumeState::VolumeState()
+  : renderMode(vtkSmartVolumeMapper::DefaultRenderMode),
+    visible(false),
+    dimension(32),
+    radius(0.0 /* == auto */),
+    sharpness(2.0)
 {
+}
+
+//------------------------------------------------------------------------------
+void mvVolume::LoResDataPipeline::configure(const ObjectState &,
+                                            const mvApplicationState &appState)
+{
+  // Grab the current data object pointer.
+  this->reducedDataObject = appState.reader().reducedDataObject();
+}
+
+//------------------------------------------------------------------------------
+bool mvVolume::LoResDataPipeline::needsUpdate(const ObjectState &objState,
+                                              const LODData &result) const
+{
+  // Sync the data object pointer with the result object.
+  const VolumeLODData &data = static_cast<const VolumeLODData&>(result);
+  const VolumeState &state = static_cast<const VolumeState&>(objState);
+
+  if (!state.visible)
+    {
+    return false;
+    }
+
+  // One object exists, the other does -- update:
+  if ((data.volume && !this->reducedDataObject) ||
+      (!data.volume && this->reducedDataObject))
+    {
+    return true;
+    }
+
+  // Result object is out-of-date:
+  if (data.volume && this->reducedDataObject &&
+      data.volume->GetMTime() < this->reducedDataObject->GetMTime())
+    {
+    return true;
+    }
+
+  return false;
+}
+
+//------------------------------------------------------------------------------
+void mvVolume::LoResDataPipeline::exportResult(LODData &result) const
+{
+  VolumeLODData &data = static_cast<VolumeLODData&>(result);
+  if (this->reducedDataObject)
+    {
+    data.volume.TakeReference(this->reducedDataObject->NewInstance());
+    data.volume->ShallowCopy(this->reducedDataObject.Get());
+    }
+  else
+    {
+    data.volume = nullptr;
+    }
+}
+
+//------------------------------------------------------------------------------
+mvVolume::VolumeRenderPipeline::VolumeRenderPipeline()
+{
+  this->property->SetColor(this->color.Get());
+  this->property->SetScalarOpacity(this->opacity.Get());
+  this->property->SetInterpolationTypeToLinear();
+  this->property->ShadeOff();
+  this->actor->SetProperty(this->property.Get());
   this->actor->SetMapper(this->mapper.GetPointer());
 }
 
 //------------------------------------------------------------------------------
-mvVolume::mvVolume()
-  : m_visible(false),
-    m_requestedRenderMode(vtkSmartVolumeMapper::DefaultRenderMode),
-    m_splatDimensions(30),
-    m_splatExponent(-1.0),
-    m_splatRadius(0.0 /* == auto */)
+void mvVolume::VolumeRenderPipeline::init(const ObjectState &,
+                                          mvContextState &contextState)
 {
-  m_splat->ScalarWarpingOn();
-  m_splat->NormalWarpingOff();
+  contextState.renderer().AddVolume(this->actor.Get());
+}
 
-  m_volumeProperty->SetColor(m_colorFunction.Get());
-  m_volumeProperty->SetScalarOpacity(m_opacityFunction.Get());
-  m_volumeProperty->SetInterpolationTypeToLinear();
-  m_volumeProperty->ShadeOff();
+//------------------------------------------------------------------------------
+void mvVolume::VolumeRenderPipeline::update(const ObjectState &objState,
+                                            const mvApplicationState &appState,
+                                            const mvContextState &contextState,
+                                            const LODData &result)
+{
+  const VolumeState &state = static_cast<const VolumeState&>(objState);
+  const VolumeLODData &data = static_cast<const VolumeLODData&>(result);
+
+  // If the volume is a composite dataset, just grab the first leaf.
+  // TODO this could just create multiple mappers/actors for each volume if
+  // multi-leaf datasets are used.
+  vtkImageData *image = nullptr;
+  if (vtkCompositeDataSet *cds = vtkCompositeDataSet::SafeDownCast(data.volume))
+    {
+    vtkCompositeDataIterator *iter = cds->NewIterator();
+    for (; !iter->IsDoneWithTraversal(); iter->GoToNextItem())
+      {
+      if (image = vtkImageData::SafeDownCast(iter->GetCurrentDataObject()))
+        {
+        break;
+        }
+      }
+    iter->Delete();
+    }
+  else if (image = vtkImageData::SafeDownCast(data.volume))
+    {
+    // image holds the vtkImageData pointer.
+    }
+
+  auto metaData = appState.reader().variableMetaData(appState.colorByArray());
+  if (!image || !state.visible || !metaData.valid() ||
+      metaData.location != mvReader::VariableMetaData::Location::PointData)
+    {
+    this->disable();
+    return;
+    }
+
+  this->mapper->SetInputDataObject(image);
+  this->mapper->SetRequestedRenderMode(state.renderMode);
+  this->mapper->SelectScalarArray(appState.colorByArray().c_str());
+  this->mapper->SetScalarModeToUsePointFieldData();
+
+  // Sync color tables
+  if (appState.colorMap().GetMTime() > std::min(this->color->GetMTime(),
+                                                this->opacity->GetMTime()))
+    {
+    this->color->RemoveAllPoints();
+    this->opacity->RemoveAllPoints();
+    double step = (metaData.range[1] - metaData.range[0]) / 255.0;
+    double rgba[4];
+    for (vtkIdType i = 0; i < 256; ++i)
+      {
+      const double x = metaData.range[0] + (i * step);
+      appState.colorMap().GetTableValue(i, rgba);
+      this->color->AddRGBPoint(x, rgba[0], rgba[1], rgba[2]);
+      this->opacity->AddPoint(x, rgba[3]);
+      }
+    }
+
+  this->actor->SetVisibility(1);
+}
+
+//------------------------------------------------------------------------------
+void mvVolume::VolumeRenderPipeline::disable()
+{
+  this->actor->SetVisibility(0);
+}
+
+//------------------------------------------------------------------------------
+mvVolume::HiResDataPipeline::HiResDataPipeline()
+{
+  this->filter->SetInputDataObject(this->seed.Get());
+  this->filter->SetKernel(this->kernel.Get());
+  this->filter->PassPointArraysOff();
+  this->filter->PassCellArraysOff();
+  this->filter->PassFieldArraysOff();
+  this->filter->SetNullPointsStrategyToNullValue();
+  this->filter->SetNullValue(0.);
+}
+
+//------------------------------------------------------------------------------
+void mvVolume::HiResDataPipeline::configure(const ObjectState &objState,
+                                            const mvApplicationState &appState)
+{
+  const VolumeState &state = static_cast<const VolumeState&>(objState);
+
+  if (!appState.reader().dataObject())
+    {
+    this->filter->SetSourceData(nullptr);
+    return;
+    }
+
+  std::array<double, 3> dataDims;
+  std::array<double, 3> spacing;
+  std::array<double, 3> origin;
+
+  appState.reader().bounds().GetLengths(dataDims.data());
+  appState.reader().bounds().GetMinPoint(origin[0], origin[1], origin[2]);
+
+  spacing[0] = dataDims[0] / static_cast<double>(state.dimension - 1);
+  spacing[1] = dataDims[1] / static_cast<double>(state.dimension - 1);
+  spacing[2] = dataDims[2] / static_cast<double>(state.dimension - 1);
+
+  this->seed->SetDimensions(state.dimension, state.dimension, state.dimension);
+  this->seed->SetOrigin(origin.data());
+  this->seed->SetSpacing(spacing.data());
+
+  if (state.radius != 0.0)
+    {
+    this->kernel->SetRadius(state.radius);
+    }
+  else
+    {
+    // Compute the norm of the largest sample spacing:
+    double maxLength = std::max(spacing[0], std::max(spacing[1], spacing[2]));
+    this->kernel->SetRadius(std::sqrt(3 * maxLength * maxLength));
+    }
+
+  this->kernel->SetSharpness(state.sharpness);
+
+  this->filter->SetSourceData(appState.reader().dataObject());
+}
+
+//------------------------------------------------------------------------------
+bool mvVolume::HiResDataPipeline::needsUpdate(const ObjectState &objState,
+                                              const LODData &result) const
+{
+  const VolumeState &state = static_cast<const VolumeState&>(objState);
+  const VolumeLODData &data = static_cast<const VolumeLODData&>(result);
+
+  return
+      state.visible &&
+      this->filter->GetInputDataObject(1, 0) && // Check port 1: SourceData
+      (!data.volume ||
+       data.volume->GetMTime() < this->filter->GetMTime() ||
+       data.volume->GetMTime() < this->kernel->GetMTime() ||
+       data.volume->GetMTime() < this->seed->GetMTime());
+}
+
+//------------------------------------------------------------------------------
+void mvVolume::HiResDataPipeline::execute()
+{
+  this->filter->Update();
+}
+
+//------------------------------------------------------------------------------
+void mvVolume::HiResDataPipeline::exportResult(LODData &result) const
+{
+  VolumeLODData &data = static_cast<VolumeLODData&>(result);
+  vtkDataObject *dObj = this->filter->GetOutputDataObject(0);
+  data.volume.TakeReference(dObj->NewInstance());
+  data.volume->ShallowCopy(dObj);
+}
+
+//------------------------------------------------------------------------------
+mvVolume::mvVolume()
+{
 }
 
 //------------------------------------------------------------------------------
@@ -49,204 +267,111 @@ mvVolume::~mvVolume()
 }
 
 //------------------------------------------------------------------------------
-void mvVolume::initMvContext(mvContextState &mvContext,
-                             GLContextData &contextData) const
+int mvVolume::renderMode() const
 {
-  this->Superclass::initMvContext(mvContext, contextData);
-
-  assert("Duplicate context initialization detected!" &&
-         !contextData.retrieveDataItem<DataItem>(this));
-
-  DataItem *dataItem = new DataItem;
-  contextData.addDataItem(this, dataItem);
-
-  dataItem->actor->SetProperty(m_volumeProperty.GetPointer());
-  mvContext.renderer().AddVolume(dataItem->actor.GetPointer());
+  return this->objectState<VolumeState>().renderMode;
 }
 
 //------------------------------------------------------------------------------
-void mvVolume::configureDataPipeline(const mvApplicationState &state)
+void mvVolume::setRenderMode(int mode)
 {
-  m_splat->SetSampleDimensions(m_splatDimensions, m_splatDimensions,
-                               m_splatDimensions);
-  m_splat->SetRadius(m_splatRadius);
-  m_splat->SetExponentFactor(m_splatExponent);
-
-  // Only modify the filter if the colorByArray is loaded.
-  auto metaData = state.reader().variableMetaData(state.colorByArray());
-  if (metaData.valid())
-    {
-    // Splat the proper array:
-    switch (metaData.location)
-      {
-      case mvReader::VariableMetaData::Location::PointData:
-        m_splat->SetInputDataObject(state.reader().dataObject());
-        m_splat->SetInputArrayToProcess(
-              0, 0, 0, vtkDataObject::FIELD_ASSOCIATION_POINTS,
-              state.colorByArray().c_str());
-        break;
-
-      case mvReader::VariableMetaData::Location::CellData:
-        m_cell2point->SetInputDataObject(state.reader().dataObject());
-        m_splat->SetInputConnection(m_cell2point->GetOutputPort());
-        m_splat->SetInputArrayToProcess(
-              0, 0, 0, vtkDataObject::FIELD_ASSOCIATION_POINTS,
-              state.colorByArray().c_str());
-        break;
-
-      case mvReader::VariableMetaData::Location::FieldData:
-        std::cerr << "Cannot generate volume from generic field data. Must "
-                     "use point/cell data." << std::endl;
-
-
-      default:
-        break;
-        m_splat->SetInputDataObject(nullptr);
-        m_splat->SetInputArrayToProcess(
-              0, 0, 0, vtkDataObject::FIELD_ASSOCIATION_POINTS, "");
-        break;
-
-      }
-    }
-  else
-    {
-    m_splat->SetInputDataObject(nullptr);
-    }
+  this->objectState<VolumeState>().renderMode = mode;
 }
 
 //------------------------------------------------------------------------------
-bool mvVolume::dataPipelineNeedsUpdate() const
+double mvVolume::radius() const
 {
-  return
-      m_splat->GetInputDataObject(0, 0) &&
-      m_visible &&
-      (!m_appData ||
-       m_appData->GetMTime() < m_cell2point->GetMTime() ||
-       m_appData->GetMTime() < m_splat->GetMTime());
+  return this->objectState<VolumeState>().radius;
 }
 
 //------------------------------------------------------------------------------
-void mvVolume::executeDataPipeline() const
+void mvVolume::setRadius(double r)
 {
-  m_splat->Update();
+  this->objectState<VolumeState>().radius = r;
 }
 
 //------------------------------------------------------------------------------
-void mvVolume::retrieveDataPipelineResult()
+double mvVolume::sharpness() const
 {
-  vtkDataObject *dObj = m_splat->GetOutputDataObject(0);
-
-  // If we have composite data, just extract the first image leaf.
-  // TODO At some point the splatter should be reworked to handle
-  // composite data.
-  if (vtkCompositeDataSet *cds = vtkCompositeDataSet::SafeDownCast(dObj))
-    {
-    vtkCompositeDataIterator *it = cds->NewIterator();
-    it->InitTraversal();
-    while (!it->IsDoneWithTraversal())
-      {
-      if (vtkImageData *image =
-          vtkImageData::SafeDownCast(it->GetCurrentDataObject()))
-        {
-        dObj = image;
-        break;
-        }
-      it->GoToNextItem();
-      }
-    it->Delete();
-    }
-
-  m_appData.TakeReference(dObj->NewInstance());
-  m_appData->ShallowCopy(dObj);
+  return this->objectState<VolumeState>().sharpness;
 }
 
 //------------------------------------------------------------------------------
-void mvVolume::syncContextState(const mvApplicationState &appState,
-                                const mvContextState &contextState,
-                                GLContextData &contextData) const
+void mvVolume::setSharpness(double s)
 {
-  this->Superclass::syncContextState(appState, contextState, contextData);
+  this->objectState<VolumeState>().sharpness = s;
+}
 
-  DataItem *dataItem = contextData.retrieveDataItem<DataItem>(this);
-  assert(dataItem);
+//------------------------------------------------------------------------------
+double mvVolume::dimension() const
+{
+  return this->objectState<VolumeState>().dimension;
+}
 
-  dataItem->mapper->SetInputDataObject(m_appData);
+//------------------------------------------------------------------------------
+void mvVolume::setDimension(double d)
+{
+  this->objectState<VolumeState>().dimension = d;
+}
 
-  // Only modify the filter if the colorByArray is loaded.
-  auto metaData = appState.reader().variableMetaData(appState.colorByArray());
-  if (metaData.valid())
+//------------------------------------------------------------------------------
+mvLODAsyncGLObject::ObjectState* mvVolume::createObjectState() const
+{
+  return new VolumeState;
+}
+
+//------------------------------------------------------------------------------
+mvLODAsyncGLObject::DataPipeline*
+mvVolume::createDataPipeline(LevelOfDetail lod) const
+{
+  switch (lod)
     {
-    dataItem->mapper->SetRequestedRenderMode(m_requestedRenderMode);
-    dataItem->actor->SetVisibility(m_visible ? 1 : 0);
+    case LevelOfDetail::Hint:
+      return nullptr;
 
-    // Update color map.
-    if (appState.colorMap().GetMTime() >
-        std::min(m_colorFunction->GetMTime(), m_opacityFunction->GetMTime()))
-      {
-      m_colorFunction->RemoveAllPoints();
-      m_opacityFunction->RemoveAllPoints();
-      double step = (metaData.range[1] - metaData.range[0]) / 255.0;
-      double rgba[4];
-      for (vtkIdType i = 0; i < 256; ++i)
-        {
-        const double x = metaData.range[0] + (i * step);
-        appState.colorMap().GetTableValue(i, rgba);
-        m_colorFunction->AddRGBPoint(x, rgba[0], rgba[1], rgba[2]);
-        m_opacityFunction->AddPoint(x, rgba[3]);
-        }
-      }
-    }
+    case LevelOfDetail::LoRes:
+      return new LoResDataPipeline;
 
-  if (!m_appData)
-    {
-    dataItem->actor->SetVisibility(0);
+    case LevelOfDetail::HiRes:
+      return new HiResDataPipeline;
+
+    default:
+      return nullptr;
     }
 }
 
 //------------------------------------------------------------------------------
-int mvVolume::requestedRenderMode() const
+mvLODAsyncGLObject::RenderPipeline*
+mvVolume::createRenderPipeline(LevelOfDetail lod) const
 {
-  return m_requestedRenderMode;
+  switch (lod)
+    {
+    case LevelOfDetail::Hint:
+      return nullptr;
+
+    case LevelOfDetail::LoRes:
+    case LevelOfDetail::HiRes:
+      return new VolumeRenderPipeline;
+
+    default:
+      return nullptr;
+    }
 }
 
 //------------------------------------------------------------------------------
-void mvVolume::setRequestedRenderMode(int mode)
+mvLODAsyncGLObject::LODData*
+mvVolume::createLODData(LevelOfDetail lod) const
 {
-  m_requestedRenderMode = mode;
-}
+  switch (lod)
+    {
+    case LevelOfDetail::Hint:
+      return nullptr;
 
-//------------------------------------------------------------------------------
-double mvVolume::splatRadius() const
-{
-  return m_splatRadius;
-}
+    case LevelOfDetail::LoRes:
+    case LevelOfDetail::HiRes:
+      return new VolumeLODData;
 
-//------------------------------------------------------------------------------
-void mvVolume::setSplatRadius(double radius)
-{
-  m_splatRadius = radius;
-}
-
-//------------------------------------------------------------------------------
-double mvVolume::splatExponent() const
-{
-  return m_splatExponent;
-}
-
-//------------------------------------------------------------------------------
-void mvVolume::setSplatExponent(double exponent)
-{
-  m_splatExponent = exponent;
-}
-
-//------------------------------------------------------------------------------
-double mvVolume::splatDimensions() const
-{
-  return m_splatDimensions;
-}
-
-//------------------------------------------------------------------------------
-void mvVolume::setSplatDimensions(double dimensions)
-{
-  m_splatDimensions = dimensions;
+    default:
+      return nullptr;
+    }
 }

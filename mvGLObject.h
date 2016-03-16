@@ -57,6 +57,12 @@ public:
   ~mvGLObject();
 
   /**
+   * Optionally perform post-construction initialization prior to context
+   * initialization.
+   */
+  virtual void init(const mvApplicationState &appState) { /* no-op */ }
+
+  /**
    * Do not use, this will not be executed. Put all context intialization in
    * initMvContext.
    */
@@ -64,9 +70,9 @@ public:
 
   /**
    * Initialize object with respect to the MooseViewer app. This is the spot
-   * to add actors to the context's renderer, etc. All initialization for
-   * GLObject needs to happen here as well, such as adding an instance of
-   * DataItem to GLContextData.
+   * to add actors to the context's renderer, etc. All context-specific
+   * initialization for GLObject needs to happen here as well, such as adding an
+   * instance of DataItem to GLContextData.
    */
   virtual void initMvContext(mvContextState &mvContext,
                              GLContextData &contextData) const;

@@ -93,7 +93,7 @@ private:
   /* Volume visible */
   GLMotif::TextField* sampleValue;
   GLMotif::TextField* radiusValue;
-  GLMotif::TextField* exponentValue;
+  GLMotif::TextField* sharpnessValue;
 
   /* Custom scalar range */
   double ScalarRange[2];
@@ -158,7 +158,7 @@ public:
   void opacitySliderCallback(GLMotif::Slider::ValueChangedCallbackData* cbData);
   void sampleSliderCallback(GLMotif::Slider::ValueChangedCallbackData* cbData);
   void radiusSliderCallback(GLMotif::Slider::ValueChangedCallbackData* cbData);
-  void exponentSliderCallback(GLMotif::Slider::ValueChangedCallbackData* cbData);
+  void sharpnessSliderCallback(GLMotif::Slider::ValueChangedCallbackData* cbData);
   void showVariableDialogCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
   void changeRepresentationCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
   void showRenderingDialogCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
