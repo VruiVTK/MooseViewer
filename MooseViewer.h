@@ -124,11 +124,6 @@ public:
   bool IsPlaying;
   bool Loop;
 
-  /* Get Flashlight position and direction */
-  int * getFlashlightSwitch(void);
-  double * getFlashlightPosition(void);
-  double * getFlashlightDirection(void);
-
   /* Methods to set/get the requested render mode */
   void setRequestedRenderMode(int mode);
   int getRequestedRenderMode(void) const;
