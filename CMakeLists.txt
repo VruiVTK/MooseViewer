@@ -6,6 +6,11 @@ ENDIF()
 
 PROJECT(MooseViewer)
 
+set(CMAKE_MODULE_PATH
+  "${MooseViewer_SOURCE_DIR}/CMake/Modules"
+  ${CMAKE_MODULE_PATH}
+)
+
 SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 # Use c++11:
@@ -38,6 +43,9 @@ IF (${VTK_RENDERING_BACKEND} STREQUAL "OpenGL")
   ENDIF ()
   INCLUDE_DIRECTORIES (${GLEW_INCLUDE_DIR})
 ENDIF ()
+
+# Find vtkVRUI
+find_package(vtkVRUI REQUIRED)
 
 # add the automatically determined parts of the RPATH
 # which point to directories outside the build tree to the install RPATH
