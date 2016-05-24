@@ -1,7 +1,7 @@
 #ifndef MVCONTOURS_H
 #define MVCONTOURS_H
 
-#include "mvLODAsyncGLObject.h"
+#include "vvLODAsyncGLObject.h"
 
 #include <vtkNew.h>
 #include <vtkSmartPointer.h>
@@ -26,15 +26,15 @@ class vtkSpanSpace;
  * to the current scalar array's data range prior to contouring.
  * @todo Isovalues should use actual scalar range at some point.
  */
-class mvContours : public mvLODAsyncGLObject
+class mvContours : public vvLODAsyncGLObject
 {
 public:
-  using Superclass = mvLODAsyncGLObject;
+  using Superclass = vvLODAsyncGLObject;
 
   // Contour State: ------------------------------------------------------------
   struct ContourState : public Superclass::ObjectState
   {
-    void update(const mvApplicationState &state) override {}
+    void update(const vvApplicationState &state) override {}
     std::vector<double> contourValues;
     bool visible{false};
   };
@@ -48,7 +48,7 @@ public:
 
     LoResDataPipeline();
     void configure(const ObjectState &objState,
-                   const mvApplicationState &appState) override;
+                   const vvApplicationState &appState) override;
     bool needsUpdate(const ObjectState &objState,
                      const LODData &result) const override;
     void execute() override;
@@ -67,10 +67,10 @@ public:
 
     LoResRenderPipeline();
     void init(const ObjectState &objState,
-              mvContextState &contextState) override;
+              vvContextState &contextState) override;
     void update(const ObjectState &objState,
-                const mvApplicationState &appState,
-                const mvContextState &contextState,
+                const vvApplicationState &appState,
+                const vvContextState &contextState,
                 const LODData &result) override;
     void disable();
   };
@@ -84,7 +84,7 @@ public:
 
     HiResDataPipeline();
     void configure(const ObjectState &objState,
-                   const mvApplicationState &appState) override;
+                   const vvApplicationState &appState) override;
     bool needsUpdate(const ObjectState &objState,
                      const LODData &result) const override;
     void execute() override;
@@ -103,10 +103,10 @@ public:
 
     HiResRenderPipeline();
     void init(const ObjectState &objState,
-              mvContextState &contextState) override;
+              vvContextState &contextState) override;
     void update(const ObjectState &objState,
-                const mvApplicationState &appState,
-                const mvContextState &contextState,
+                const vvApplicationState &appState,
+                const vvContextState &contextState,
                 const LODData &result) override;
     void disable();
   };
@@ -129,7 +129,7 @@ public:
   std::vector<double> contourValues() const;
   void setContourValues(const std::vector<double> &contourValues);
 
-private: // mvLODAsyncGLObject API:
+private: // vvLODAsyncGLObject API:
 
   std::string progressLabel() const override { return "Contours"; }
 

@@ -11,21 +11,25 @@
 #include <vtkPolyDataMapper.h>
 #include <vtkProperty.h>
 
+#include <vvContextState.h>
+
 #include "mvApplicationState.h"
-#include "mvContextState.h"
 #include "mvReader.h"
 
 
 //------------------------------------------------------------------------------
 vtkDataObject *
-mvGeometry::LoResDataPipeline::input(const mvApplicationState &state) const
+mvGeometry::LoResDataPipeline::input(const vvApplicationState &vvState) const
 {
+  const mvApplicationState &state =
+      static_cast<const mvApplicationState &>(vvState);
+
   return state.reader().reducedDataObject();
 }
 
 //------------------------------------------------------------------------------
 void mvGeometry::LoResDataPipeline::configure(
-    const ObjectState &, const mvApplicationState &appState)
+    const ObjectState &, const vvApplicationState &appState)
 {
   this->filter->SetInputDataObject(this->input(appState));
 }
@@ -63,14 +67,17 @@ void mvGeometry::LoResDataPipeline::exportResult(LODData &result) const
 
 //------------------------------------------------------------------------------
 vtkDataObject *
-mvGeometry::HiResDataPipeline::input(const mvApplicationState &state) const
+mvGeometry::HiResDataPipeline::input(const vvApplicationState &vvState) const
 {
+  const mvApplicationState &state =
+      static_cast<const mvApplicationState &>(vvState);
+
   return state.reader().dataObject();
 }
 
 //------------------------------------------------------------------------------
 void mvGeometry::GeometryRenderPipeline::init(const ObjectState &,
-                                              mvContextState &contextState)
+                                              vvContextState &contextState)
 {
   this->mapper->SetScalarVisibility(1);
   this->actor->GetProperty()->SetEdgeColor(1., 1., 1.);
@@ -81,9 +88,11 @@ void mvGeometry::GeometryRenderPipeline::init(const ObjectState &,
 
 //------------------------------------------------------------------------------
 void mvGeometry::GeometryRenderPipeline::update(
-    const ObjectState &objState, const mvApplicationState &appState,
-    const mvContextState &contextState, const LODData &result)
+    const ObjectState &objState, const vvApplicationState &vvState,
+    const vvContextState &contextState, const LODData &result)
 {
+  const mvApplicationState &appState =
+      static_cast<const mvApplicationState &>(vvState);
   const GeometryState &state = static_cast<const GeometryState&>(objState);
   const GeometryLODData &data = static_cast<const GeometryLODData&>(result);
 
@@ -191,13 +200,13 @@ void mvGeometry::setRepresentation(Representation repr)
 }
 
 //------------------------------------------------------------------------------
-mvLODAsyncGLObject::ObjectState *mvGeometry::createObjectState() const
+vvLODAsyncGLObject::ObjectState *mvGeometry::createObjectState() const
 {
   return new GeometryState;
 }
 
 //------------------------------------------------------------------------------
-mvLODAsyncGLObject::DataPipeline *
+vvLODAsyncGLObject::DataPipeline *
 mvGeometry::createDataPipeline(LevelOfDetail lod) const
 {
   switch (lod)
@@ -217,7 +226,7 @@ mvGeometry::createDataPipeline(LevelOfDetail lod) const
 }
 
 //------------------------------------------------------------------------------
-mvLODAsyncGLObject::RenderPipeline *
+vvLODAsyncGLObject::RenderPipeline *
 mvGeometry::createRenderPipeline(LevelOfDetail lod) const
 {
   switch (lod)
@@ -235,7 +244,7 @@ mvGeometry::createRenderPipeline(LevelOfDetail lod) const
 }
 
 //------------------------------------------------------------------------------
-mvLODAsyncGLObject::LODData *
+vvLODAsyncGLObject::LODData *
 mvGeometry::createLODData(LevelOfDetail lod) const
 {
   switch (lod)

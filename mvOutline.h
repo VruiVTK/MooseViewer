@@ -1,7 +1,7 @@
 #ifndef MVOUTLINE_H
 #define MVOUTLINE_H
 
-#include "mvAsyncGLObject.h"
+#include "vvAsyncGLObject.h"
 
 #include <vtkNew.h>
 #include <vtkSmartPointer.h>
@@ -14,10 +14,10 @@ class vtkOutlineFilter;
 /**
  * @brief The mvOutline class renders an outline of the dataset bounds.
  */
-class mvOutline : public mvAsyncGLObject
+class mvOutline : public vvAsyncGLObject
 {
 public:
-  using Superclass = mvAsyncGLObject;
+  using Superclass = vvAsyncGLObject;
 
   struct DataItem : public Superclass::DataItem
   {
@@ -31,11 +31,11 @@ public:
   mvOutline();
   ~mvOutline();
 
-  // mvGLObjectAPI:
-  void initMvContext(mvContextState &mvContext,
+  // vvGLObjectAPI:
+  void initVvContext(vvContextState &mvContext,
                      GLContextData &contextData) const override;
-  void syncContextState(const mvApplicationState &appState,
-                        const mvContextState &contextState,
+  void syncContextState(const vvApplicationState &appState,
+                        const vvContextState &contextState,
                         GLContextData &contextData) const override;
 
   /**
@@ -44,8 +44,8 @@ public:
   bool visible() const { return m_visible; }
   void setVisible(bool visible) { m_visible = visible; }
 
-private: // mvAsyncGLObject virtual API:
-  void configureDataPipeline(const mvApplicationState &state) override;
+private: // vvAsyncGLObject virtual API:
+  void configureDataPipeline(const vvApplicationState &state) override;
   bool dataPipelineNeedsUpdate() const override;
   void executeDataPipeline() const override;
   void retrieveDataPipelineResult() override;

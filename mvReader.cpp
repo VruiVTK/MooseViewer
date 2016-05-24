@@ -17,9 +17,10 @@
 #include <vtkTimerLog.h>
 #include <vtkVoronoiKernel.h>
 
+#include "vvProgress.h"
+#include "vvProgressCookie.h"
+
 #include "mvApplicationState.h"
-#include "mvProgress.h"
-#include "mvProgressCookie.h"
 
 #include <cassert>
 #include <chrono>
@@ -64,7 +65,7 @@ mvReader::~mvReader()
 }
 
 //------------------------------------------------------------------------------
-void mvReader::update(const mvApplicationState &appState)
+void mvReader::update(const vvApplicationState &appState)
 {
   // Are we currently reading the file?
   if (m_future.valid())
@@ -347,7 +348,7 @@ void mvReader::updateDataCache()
 }
 
 //------------------------------------------------------------------------------
-void mvReader::syncReducerState(const mvApplicationState &appState)
+void mvReader::syncReducerState(const vvApplicationState &appState)
 {
   if (!m_data)
     {

@@ -31,10 +31,14 @@ public:
 
   enum State
     {
+    Uninitialized,
     NoInteraction, /// No interaction requested at this time.
     Translating, /// A translation event has been requested.
     Rotating /// A rotation event has been requested.
     };
+
+  // Initializes internal state. Must be called after VRUI is initialized.
+  void init();
 
   /**
    * @return True if there is an mvInteractorTool bound to this interactor.
