@@ -1,7 +1,7 @@
 #ifndef MVSLICE_H
 #define MVSLICE_H
 
-#include "mvLODAsyncGLObject.h"
+#include "vvLODAsyncGLObject.h"
 
 #include <vtkNew.h>
 #include <vtkSmartPointer.h>
@@ -24,10 +24,10 @@ class vtkSMPContourGrid;
  *
  * mvSlice renders a slice (see plane()) cut from the dataset.
  */
-class mvSlice : public mvLODAsyncGLObject
+class mvSlice : public vvLODAsyncGLObject
 {
 public:
-  using Superclass = mvLODAsyncGLObject;
+  using Superclass = vvLODAsyncGLObject;
 
   struct Plane
   {
@@ -38,7 +38,7 @@ public:
   // Slice state: --------------------------------------------------------------
   struct SliceState : public Superclass::ObjectState
   {
-    void update(const mvApplicationState &appState) override;
+    void update(const vvApplicationState &appState) override;
     Plane plane;
     bool visible{false};
   };
@@ -58,7 +58,7 @@ public:
     bool forceSynchronousUpdates() const override { return true; }
 
     void configure(const ObjectState &objState,
-                   const mvApplicationState &appState) override;
+                   const vvApplicationState &appState) override;
     bool needsUpdate(const ObjectState &objState,
                      const LODData &result) const override;
     void execute() override;
@@ -77,10 +77,10 @@ public:
 
     HintRenderPipeline();
     void init(const ObjectState &objState,
-              mvContextState &contextState) override;
+              vvContextState &contextState) override;
     void update(const ObjectState &objState,
-                const mvApplicationState &appState,
-                const mvContextState &contextState,
+                const vvApplicationState &appState,
+                const vvContextState &contextState,
                 const LODData &result) override;
     void disable();
   };
@@ -95,7 +95,7 @@ public:
 
     LoResDataPipeline();
     void configure(const ObjectState &objState,
-                   const mvApplicationState &appState) override;
+                   const vvApplicationState &appState) override;
     bool needsUpdate(const ObjectState &objState,
                      const LODData &result) const override;
     void execute() override;
@@ -114,10 +114,10 @@ public:
 
     LoResRenderPipeline();
     void init(const ObjectState &objState,
-              mvContextState &contextState) override;
+              vvContextState &contextState) override;
     void update(const ObjectState &objState,
-                const mvApplicationState &appState,
-                const mvContextState &contextState,
+                const vvApplicationState &appState,
+                const vvContextState &contextState,
                 const LODData &result) override;
     void disable();
   };
@@ -132,7 +132,7 @@ public:
 
     HiResDataPipeline();
     void configure(const ObjectState &objState,
-                   const mvApplicationState &appState) override;
+                   const vvApplicationState &appState) override;
     bool needsUpdate(const ObjectState &objState,
                      const LODData &result) const override;
     void execute() override;
@@ -151,10 +151,10 @@ public:
 
     HiResRenderPipeline();
     void init(const ObjectState &objState,
-              mvContextState &contextState) override;
+              vvContextState &contextState) override;
     void update(const ObjectState &objState,
-                const mvApplicationState &appState,
-                const mvContextState &contextState,
+                const vvApplicationState &appState,
+                const vvContextState &contextState,
                 const LODData &result) override;
     void disable();
   };
@@ -175,7 +175,7 @@ public:
   const Plane& plane() const;
   void setPlane(const Plane &p);
 
-private: // mvLODAsyncGLObject virtual API:
+private: // vvLODAsyncGLObject virtual API:
 
   std::string progressLabel() const { return "Slice"; }
 

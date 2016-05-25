@@ -4,11 +4,10 @@
 // MooseViewer includes
 #include "mvApplicationState.h"
 
-// OpenGL/Motif includes
-#include <GL/gl.h>
+// vtkVRUI includes
+#include <vvApplication.h>
 
 // Vrui includes
-#include <GL/GLObject.h>
 #include <GLMotif/ListBox.h>
 #include <GLMotif/PopupWindow.h>
 #include <GLMotif/RadioBox.h>
@@ -16,7 +15,6 @@
 #include <GLMotif/TextField.h>
 #include <GLMotif/ToggleButton.h>
 #include <Misc/Timer.h>
-#include <Vrui/Application.h>
 
 // VTK includes
 #include <vtkSmartPointer.h>
@@ -44,10 +42,10 @@ class VariablesDialog;
 class vtkDataArray;
 class vtkLookupTable;
 
-class MooseViewer:public Vrui::Application,public GLObject
+class MooseViewer: public vvApplication
 {
 private:
-  mvApplicationState m_state;
+  mvApplicationState &m_mvState;
 
   /* Hints for widgets: */
   std::string widgetHintsFile;
@@ -100,14 +98,18 @@ private:
 
   /* Constructors and destructors: */
 public:
+  using Superclass = vvApplication;
   MooseViewer(int& argc,char**& argv);
   virtual ~MooseViewer(void);
 
-  void Initialize();
+  void initialize() override;
+  virtual void initContext(GLContextData& contextData) const override;
+  virtual void display(GLContextData& contextData) const override;
+  virtual void frame() override;
 
   /* vtkExodusIIReader */
-  mvReader& reader() { return m_state.reader(); }
-  const mvReader& reader() const { return m_state.reader(); }
+  mvReader& reader() { return m_mvState.reader(); }
+  const mvReader& reader() const { return m_mvState.reader(); }
 
   /* Methods to set/get the filename to read */
   void setFileName(const std::string &name);
@@ -117,17 +119,9 @@ public:
   void setWidgetHintsFile(const std::string &whFile);
   const std::string& getWidgetHintsFile(void);
 
-  void setShowFPS(bool show);
-  bool getShowFPS() const;
-
   /* Animation */
   bool IsPlaying;
   bool Loop;
-
-  /* Get Flashlight position and direction */
-  int * getFlashlightSwitch(void);
-  double * getFlashlightPosition(void);
-  double * getFlashlightDirection(void);
 
   /* Methods to set/get the requested render mode */
   void setRequestedRenderMode(int mode);
@@ -140,10 +134,6 @@ public:
   /* Histogram */
   float * getHistogram();
 
-  /* Methods to manage render context */
-  virtual void initContext(GLContextData& contextData) const;
-  virtual void display(GLContextData& contextData) const;
-  virtual void frame(void);
 
   /* Custom scalar range */
   void setScalarMinimum(double min);

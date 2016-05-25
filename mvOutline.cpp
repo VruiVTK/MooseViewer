@@ -10,8 +10,9 @@
 #include "vtkOutlineFilter.h"
 #include "vtkProperty.h"
 
+#include "vvContextState.h"
+
 #include "mvApplicationState.h"
-#include "mvContextState.h"
 #include "mvReader.h"
 
 //------------------------------------------------------------------------------
@@ -33,10 +34,10 @@ mvOutline::~mvOutline()
 }
 
 //------------------------------------------------------------------------------
-void mvOutline::initMvContext(mvContextState &mvContext,
+void mvOutline::initVvContext(vvContextState &mvContext,
                               GLContextData &contextData) const
 {
-  this->Superclass::initMvContext(mvContext, contextData);
+  this->Superclass::initVvContext(mvContext, contextData);
 
   assert("Duplicate context initialization detected!" &&
          !contextData.retrieveDataItem<DataItem>(this));
@@ -48,8 +49,11 @@ void mvOutline::initMvContext(mvContextState &mvContext,
 }
 
 //------------------------------------------------------------------------------
-void mvOutline::configureDataPipeline(const mvApplicationState &state)
+void mvOutline::configureDataPipeline(const vvApplicationState &vvState)
 {
+  const mvApplicationState &state =
+      static_cast<const mvApplicationState &>(vvState);
+
   m_filter->SetInputDataObject(state.reader().dataObject());
 }
 
@@ -78,8 +82,8 @@ void mvOutline::retrieveDataPipelineResult()
 }
 
 //------------------------------------------------------------------------------
-void mvOutline::syncContextState(const mvApplicationState &appState,
-                                 const mvContextState &contextState,
+void mvOutline::syncContextState(const vvApplicationState &appState,
+                                 const vvContextState &contextState,
                                  GLContextData &contextData) const
 {
   this->Superclass::syncContextState(appState, contextState, contextData);

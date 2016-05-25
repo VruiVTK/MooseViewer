@@ -100,7 +100,7 @@ int main(int argc, char* argv[])
       {
       application.setRequestedRenderMode(renderMode);
       }
-    application.Initialize();
+    application.initialize();
     application.run();
     return 0;
     }

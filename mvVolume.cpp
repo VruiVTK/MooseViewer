@@ -16,8 +16,9 @@
 
 #include <GL/GLContextData.h>
 
+#include <vvContextState.h>
+
 #include "mvApplicationState.h"
-#include "mvContextState.h"
 #include "mvReader.h"
 
 //------------------------------------------------------------------------------
@@ -32,8 +33,11 @@ mvVolume::VolumeState::VolumeState()
 
 //------------------------------------------------------------------------------
 void mvVolume::LoResDataPipeline::configure(const ObjectState &,
-                                            const mvApplicationState &appState)
+                                            const vvApplicationState &vvState)
 {
+  const mvApplicationState &appState =
+      static_cast<const mvApplicationState &>(vvState);
+
   // Grab the current data object pointer.
   this->reducedDataObject = appState.reader().reducedDataObject();
 }
@@ -96,17 +100,19 @@ mvVolume::VolumeRenderPipeline::VolumeRenderPipeline()
 
 //------------------------------------------------------------------------------
 void mvVolume::VolumeRenderPipeline::init(const ObjectState &,
-                                          mvContextState &contextState)
+                                          vvContextState &contextState)
 {
   contextState.renderer().AddVolume(this->actor.Get());
 }
 
 //------------------------------------------------------------------------------
 void mvVolume::VolumeRenderPipeline::update(const ObjectState &objState,
-                                            const mvApplicationState &appState,
-                                            const mvContextState &contextState,
+                                            const vvApplicationState &vvState,
+                                            const vvContextState &contextState,
                                             const LODData &result)
 {
+  const mvApplicationState &appState =
+      static_cast<const mvApplicationState &>(vvState);
   const VolumeState &state = static_cast<const VolumeState&>(objState);
   const VolumeLODData &data = static_cast<const VolumeLODData&>(result);
 
@@ -184,8 +190,10 @@ mvVolume::HiResDataPipeline::HiResDataPipeline()
 
 //------------------------------------------------------------------------------
 void mvVolume::HiResDataPipeline::configure(const ObjectState &objState,
-                                            const mvApplicationState &appState)
+                                            const vvApplicationState &vvState)
 {
+  const mvApplicationState &appState =
+      static_cast<const mvApplicationState &>(vvState);
   const VolumeState &state = static_cast<const VolumeState&>(objState);
 
   if (!appState.reader().dataObject())
@@ -315,13 +323,13 @@ void mvVolume::setDimension(double d)
 }
 
 //------------------------------------------------------------------------------
-mvLODAsyncGLObject::ObjectState* mvVolume::createObjectState() const
+vvLODAsyncGLObject::ObjectState* mvVolume::createObjectState() const
 {
   return new VolumeState;
 }
 
 //------------------------------------------------------------------------------
-mvLODAsyncGLObject::DataPipeline*
+vvLODAsyncGLObject::DataPipeline*
 mvVolume::createDataPipeline(LevelOfDetail lod) const
 {
   switch (lod)
@@ -341,7 +349,7 @@ mvVolume::createDataPipeline(LevelOfDetail lod) const
 }
 
 //------------------------------------------------------------------------------
-mvLODAsyncGLObject::RenderPipeline*
+vvLODAsyncGLObject::RenderPipeline*
 mvVolume::createRenderPipeline(LevelOfDetail lod) const
 {
   switch (lod)
@@ -359,7 +367,7 @@ mvVolume::createRenderPipeline(LevelOfDetail lod) const
 }
 
 //------------------------------------------------------------------------------
-mvLODAsyncGLObject::LODData*
+vvLODAsyncGLObject::LODData*
 mvVolume::createLODData(LevelOfDetail lod) const
 {
   switch (lod)

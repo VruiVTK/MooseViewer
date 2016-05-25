@@ -1,7 +1,7 @@
 #ifndef MVVOLUME_H
 #define MVVOLUME_H
 
-#include "mvLODAsyncGLObject.h"
+#include "vvLODAsyncGLObject.h"
 
 #include <vtkNew.h>
 #include <vtkSmartPointer.h>
@@ -21,16 +21,16 @@ class vtkVolumeProperty;
 /**
  * @brief The mvVolume class renders the dataset as a volume.
  */
-class mvVolume : public mvLODAsyncGLObject
+class mvVolume : public vvLODAsyncGLObject
 {
 public:
-  using Superclass = mvLODAsyncGLObject;
+  using Superclass = vvLODAsyncGLObject;
 
   // Volume state: -------------------------------------------------------------
   struct VolumeState : public Superclass::ObjectState
   {
     VolumeState();
-    void update(const mvApplicationState &state) override {}
+    void update(const vvApplicationState &state) override {}
     int renderMode;
     bool visible;
 
@@ -47,7 +47,7 @@ public:
 
     // pipeline is a no-op
     bool forceSynchronousUpdates() const override { return true; }
-    void configure(const ObjectState &, const mvApplicationState &) override;
+    void configure(const ObjectState &, const vvApplicationState &) override;
     bool needsUpdate(const ObjectState &objState,
                      const LODData &result) const override;
     void execute() override {}
@@ -72,10 +72,10 @@ public:
 
     VolumeRenderPipeline();
     void init(const ObjectState &objState,
-              mvContextState &contextState) override;
+              vvContextState &contextState) override;
     void update(const ObjectState &objState,
-                const mvApplicationState &appState,
-                const mvContextState &contextState,
+                const vvApplicationState &appState,
+                const vvContextState &contextState,
                 const LODData &result) override;
     void disable();
   };
@@ -90,7 +90,7 @@ public:
 
     HiResDataPipeline();
     void configure(const ObjectState &objState,
-                   const mvApplicationState &appState) override;
+                   const vvApplicationState &appState) override;
     bool needsUpdate(const ObjectState &objState,
                      const LODData &result) const override;
     void execute() override;
@@ -126,7 +126,7 @@ public:
   double dimension() const;
   void setDimension(double d);
 
-private: // mvLODAsyncGLObject virtual API:
+private: // vvLODAsyncGLObject virtual API:
   std::string progressLabel() const override { return "Volume"; }
 
   ObjectState* createObjectState() const override;

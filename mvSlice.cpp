@@ -18,8 +18,9 @@
 #include <vtkSampleImplicitFunctionFilter.h>
 #include <vtkSMPContourGrid.h>
 
+#include <vvContextState.h>
+
 #include "mvApplicationState.h"
-#include "mvContextState.h"
 #include "mvInteractor.h"
 #include "mvReader.h"
 
@@ -27,8 +28,11 @@
 #include <iostream>
 
 //------------------------------------------------------------------------------
-void mvSlice::SliceState::update(const mvApplicationState &appState)
+void mvSlice::SliceState::update(const vvApplicationState &vvState)
 {
+  const mvApplicationState &appState =
+      static_cast<const mvApplicationState &>(vvState);
+
   if (!this->visible || !appState.interactor().isInteracting())
     {
     return;
@@ -78,8 +82,10 @@ mvSlice::HintDataPipeline::HintDataPipeline()
 
 //------------------------------------------------------------------------------
 void mvSlice::HintDataPipeline::configure(const ObjectState &objState,
-                                          const mvApplicationState &appState)
+                                          const vvApplicationState &vvState)
 {
+  const mvApplicationState &appState =
+      static_cast<const mvApplicationState &>(vvState);
   const SliceState& sliceState = static_cast<const SliceState&>(objState);
 
   // Cut a plane from a simple image data:
@@ -138,15 +144,15 @@ mvSlice::HintRenderPipeline::HintRenderPipeline()
 
 //------------------------------------------------------------------------------
 void mvSlice::HintRenderPipeline::init(const ObjectState &,
-                                       mvContextState &contextState)
+                                       vvContextState &contextState)
 {
   contextState.renderer().AddActor(this->actor.Get());
 }
 
 //------------------------------------------------------------------------------
 void mvSlice::HintRenderPipeline::update(const ObjectState &objState,
-                                         const mvApplicationState &,
-                                         const mvContextState &,
+                                         const vvApplicationState &,
+                                         const vvContextState &,
                                          const LODData &result)
 {
   const SliceState& sliceState = static_cast<const SliceState&>(objState);
@@ -178,8 +184,11 @@ mvSlice::LoResDataPipeline::LoResDataPipeline()
 
 //------------------------------------------------------------------------------
 void mvSlice::LoResDataPipeline::configure(const ObjectState &objState,
-                                           const mvApplicationState &appState)
+                                           const vvApplicationState &vvState)
 {
+  const mvApplicationState &appState =
+      static_cast<const mvApplicationState &>(vvState);
+
   const SliceState& sliceState = static_cast<const SliceState&>(objState);
 
   // Only support point scalars:
@@ -247,17 +256,19 @@ mvSlice::LoResRenderPipeline::LoResRenderPipeline()
 
 //------------------------------------------------------------------------------
 void mvSlice::LoResRenderPipeline::init(const ObjectState &objState,
-                                        mvContextState &contextState)
+                                        vvContextState &contextState)
 {
   contextState.renderer().AddActor(this->actor.Get());
 }
 
 //------------------------------------------------------------------------------
 void mvSlice::LoResRenderPipeline::update(const ObjectState &objState,
-                                          const mvApplicationState &appState,
-                                          const mvContextState &contextState,
+                                          const vvApplicationState &vvState,
+                                          const vvContextState &contextState,
                                           const LODData &result)
 {
+  const mvApplicationState &appState =
+      static_cast<const mvApplicationState &>(vvState);
   const SliceState& sliceState = static_cast<const SliceState&>(objState);
   const LoResLODData& data = static_cast<const LoResLODData&>(result);
 
@@ -329,8 +340,10 @@ mvSlice::HiResDataPipeline::HiResDataPipeline()
 
 //------------------------------------------------------------------------------
 void mvSlice::HiResDataPipeline::configure(const ObjectState &objState,
-                                           const mvApplicationState &appState)
+                                           const vvApplicationState &vvState)
 {
+  const mvApplicationState &appState =
+      static_cast<const mvApplicationState &>(vvState);
   const SliceState& sliceState = static_cast<const SliceState&>(objState);
 
   this->addPlane->SetInputDataObject(appState.reader().dataObject());
@@ -389,17 +402,19 @@ mvSlice::HiResRenderPipeline::HiResRenderPipeline()
 
 //------------------------------------------------------------------------------
 void mvSlice::HiResRenderPipeline::init(const ObjectState &objState,
-                                        mvContextState &contextState)
+                                        vvContextState &contextState)
 {
   contextState.renderer().AddActor(this->actor.Get());
 }
 
 //------------------------------------------------------------------------------
 void mvSlice::HiResRenderPipeline::update(const ObjectState &objState,
-                                          const mvApplicationState &appState,
-                                          const mvContextState &contextState,
+                                          const vvApplicationState &vvState,
+                                          const vvContextState &contextState,
                                           const LODData &result)
 {
+  const mvApplicationState &appState =
+      static_cast<const mvApplicationState &>(vvState);
   const SliceState& sliceState = static_cast<const SliceState&>(objState);
   const HiResLODData& data = static_cast<const HiResLODData&>(result);
 
@@ -459,13 +474,13 @@ mvSlice::~mvSlice()
 }
 
 //------------------------------------------------------------------------------
-mvLODAsyncGLObject::ObjectState *mvSlice::createObjectState() const
+vvLODAsyncGLObject::ObjectState *mvSlice::createObjectState() const
 {
   return new SliceState;
 }
 
 //------------------------------------------------------------------------------
-mvLODAsyncGLObject::DataPipeline*
+vvLODAsyncGLObject::DataPipeline*
 mvSlice::createDataPipeline(LevelOfDetail lod) const
 {
   switch (lod)
@@ -485,7 +500,7 @@ mvSlice::createDataPipeline(LevelOfDetail lod) const
 }
 
 //------------------------------------------------------------------------------
-mvLODAsyncGLObject::RenderPipeline*
+vvLODAsyncGLObject::RenderPipeline*
 mvSlice::createRenderPipeline(LevelOfDetail lod) const
 {
   switch (lod)
@@ -505,7 +520,7 @@ mvSlice::createRenderPipeline(LevelOfDetail lod) const
 }
 
 //------------------------------------------------------------------------------
-mvLODAsyncGLObject::LODData*
+vvLODAsyncGLObject::LODData*
 mvSlice::createLODData(LevelOfDetail lod) const
 {
   switch (lod)

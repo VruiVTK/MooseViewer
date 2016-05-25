@@ -1,7 +1,7 @@
 #ifndef MVGEOMETRY_H
 #define MVGEOMETRY_H
 
-#include "mvLODAsyncGLObject.h"
+#include "vvLODAsyncGLObject.h"
 
 #include <vtkNew.h>
 #include <vtkSmartPointer.h>
@@ -14,10 +14,10 @@ class vtkPolyDataMapper;
 /**
  * @brief The mvGeometry class renders the dataset as polydata.
  */
-class mvGeometry : public mvLODAsyncGLObject
+class mvGeometry : public vvLODAsyncGLObject
 {
 public:
-  using Superclass = mvLODAsyncGLObject;
+  using Superclass = vvLODAsyncGLObject;
 
   enum Representation
     {
@@ -34,7 +34,7 @@ public:
     Representation representation{Surface};
     bool visible{true};
 
-    void update(const mvApplicationState &state) override {}
+    void update(const vvApplicationState &state) override {}
   };
 
   // LoRes LOD: ----------------------------------------------------------------
@@ -45,9 +45,9 @@ public:
 
     // Returns the dataset to use. This is the only difference between the
     // LoRes and HiRes pipelines, so this should save some duplication.
-    virtual vtkDataObject* input(const mvApplicationState &state) const;
+    virtual vtkDataObject* input(const vvApplicationState &state) const;
 
-    void configure(const ObjectState &, const mvApplicationState &) override;
+    void configure(const ObjectState &, const vvApplicationState &) override;
     bool needsUpdate(const ObjectState &objState,
                      const LODData &result) const override;
     void execute() override;
@@ -58,7 +58,7 @@ public:
   // Run vtkCompositeDataGeometryFilter on the full dataset:
   struct HiResDataPipeline : public LoResDataPipeline
   {
-    vtkDataObject* input(const mvApplicationState &state) const override;
+    vtkDataObject* input(const vvApplicationState &state) const override;
   };
 
   // Shared: LODData and RenderPipeline are shared between LoRes and HiRes. ----
@@ -73,10 +73,10 @@ public:
     vtkNew<vtkActor> actor;
 
     void init(const ObjectState &objState,
-              mvContextState &contextState) override;
+              vvContextState &contextState) override;
     void update(const ObjectState &objState,
-                const mvApplicationState &appState,
-                const mvContextState &contextState,
+                const vvApplicationState &appState,
+                const vvContextState &contextState,
                 const LODData &result) override;
     void disable();
   };
@@ -103,7 +103,7 @@ public:
   Representation representation() const;
   void setRepresentation(Representation representation);
 
-private: // mvAsyncGLObject virtual API:
+private: // vvAsyncGLObject virtual API:
   std::string progressLabel() const override { return "Geometry"; }
 
   ObjectState* createObjectState() const override;

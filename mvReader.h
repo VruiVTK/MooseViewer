@@ -13,14 +13,14 @@
 #include <string>
 #include <vector>
 
-class mvApplicationState;
-class mvProgressCookie;
 class vtkDataObject;
 class vtkExodusIIReader;
 class vtkImageData;
 class vtkMultiBlockDataSet;
 class vtkPointInterpolator;
 class vtkVoronoiKernel;
+class vvApplicationState;
+class vvProgressCookie;
 
 /**
  * @brief The mvReader class manages loading the current dataset from a
@@ -55,7 +55,7 @@ public:
    * update heavier data (e.g. dataObject(), variableMetaData(), ...) the
    * first time it is called after a background read completes.
    */
-  void update(const mvApplicationState &appState);
+  void update(const vvApplicationState &appState);
 
   /**
    * This immediately and synchronously reads the file's metadata and updates
@@ -191,7 +191,7 @@ private:
   void updateInformationCache();
   void updateDataCache();
 
-  void syncReducerState(const mvApplicationState &appState);
+  void syncReducerState(const vvApplicationState &appState);
   bool reducerNeedsUpdate();
   bool invalidateReducedData();
   void executeReducer();
@@ -199,14 +199,14 @@ private:
 
 private:
   std::future<void> m_future;
-  mvProgressCookie *m_cookie;
+  vvProgressCookie *m_cookie;
   vtkNew<vtkExodusIIReader> m_reader;
 
   vtkSmartPointer<vtkMultiBlockDataSet> m_data;
   VariableMetaDataMap m_variableMap;
 
   std::future<void> m_reducerFuture;
-  mvProgressCookie *m_reducerCookie;
+  vvProgressCookie *m_reducerCookie;
   vtkNew<vtkImageData> m_reducerSeed;
   vtkNew<vtkVoronoiKernel> m_reducerKernel;
   vtkNew<vtkPointInterpolator> m_reducer;

@@ -1,13 +1,17 @@
 #ifndef MVAPPLICATIONSTATE_H
 #define MVAPPLICATIONSTATE_H
 
+#include <vvApplicationState.h>
+
+#include <vtkTimeStamp.h>
+
+#include <string>
+#include <vector>
+
 class mvContours;
-class mvFramerate;
 class mvGeometry;
-class mvGLObject;
 class mvInteractor;
 class mvOutline;
-class mvProgress;
 class mvReader;
 class mvSlice;
 class mvVolume;
@@ -15,29 +19,21 @@ class vtkExodusIIReader;
 class vtkLookupTable;
 class WidgetHints;
 
-#include <vtkTimeStamp.h>
-
-#include <string>
-#include <vector>
-
 /**
  * @brief The mvApplicationState class holds MooseViewer application state.
  *
- * mvApplicationState holds application state needed by mvGLObjects.
- * An instance of this class is used to update mvGLObjects via
- * mvGLObject::syncApplicationState in MooseViewer::frame().
+ * mvApplicationState holds application state needed by vvGLObjects.
+ * An instance of this class is used to update vvGLObjects via
+ * vvGLObject::syncApplicationState in MooseViewer::frame().
  */
-class mvApplicationState
+class mvApplicationState : public vvApplicationState
 {
 public:
-  using Objects = std::vector<mvGLObject*>;
-
+  using Superclass = vvApplicationState;
   mvApplicationState();
   ~mvApplicationState();
 
-  /** List of all mvGLObjects. */
-  Objects& objects() { return m_objects; }
-  const Objects& objects() const { return m_objects; }
+  void init() override;
 
   /** Currently selected array for scalar color mapping, etc. */
   const std::string& colorByArray() const { return m_colorByArray; }
@@ -52,10 +48,6 @@ public:
   mvContours& contours() { return *m_contours; }
   const mvContours& contours() const { return *m_contours; }
 
-  /** Framerate overlay. */
-  mvFramerate& framerate() { return *m_framerate; }
-  const mvFramerate& framerate() const { return *m_framerate; }
-
   /** Main polydata geometry rendering. */
   mvGeometry& geometry() { return *m_geometry; }
   const mvGeometry& geometry() const { return *m_geometry; }
@@ -67,11 +59,6 @@ public:
   /** Render dataset outline. */
   mvOutline& outline() { return *m_outline; }
   const mvOutline& outline() const { return *m_outline; }
-
-  /** Async progress monitor.
-   * Unfortunately not const-correct, since this needs to be modified in
-   * mvAsyncGLObject::syncApplicationState(const mvAppState&). */
-  mvProgress& progress() const { return *m_progress; }
 
   /** File reader.
    * Access is not const-correct because VTK is not const-correct. */
@@ -94,17 +81,13 @@ private:
   mvApplicationState(const mvApplicationState&);
   mvApplicationState& operator=(const mvApplicationState&);
 
-  Objects m_objects;
-
   vtkLookupTable *m_colorMap;
   std::string m_colorByArray;
   vtkTimeStamp m_colorByMTime;
   mvContours *m_contours;
-  mvFramerate *m_framerate;
   mvGeometry *m_geometry;
   mvInteractor *m_interactor;
   mvOutline *m_outline;
-  mvProgress *m_progress;
   mvReader *m_reader;
   mvSlice *m_slice;
   mvVolume *m_volume;

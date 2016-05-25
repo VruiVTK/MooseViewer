@@ -3,33 +3,48 @@
 #include <Vrui/Tool.h>
 #include <Vrui/Vrui.h>
 
+#include <cassert>
+
 //------------------------------------------------------------------------------
 mvInteractor::mvInteractor()
-  : m_state(NoInteraction),
+  : m_state(Uninitialized),
     m_tool(nullptr)
 {
+}
+
+//------------------------------------------------------------------------------
+mvInteractor::~mvInteractor()
+{
+  if (m_state != Uninitialized)
+    {
+    Vrui::ToolManager *toolMgr = Vrui::getToolManager();
+
+    toolMgr->getToolCreationCallbacks().remove(
+          const_cast<mvInteractor*>(this), &mvInteractor::_cb_toolCreation);
+    toolMgr->getToolDestructionCallbacks().remove(
+          const_cast<mvInteractor*>(this), &mvInteractor::_cb_toolDestruction);
+
+    if (m_tool)
+      {
+      this->unbindTool(m_tool);
+      }
+    }
+}
+
+//------------------------------------------------------------------------------
+void mvInteractor::init()
+{
+  assert("Attempted to re-initialize mvInteractor." &&
+         m_state == Uninitialized);
+
   Vrui::ToolManager *toolMgr = Vrui::getToolManager();
 
   toolMgr->getToolCreationCallbacks().add(
         const_cast<mvInteractor*>(this), &mvInteractor::_cb_toolCreation);
   toolMgr->getToolDestructionCallbacks().add(
         const_cast<mvInteractor*>(this), &mvInteractor::_cb_toolDestruction);
-}
 
-//------------------------------------------------------------------------------
-mvInteractor::~mvInteractor()
-{
-  Vrui::ToolManager *toolMgr = Vrui::getToolManager();
-
-  toolMgr->getToolCreationCallbacks().remove(
-        const_cast<mvInteractor*>(this), &mvInteractor::_cb_toolCreation);
-  toolMgr->getToolDestructionCallbacks().remove(
-        const_cast<mvInteractor*>(this), &mvInteractor::_cb_toolDestruction);
-
-  if (m_tool)
-    {
-    this->unbindTool(m_tool);
-    }
+  m_state = NoInteraction;
 }
 
 //------------------------------------------------------------------------------

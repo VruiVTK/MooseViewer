@@ -35,15 +35,16 @@
 #include <Vrui/VRWindow.h>
 #include <Vrui/WindowProperties.h>
 
+// vtkVRUI includes
+#include <vvFramerate.h>
+
 // MooseViewer includes
 #include "AnimationDialog.h"
 #include "ColorMap.h"
 #include "Contours.h"
 #include "MooseViewer.h"
 #include "mvApplicationState.h"
-#include "mvContextState.h"
 #include "mvContours.h"
-#include "mvFramerate.h"
 #include "mvGeometry.h"
 #include "mvInteractorTool.h"
 #include "mvMouseRotationTool.h"
@@ -59,29 +60,20 @@
 
 //----------------------------------------------------------------------------
 MooseViewer::MooseViewer(int& argc,char**& argv)
-  :Vrui::Application(argc,argv),
-  colorByVariablesMenu(0),
-  ContoursDialog(NULL),
-  Histogram(new float[256]),
-  IsPlaying(false),
-  Loop(false),
-  mainMenu(NULL),
-  m_colorMapCache(new double[256 * 4]),
-  opacityValue(NULL),
-  renderingDialog(NULL),
-  sampleValue(NULL),
-  variablesDialog(0)
+  : Superclass(argc, argv, new mvApplicationState),
+    m_mvState(*static_cast<mvApplicationState*>(m_state)),
+    colorByVariablesMenu(0),
+    ContoursDialog(NULL),
+    Histogram(new float[256]),
+    IsPlaying(false),
+    Loop(false),
+    mainMenu(NULL),
+    m_colorMapCache(new double[256 * 4]),
+    opacityValue(NULL),
+    renderingDialog(NULL),
+    sampleValue(NULL),
+    variablesDialog(0)
 {
-  /* Set Window properties:
-   * Since the application requires translucency, GLX_ALPHA_SIZE is set to 1 at
-   * context (VRWindow) creation time. To do this, we set the 4th component of
-   * ColorBufferSize in WindowProperties to 1. This should be done in the
-   * constructor to make sure it is set before the main loop is called.
-   */
-  Vrui::WindowProperties properties;
-  properties.setColorBufferSize(0,1);
-  Vrui::requestWindowProperties(properties);
-
   std::fill(m_colorMapCache, m_colorMapCache + 4 * 256, -1.); // invalid
   std::fill(this->Histogram, this->Histogram + 256, 0.f);
 
@@ -97,17 +89,12 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
   factory = new mvMouseRotationToolFactory(*toolMgr);
   toolMgr->addClass(factory, Vrui::ToolManager::defaultToolFactoryDestructor);
 
-  for (auto object : m_state.objects())
-    {
-    object->init(m_state);
-    }
-
   // TESTING: Enable benchmarking output:
-  m_state.reader().setBenchmark(true);
-  m_state.slice().setBenchmark(true);
-  m_state.contours().setBenchmark(true);
-  m_state.volume().setBenchmark(true);
-  m_state.geometry().setBenchmark(true);
+  m_mvState.reader().setBenchmark(true);
+  m_mvState.slice().setBenchmark(true);
+  m_mvState.contours().setBenchmark(true);
+  m_mvState.volume().setBenchmark(true);
+  m_mvState.geometry().setBenchmark(true);
 }
 
 //----------------------------------------------------------------------------
@@ -125,18 +112,20 @@ MooseViewer::~MooseViewer(void)
 }
 
 //----------------------------------------------------------------------------
-void MooseViewer::Initialize()
+void MooseViewer::initialize()
 {
+  this->Superclass::initialize();
+
   // Start async file read.
-  m_state.reader().update(m_state);
+  m_mvState.reader().update(m_mvState);
 
   if (!this->widgetHintsFile.empty())
     {
-    m_state.widgetHints().loadFile(this->widgetHintsFile);
+    m_mvState.widgetHints().loadFile(this->widgetHintsFile);
     }
   else
     {
-    m_state.widgetHints().reset();
+    m_mvState.widgetHints().reset();
     }
 
   /* Create the user interface: */
@@ -170,24 +159,24 @@ void MooseViewer::Initialize()
 
   // TODO This is ugly, it'd be great to find a way around this.
   // Force sync reader output:
-  while (m_state.reader().running(std::chrono::seconds(1)))
+  while (m_mvState.reader().running(std::chrono::seconds(1)))
     {
     std::cout << "Waiting for initial file read to complete..." << std::endl;
     }
-  m_state.reader().update(m_state); // Update cached data object
+  m_mvState.reader().update(m_mvState); // Update cached data object
 }
 
 //----------------------------------------------------------------------------
 void MooseViewer::setFileName(const std::string &name)
 {
-  m_state.reader().setFileName(name);
-  m_state.reader().updateInformation();
+  m_mvState.reader().setFileName(name);
+  m_mvState.reader().updateInformation();
 }
 
 //----------------------------------------------------------------------------
 const std::string& MooseViewer::getFileName(void)
 {
-  return m_state.reader().fileName();
+  return m_mvState.reader().fileName();
 }
 
 //----------------------------------------------------------------------------
@@ -203,32 +192,20 @@ const std::string& MooseViewer::getWidgetHintsFile()
 }
 
 //----------------------------------------------------------------------------
-void MooseViewer::setShowFPS(bool show)
-{
-  m_state.framerate().setVisible(show);
-}
-
-//----------------------------------------------------------------------------
-bool MooseViewer::getShowFPS() const
-{
-  return m_state.framerate().visible();
-}
-
-//----------------------------------------------------------------------------
 GLMotif::PopupMenu* MooseViewer::createMainMenu(void)
 {
-  if (!m_state.widgetHints().isEnabled("MainMenu"))
+  if (!m_mvState.widgetHints().isEnabled("MainMenu"))
     {
     std::cerr << "Ignoring hint to hide MainMenu." << std::endl;
     }
-  m_state.widgetHints().pushGroup("MainMenu");
+  m_mvState.widgetHints().pushGroup("MainMenu");
 
   GLMotif::PopupMenu* mainMenuPopup =
     new GLMotif::PopupMenu("MainMenuPopup",Vrui::getWidgetManager());
   mainMenuPopup->setTitle("Main Menu");
   GLMotif::Menu* mainMenu = new GLMotif::Menu("MainMenu",mainMenuPopup,false);
 
-  if (m_state.widgetHints().isEnabled("Variables"))
+  if (m_mvState.widgetHints().isEnabled("Variables"))
     {
     GLMotif::ToggleButton *showVariablesDialog =
         new GLMotif::ToggleButton("ShowVariablesDialog", mainMenu, "Variables");
@@ -237,7 +214,7 @@ GLMotif::PopupMenu* MooseViewer::createMainMenu(void)
           this, &MooseViewer::showVariableDialogCallback);
     }
 
-  if (m_state.widgetHints().isEnabled("ColorBy"))
+  if (m_mvState.widgetHints().isEnabled("ColorBy"))
     {
     GLMotif::CascadeButton* colorByVariablesCascade =
         new GLMotif::CascadeButton("colorByVariablesCascade", mainMenu,
@@ -245,14 +222,14 @@ GLMotif::PopupMenu* MooseViewer::createMainMenu(void)
     colorByVariablesCascade->setPopup(createColorByVariablesMenu());
     }
 
-  if (m_state.widgetHints().isEnabled("ColorMap"))
+  if (m_mvState.widgetHints().isEnabled("ColorMap"))
     {
     GLMotif::CascadeButton * colorMapSubCascade =
         new GLMotif::CascadeButton("ColorMapSubCascade", mainMenu, "Color Map");
     colorMapSubCascade->setPopup(createColorMapSubMenu());
     }
 
-  if (m_state.widgetHints().isEnabled("ColorEditor"))
+  if (m_mvState.widgetHints().isEnabled("ColorEditor"))
     {
     GLMotif::ToggleButton * showColorEditorDialog =
         new GLMotif::ToggleButton("ShowColorEditorDialog", mainMenu,
@@ -262,7 +239,7 @@ GLMotif::PopupMenu* MooseViewer::createMainMenu(void)
           this, &MooseViewer::showColorEditorDialogCallback);
     }
 
-  if (m_state.widgetHints().isEnabled("Animation"))
+  if (m_mvState.widgetHints().isEnabled("Animation"))
     {
     GLMotif::ToggleButton * showAnimationDialog =
         new GLMotif::ToggleButton("ShowAnimationDialog", mainMenu,
@@ -272,7 +249,7 @@ GLMotif::PopupMenu* MooseViewer::createMainMenu(void)
           this, &MooseViewer::showAnimationDialogCallback);
     }
 
-  if (m_state.widgetHints().isEnabled("Representation"))
+  if (m_mvState.widgetHints().isEnabled("Representation"))
     {
     GLMotif::CascadeButton* representationCascade =
         new GLMotif::CascadeButton("RepresentationCascade", mainMenu,
@@ -280,7 +257,7 @@ GLMotif::PopupMenu* MooseViewer::createMainMenu(void)
     representationCascade->setPopup(createRepresentationMenu());
     }
 
-  if (m_state.widgetHints().isEnabled("AnalysisTools"))
+  if (m_mvState.widgetHints().isEnabled("AnalysisTools"))
     {
     GLMotif::CascadeButton* analysisToolsCascade =
         new GLMotif::CascadeButton("AnalysisToolsCascade", mainMenu,
@@ -288,7 +265,7 @@ GLMotif::PopupMenu* MooseViewer::createMainMenu(void)
     analysisToolsCascade->setPopup(createAnalysisToolsMenu());
     }
 
-  if (m_state.widgetHints().isEnabled("Contours"))
+  if (m_mvState.widgetHints().isEnabled("Contours"))
     {
     GLMotif::ToggleButton * showContoursDialog = new GLMotif::ToggleButton(
           "ShowContoursDialog", mainMenu, "Contours");
@@ -297,7 +274,7 @@ GLMotif::PopupMenu* MooseViewer::createMainMenu(void)
           this, &MooseViewer::showContoursDialogCallback);
     }
 
-  if (m_state.widgetHints().isEnabled("CenterDisplay"))
+  if (m_mvState.widgetHints().isEnabled("CenterDisplay"))
     {
     GLMotif::Button* centerDisplayButton =
         new GLMotif::Button("CenterDisplayButton",mainMenu,"Center Display");
@@ -305,7 +282,7 @@ GLMotif::PopupMenu* MooseViewer::createMainMenu(void)
           this, &MooseViewer::centerDisplayCallback);
     }
 
-  if (m_state.widgetHints().isEnabled("ToggleFPS"))
+  if (m_mvState.widgetHints().isEnabled("ToggleFPS"))
     {
     GLMotif::Button* toggleFPSButton =
         new GLMotif::Button("ToggleFPS",mainMenu,"Toggle FPS");
@@ -313,7 +290,7 @@ GLMotif::PopupMenu* MooseViewer::createMainMenu(void)
           this, &MooseViewer::toggleFPSCallback);
     }
 
-  if (m_state.widgetHints().isEnabled("Rendering"))
+  if (m_mvState.widgetHints().isEnabled("Rendering"))
     {
     GLMotif::ToggleButton * showRenderingDialog =
         new GLMotif::ToggleButton("ShowRenderingDialog", mainMenu,
@@ -325,7 +302,7 @@ GLMotif::PopupMenu* MooseViewer::createMainMenu(void)
 
   mainMenu->manageChild();
 
-  m_state.widgetHints().popGroup();
+  m_mvState.widgetHints().popGroup();
 
   return mainMenuPopup;
 }
@@ -333,7 +310,7 @@ GLMotif::PopupMenu* MooseViewer::createMainMenu(void)
 //----------------------------------------------------------------------------
 GLMotif::Popup* MooseViewer::createRepresentationMenu(void)
 {
-  m_state.widgetHints().pushGroup("Representation");
+  m_mvState.widgetHints().pushGroup("Representation");
 
   const GLMotif::StyleSheet* ss = Vrui::getWidgetManager()->getStyleSheet();
 
@@ -342,7 +319,7 @@ GLMotif::Popup* MooseViewer::createRepresentationMenu(void)
   GLMotif::SubMenu* representationMenu = new GLMotif::SubMenu(
     "representationMenu", representationMenuPopup, false);
 
-  if (m_state.widgetHints().isEnabled("Outline"))
+  if (m_mvState.widgetHints().isEnabled("Outline"))
     {
     GLMotif::ToggleButton* showOutline=new GLMotif::ToggleButton(
           "ShowOutline",representationMenu,"Outline");
@@ -351,7 +328,7 @@ GLMotif::Popup* MooseViewer::createRepresentationMenu(void)
     showOutline->setToggle(true);
     }
 
-  if (m_state.widgetHints().isEnabled("Representations"))
+  if (m_mvState.widgetHints().isEnabled("Representations"))
     {
     GLMotif::Label* representation_Label = new GLMotif::Label(
           "Representations", representationMenu,"Representations:");
@@ -364,28 +341,28 @@ GLMotif::Popup* MooseViewer::createRepresentationMenu(void)
   // is chosen.
   GLMotif::ToggleButton *selected = NULL;
 
-  if (m_state.widgetHints().isEnabled("None"))
+  if (m_mvState.widgetHints().isEnabled("None"))
     {
     GLMotif::ToggleButton* showNone=new GLMotif::ToggleButton(
           "ShowNone",representation_RadioBox,"None");
     showNone->getValueChangedCallbacks().add(
           this,&MooseViewer::changeRepresentationCallback);
     }
-  if (m_state.widgetHints().isEnabled("Points"))
+  if (m_mvState.widgetHints().isEnabled("Points"))
     {
     GLMotif::ToggleButton* showPoints=new GLMotif::ToggleButton(
           "ShowPoints",representation_RadioBox,"Points");
     showPoints->getValueChangedCallbacks().add(
           this,&MooseViewer::changeRepresentationCallback);
     }
-  if (m_state.widgetHints().isEnabled("Wireframe"))
+  if (m_mvState.widgetHints().isEnabled("Wireframe"))
     {
     GLMotif::ToggleButton* showWireframe=new GLMotif::ToggleButton(
           "ShowWireframe",representation_RadioBox,"Wireframe");
     showWireframe->getValueChangedCallbacks().add(
           this,&MooseViewer::changeRepresentationCallback);
     }
-  if (m_state.widgetHints().isEnabled("Surface"))
+  if (m_mvState.widgetHints().isEnabled("Surface"))
     {
     GLMotif::ToggleButton* showSurface=new GLMotif::ToggleButton(
           "ShowSurface",representation_RadioBox,"Surface");
@@ -393,14 +370,14 @@ GLMotif::Popup* MooseViewer::createRepresentationMenu(void)
           this,&MooseViewer::changeRepresentationCallback);
     selected = showSurface;
     }
-  if (m_state.widgetHints().isEnabled("SurfaceWithEdges"))
+  if (m_mvState.widgetHints().isEnabled("SurfaceWithEdges"))
     {
     GLMotif::ToggleButton* showSurfaceWithEdges=new GLMotif::ToggleButton(
           "ShowSurfaceWithEdges",representation_RadioBox,"Surface with Edges");
     showSurfaceWithEdges->getValueChangedCallbacks().add(
           this,&MooseViewer::changeRepresentationCallback);
     }
-  if (m_state.widgetHints().isEnabled("Volume"))
+  if (m_mvState.widgetHints().isEnabled("Volume"))
     {
     GLMotif::ToggleButton* showVolume=new GLMotif::ToggleButton(
           "ShowVolume",representation_RadioBox,"Volume");
@@ -419,14 +396,14 @@ GLMotif::Popup* MooseViewer::createRepresentationMenu(void)
     }
 
   representationMenu->manageChild();
-  m_state.widgetHints().popGroup();
+  m_mvState.widgetHints().popGroup();
   return representationMenuPopup;
 }
 
 //----------------------------------------------------------------------------
 GLMotif::Popup * MooseViewer::createAnalysisToolsMenu(void)
 {
-  m_state.widgetHints().pushGroup("AnalysisTools");
+  m_mvState.widgetHints().pushGroup("AnalysisTools");
 
   const GLMotif::StyleSheet* ss = Vrui::getWidgetManager()->getStyleSheet();
 
@@ -438,7 +415,7 @@ GLMotif::Popup * MooseViewer::createAnalysisToolsMenu(void)
   GLMotif::RadioBox * analysisTools_RadioBox = new GLMotif::RadioBox(
     "analysisTools", analysisToolsMenu, true);
 
-  if (m_state.widgetHints().isEnabled("Slice"))
+  if (m_mvState.widgetHints().isEnabled("Slice"))
     {
     GLMotif::ToggleButton *showSlice = new GLMotif::ToggleButton(
           "Slice", analysisTools_RadioBox, "Slice");
@@ -449,7 +426,7 @@ GLMotif::Popup * MooseViewer::createAnalysisToolsMenu(void)
   analysisTools_RadioBox->setSelectionMode(GLMotif::RadioBox::ATMOST_ONE);
 
   analysisToolsMenu->manageChild();
-  m_state.widgetHints().popGroup();
+  m_mvState.widgetHints().popGroup();
   return analysisToolsMenuPopup;
 }
 
@@ -472,7 +449,7 @@ void MooseViewer::updateVariablesDialog(void)
 {
   // Add to dialog:
   this->variablesDialog->clearAllVariables();
-  for (const auto &var : m_state.reader().availableVariables())
+  for (const auto &var : m_mvState.reader().availableVariables())
     {
     this->variablesDialog->addVariable(var);
     }
@@ -482,7 +459,7 @@ void MooseViewer::updateVariablesDialog(void)
 void MooseViewer::updateColorByVariablesMenu(void)
 {
   /* Preserve the selection */
-  std::string selectedToggle = m_state.colorByArray();
+  std::string selectedToggle = m_mvState.colorByArray();
 
   /* Clear the menu first */
   for (int i = this->colorByVariablesMenu->getNumRows(); i >= 0; --i)
@@ -490,7 +467,7 @@ void MooseViewer::updateColorByVariablesMenu(void)
     colorByVariablesMenu->removeWidgets(i);
     }
 
-  if (m_state.reader().requestedVariables().size() > 0)
+  if (m_mvState.reader().requestedVariables().size() > 0)
     {
     using GLMotif::RadioBox;
     using GLMotif::ToggleButton;
@@ -499,7 +476,7 @@ void MooseViewer::updateColorByVariablesMenu(void)
 
     int currentIndex = 0;
     int selectedIndex = -1;
-    for (const auto &var : m_state.reader().requestedVariables())
+    for (const auto &var : m_mvState.reader().requestedVariables())
       {
       ToggleButton *button = new ToggleButton(var.c_str(), box, var.c_str());
       button->getValueChangedCallbacks().add(
@@ -519,11 +496,11 @@ void MooseViewer::updateColorByVariablesMenu(void)
 
     if (ToggleButton *toggle = box->getSelectedToggle())
       {
-      m_state.setColorByArray(toggle->getName());
+      m_mvState.setColorByArray(toggle->getName());
       }
     else
       {
-      m_state.setColorByArray("");
+      m_mvState.setColorByArray("");
       }
 
     this->updateScalarRange();
@@ -533,7 +510,7 @@ void MooseViewer::updateColorByVariablesMenu(void)
 //----------------------------------------------------------------------------
 GLMotif::Popup* MooseViewer::createColorMapSubMenu(void)
 {
-  m_state.widgetHints().pushGroup("ColorMap");
+  m_mvState.widgetHints().pushGroup("ColorMap");
 
   GLMotif::Popup * colorMapSubMenuPopup = new GLMotif::Popup(
     "ColorMapSubMenuPopup", Vrui::getWidgetManager());
@@ -545,22 +522,22 @@ GLMotif::Popup* MooseViewer::createColorMapSubMenu(void)
   // map otherwise:
   int selectedToggle = 0;
 
-  if (m_state.widgetHints().isEnabled("FullRainbow"))
+  if (m_mvState.widgetHints().isEnabled("FullRainbow"))
     {
     ++selectedToggle;
     colorMaps->addToggle("Full Rainbow");
     }
-  if (m_state.widgetHints().isEnabled("InverseFullRainbow"))
+  if (m_mvState.widgetHints().isEnabled("InverseFullRainbow"))
     {
     ++selectedToggle;
     colorMaps->addToggle("Inverse Full Rainbow");
     }
-  if (m_state.widgetHints().isEnabled("Rainbow"))
+  if (m_mvState.widgetHints().isEnabled("Rainbow"))
     {
     ++selectedToggle;
     colorMaps->addToggle("Rainbow");
     }
-  if (m_state.widgetHints().isEnabled("InverseRainbow"))
+  if (m_mvState.widgetHints().isEnabled("InverseRainbow"))
     {
     colorMaps->addToggle("Inverse Rainbow");
     }
@@ -568,43 +545,43 @@ GLMotif::Popup* MooseViewer::createColorMapSubMenu(void)
     {
     selectedToggle = 0;
     }
-  if (m_state.widgetHints().isEnabled("ColdToHot"))
+  if (m_mvState.widgetHints().isEnabled("ColdToHot"))
     {
     colorMaps->addToggle("Cold to Hot");
     }
-  if (m_state.widgetHints().isEnabled("HotToCold"))
+  if (m_mvState.widgetHints().isEnabled("HotToCold"))
     {
     colorMaps->addToggle("Hot to Cold");
     }
-  if (m_state.widgetHints().isEnabled("BlackToWhite"))
+  if (m_mvState.widgetHints().isEnabled("BlackToWhite"))
     {
     colorMaps->addToggle("Black to White");
     }
-  if (m_state.widgetHints().isEnabled("WhiteToBlack"))
+  if (m_mvState.widgetHints().isEnabled("WhiteToBlack"))
     {
     colorMaps->addToggle("White to Black");
     }
-  if (m_state.widgetHints().isEnabled("HSBHues"))
+  if (m_mvState.widgetHints().isEnabled("HSBHues"))
     {
     colorMaps->addToggle("HSB Hues");
     }
-  if (m_state.widgetHints().isEnabled("InverseHSBHues"))
+  if (m_mvState.widgetHints().isEnabled("InverseHSBHues"))
     {
     colorMaps->addToggle("Inverse HSB Hues");
     }
-  if (m_state.widgetHints().isEnabled("Davinci"))
+  if (m_mvState.widgetHints().isEnabled("Davinci"))
     {
     colorMaps->addToggle("Davinci");
     }
-  if (m_state.widgetHints().isEnabled("InverseDavinci"))
+  if (m_mvState.widgetHints().isEnabled("InverseDavinci"))
     {
     colorMaps->addToggle("Inverse Davinci");
     }
-  if (m_state.widgetHints().isEnabled("Seismic"))
+  if (m_mvState.widgetHints().isEnabled("Seismic"))
     {
     colorMaps->addToggle("Seismic");
     }
-  if (m_state.widgetHints().isEnabled("InverseSeismic"))
+  if (m_mvState.widgetHints().isEnabled("InverseSeismic"))
     {
     colorMaps->addToggle("Inverse Seismic");
     }
@@ -615,7 +592,7 @@ GLMotif::Popup* MooseViewer::createColorMapSubMenu(void)
 
   colorMaps->manageChild();
 
-  m_state.widgetHints().popGroup();
+  m_mvState.widgetHints().popGroup();
 
   return colorMapSubMenuPopup;
 } // end createColorMapSubMenu()
@@ -640,14 +617,14 @@ GLMotif::PopupWindow* MooseViewer::createRenderingDialog(void) {
   GLMotif::Slider* opacitySlider = new GLMotif::Slider(
     "OpacitySlider", opacityRow, GLMotif::Slider::HORIZONTAL,
     ss.fontHeight*10.0f);
-  opacitySlider->setValue(m_state.geometry().opacity());
+  opacitySlider->setValue(m_mvState.geometry().opacity());
   opacitySlider->setValueRange(0.0, 1.0, 0.1);
   opacitySlider->getValueChangedCallbacks().add(
     this, &MooseViewer::opacitySliderCallback);
   opacityValue = new GLMotif::TextField("OpacityValue", opacityRow, 6);
   opacityValue->setFieldWidth(6);
   opacityValue->setPrecision(3);
-  opacityValue->setValue(m_state.geometry().opacity());
+  opacityValue->setValue(m_mvState.geometry().opacity());
   opacityRow->manageChild();
 
   /* Create Volume sampling options sliders */
@@ -659,7 +636,7 @@ GLMotif::PopupWindow* MooseViewer::createRenderingDialog(void) {
     "SampleLabel", sampleRow, "Volume Sampling Dimensions");
   GLMotif::Slider* sampleSlider = new GLMotif::Slider(
     "SampleSlider", sampleRow, GLMotif::Slider::HORIZONTAL, ss.fontHeight*10.0f);
-  sampleSlider->setValue(m_state.volume().sharpness());
+  sampleSlider->setValue(m_mvState.volume().sharpness());
   sampleSlider->setValueRange(8.0, 512.0, 8.0);
   sampleSlider->getValueChangedCallbacks().add(
     this, &MooseViewer::sampleSliderCallback);
@@ -667,9 +644,9 @@ GLMotif::PopupWindow* MooseViewer::createRenderingDialog(void) {
   sampleValue->setFieldWidth(6);
   sampleValue->setPrecision(3);
   std::stringstream stringstr;
-  stringstr << m_state.volume().dimension() << " x "
-            << m_state.volume().dimension() << " x "
-            << m_state.volume().dimension();
+  stringstr << m_mvState.volume().dimension() << " x "
+            << m_mvState.volume().dimension() << " x "
+            << m_mvState.volume().dimension();
   sampleValue->setString(stringstr.str().c_str());
   sampleRow->manageChild();
 
@@ -682,20 +659,20 @@ GLMotif::PopupWindow* MooseViewer::createRenderingDialog(void) {
   GLMotif::Slider* radiusSlider = new GLMotif::Slider(
     "RadiusSlider", radiusRow, GLMotif::Slider::HORIZONTAL,
     ss.fontHeight*10.0f);
-  radiusSlider->setValue(m_state.volume().radius());
+  radiusSlider->setValue(m_mvState.volume().radius());
   radiusSlider->setValueRange(0.0, 10.0, 0.01);
   radiusSlider->getValueChangedCallbacks().add(
     this, &MooseViewer::radiusSliderCallback);
   radiusValue = new GLMotif::TextField("RadiusValue", radiusRow, 6);
   radiusValue->setFieldWidth(6);
   radiusValue->setPrecision(3);
-  if (m_state.volume().radius() == 0.)
+  if (m_mvState.volume().radius() == 0.)
     {
     radiusValue->setString("Auto");
     }
   else
     {
-    radiusValue->setValue(m_state.volume().radius());
+    radiusValue->setValue(m_mvState.volume().radius());
     }
   radiusRow->manageChild();
 
@@ -708,14 +685,14 @@ GLMotif::PopupWindow* MooseViewer::createRenderingDialog(void) {
   GLMotif::Slider* sharpnessSlider = new GLMotif::Slider(
         "SharpnessSlider", sharpnessRow, GLMotif::Slider::HORIZONTAL,
         ss.fontHeight*10.0f);
-  sharpnessSlider->setValue(m_state.volume().sharpness());
+  sharpnessSlider->setValue(m_mvState.volume().sharpness());
   sharpnessSlider->setValueRange(0.1, 5.0, .1);
   sharpnessSlider->getValueChangedCallbacks().add(
         this, &MooseViewer::sharpnessSliderCallback);
   sharpnessValue = new GLMotif::TextField("SharpnessValue", sharpnessRow, 6);
   sharpnessValue->setFieldWidth(6);
   sharpnessValue->setPrecision(3);
-  sharpnessValue->setValue(m_state.volume().sharpness());
+  sharpnessValue->setValue(m_mvState.volume().sharpness());
   sharpnessRow->manageChild();
 
   dialog->manageChild();
@@ -723,32 +700,28 @@ GLMotif::PopupWindow* MooseViewer::createRenderingDialog(void) {
 }
 
 //----------------------------------------------------------------------------
-void MooseViewer::frame(void)
+void MooseViewer::frame()
 {
   // Update internal state:
-  m_state.reader().update(m_state);
+  m_mvState.reader().update(m_mvState);
   this->updateHistogram();
 
-  // Synchronize mvGLObjects:
-  for (auto object : m_state.objects())
-    {
-    object->syncApplicationState(m_state);
-    }
+  this->Superclass::frame();
 
   // Animation control:
   if (this->IsPlaying)
     {
-    int currentTimeStep = m_state.reader().timeStep();
-    if (currentTimeStep < m_state.reader().timeStepRange()[1])
+    int currentTimeStep = m_mvState.reader().timeStep();
+    if (currentTimeStep < m_mvState.reader().timeStepRange()[1])
       {
-      m_state.reader().setTimeStep(currentTimeStep + 1);
-      m_state.reader().update(m_state);
+      m_mvState.reader().setTimeStep(currentTimeStep + 1);
+      m_mvState.reader().update(m_mvState);
       Vrui::scheduleUpdate(Vrui::getApplicationTime() + 1.0/125.0);
       }
     else if(this->Loop)
       {
-      m_state.reader().setTimeStep(m_state.reader().timeStepRange()[0]);
-      m_state.reader().update(m_state);
+      m_mvState.reader().setTimeStep(m_mvState.reader().timeStepRange()[0]);
+      m_mvState.reader().update(m_mvState);
       Vrui::scheduleUpdate(Vrui::getApplicationTime() + 1.0/125.0);
       }
     else
@@ -763,55 +736,30 @@ void MooseViewer::frame(void)
 //----------------------------------------------------------------------------
 void MooseViewer::initContext(GLContextData& contextData) const
 {
-  // The VTK OpenGL2 backend seems to require this:
-  GLenum glewInitResult = glewInit();
-  if (glewInitResult != GLEW_OK)
-    {
-    std::cerr << "Error: Could not initialize GLEW (glewInit() returned: "
-      << glewInitResult << ")." << std::endl;
-    }
+  this->Superclass::initContext(contextData);
 
   // Initialize the display:
   this->centerDisplay();
-
-  /* Create a new context data item */
-  mvContextState* context = new mvContextState;
-  contextData.addDataItem(this, context);
-
-  /* Synchronize mvGLObjects: */
-  for (const auto object : m_state.objects())
-    {
-    object->initMvContext(*context, contextData);
-    }
 }
 
 //----------------------------------------------------------------------------
 void MooseViewer::display(GLContextData& contextData) const
 {
-  /* Get context data item */
-  mvContextState* context = contextData.retrieveDataItem<mvContextState>(this);
-
   /* Update color map. */
-  auto metaData = m_state.reader().variableMetaData(m_state.colorByArray());
+  // TODO this should be moved to frame().
+  auto metaData = m_mvState.reader().variableMetaData(m_mvState.colorByArray());
   if (metaData.valid())
     {
-    m_state.colorMap().SetTableRange(metaData.range);
+    m_mvState.colorMap().SetTableRange(metaData.range);
     }
 
-  /* Synchronize mvGLObjects: */
-  for (const auto object : m_state.objects())
-    {
-    object->syncContextState(m_state, *context, contextData);
-    }
-
-  /* Render the scene */
-  context->widget().GetRenderWindow()->Render();
+  this->Superclass::display(contextData);
 }
 
 //----------------------------------------------------------------------------
 void MooseViewer::toggleFPSCallback(Misc::CallbackData *cbData)
 {
-  m_state.framerate().setVisible(!m_state.framerate().visible());
+  m_mvState.framerate().setVisible(!m_mvState.framerate().visible());
 }
 
 //----------------------------------------------------------------------------
@@ -824,7 +772,7 @@ void MooseViewer::centerDisplayCallback(Misc::CallbackData*)
 void MooseViewer::opacitySliderCallback(
   GLMotif::Slider::ValueChangedCallbackData* callBackData)
 {
-  m_state.geometry().setOpacity(static_cast<double>(callBackData->value));
+  m_mvState.geometry().setOpacity(static_cast<double>(callBackData->value));
   opacityValue->setValue(callBackData->value);
 }
 
@@ -832,11 +780,11 @@ void MooseViewer::opacitySliderCallback(
 void MooseViewer::sampleSliderCallback(
   GLMotif::Slider::ValueChangedCallbackData* callBackData)
 {
-  m_state.volume().setDimension(static_cast<double>(callBackData->value));
+  m_mvState.volume().setDimension(static_cast<double>(callBackData->value));
   std::stringstream ss;
-  ss << m_state.volume().dimension() << " x "
-     << m_state.volume().dimension() << " x "
-     << m_state.volume().dimension();
+  ss << m_mvState.volume().dimension() << " x "
+     << m_mvState.volume().dimension() << " x "
+     << m_mvState.volume().dimension();
   sampleValue->setString(ss.str().c_str());
 }
 
@@ -844,7 +792,7 @@ void MooseViewer::sampleSliderCallback(
 void MooseViewer::radiusSliderCallback(
   GLMotif::Slider::ValueChangedCallbackData* callBackData)
 {
-  m_state.volume().setRadius(static_cast<double>(callBackData->value));
+  m_mvState.volume().setRadius(static_cast<double>(callBackData->value));
   if (callBackData->value == 0.)
     {
     radiusValue->setString("Auto");
@@ -859,7 +807,7 @@ void MooseViewer::radiusSliderCallback(
 void MooseViewer::sharpnessSliderCallback(
   GLMotif::Slider::ValueChangedCallbackData* callBackData)
 {
-  m_state.volume().setSharpness(static_cast<double>(callBackData->value));
+  m_mvState.volume().setSharpness(static_cast<double>(callBackData->value));
   sharpnessValue->setValue(callBackData->value);
 }
 
@@ -888,43 +836,43 @@ void MooseViewer::changeRepresentationCallback(
   /* Adjust representation state based on which toggle button changed state: */
   if (strcmp(callBackData->toggle->getName(), "ShowSurface") == 0)
     {
-    m_state.geometry().setRepresentation(mvGeometry::Surface);
-    m_state.geometry().setVisible(true);
-    m_state.volume().setVisible(false);
+    m_mvState.geometry().setRepresentation(mvGeometry::Surface);
+    m_mvState.geometry().setVisible(true);
+    m_mvState.volume().setVisible(false);
     }
   else if (strcmp(callBackData->toggle->getName(), "ShowSurfaceWithEdges") == 0)
     {
-    m_state.geometry().setRepresentation(mvGeometry::SurfaceWithEdges);
-    m_state.geometry().setVisible(true);
-    m_state.volume().setVisible(false);
+    m_mvState.geometry().setRepresentation(mvGeometry::SurfaceWithEdges);
+    m_mvState.geometry().setVisible(true);
+    m_mvState.volume().setVisible(false);
     }
   else if (strcmp(callBackData->toggle->getName(), "ShowWireframe") == 0)
     {
-    m_state.geometry().setRepresentation(mvGeometry::Wireframe);
-    m_state.geometry().setVisible(true);
-    m_state.volume().setVisible(false);
+    m_mvState.geometry().setRepresentation(mvGeometry::Wireframe);
+    m_mvState.geometry().setVisible(true);
+    m_mvState.volume().setVisible(false);
     }
   else if (strcmp(callBackData->toggle->getName(), "ShowPoints") == 0)
     {
-    m_state.geometry().setRepresentation(mvGeometry::Points);
-    m_state.geometry().setVisible(true);
-    m_state.volume().setVisible(false);
+    m_mvState.geometry().setRepresentation(mvGeometry::Points);
+    m_mvState.geometry().setVisible(true);
+    m_mvState.volume().setVisible(false);
     }
   else if (strcmp(callBackData->toggle->getName(), "ShowNone") == 0)
     {
-    m_state.geometry().setRepresentation(mvGeometry::NoGeometry);
-    m_state.geometry().setVisible(false);
-    m_state.volume().setVisible(false);
+    m_mvState.geometry().setRepresentation(mvGeometry::NoGeometry);
+    m_mvState.geometry().setVisible(false);
+    m_mvState.volume().setVisible(false);
     }
   else if (strcmp(callBackData->toggle->getName(), "ShowVolume") == 0)
     {
-    m_state.geometry().setRepresentation(mvGeometry::NoGeometry);
-    m_state.geometry().setVisible(false);
-    m_state.volume().setVisible(true);
+    m_mvState.geometry().setRepresentation(mvGeometry::NoGeometry);
+    m_mvState.geometry().setVisible(false);
+    m_mvState.volume().setVisible(true);
     }
   else if (strcmp(callBackData->toggle->getName(), "ShowOutline") == 0)
     {
-    m_state.outline().setVisible(callBackData->set);
+    m_mvState.outline().setVisible(callBackData->set);
     }
 }
 //----------------------------------------------------------------------------
@@ -934,7 +882,7 @@ void MooseViewer::changeAnalysisToolsCallback(
   /* Set the new analysis tool: */
   if (strcmp(callBackData->toggle->getName(), "Slice") == 0)
   {
-    m_state.slice().setVisible(callBackData->set);
+    m_mvState.slice().setVisible(callBackData->set);
   }
 }
 
@@ -1030,11 +978,11 @@ void MooseViewer::changeVariablesCallback(
   std::string array(callBackData->listBox->getItem(callBackData->item));
   if (enable)
     {
-    m_state.reader().requestVariable(array);
+    m_mvState.reader().requestVariable(array);
     }
   else
     {
-    m_state.reader().unrequestVariable(array);
+    m_mvState.reader().unrequestVariable(array);
     }
 
   this->updateColorByVariablesMenu();
@@ -1045,7 +993,7 @@ void MooseViewer::changeColorByVariablesCallback(
   GLMotif::ToggleButton::ValueChangedCallbackData* callBackData)
 {
   // If there's only one variable, ignore the request to disable it.
-  if (m_state.reader().requestedVariables().size() == 1)
+  if (m_mvState.reader().requestedVariables().size() == 1)
     {
     if (!callBackData->set)
       {
@@ -1054,12 +1002,12 @@ void MooseViewer::changeColorByVariablesCallback(
     return;
     }
 
-  if (m_state.colorByArray() == callBackData->toggle->getName())
+  if (m_mvState.colorByArray() == callBackData->toggle->getName())
     {
     return;
     }
 
-  m_state.setColorByArray(callBackData->toggle->getName());
+  m_mvState.setColorByArray(callBackData->toggle->getName());
 
   this->updateScalarRange();
   Vrui::requestUpdate();
@@ -1107,10 +1055,10 @@ void MooseViewer::updateColorMap(void)
   std::copy(tmp, tmp + 256 * 4, m_colorMapCache);
 
   // Update the actual colormap
-  m_state.colorMap().SetNumberOfTableValues(256);
+  m_mvState.colorMap().SetNumberOfTableValues(256);
   for (int i = 0; i < 256; ++i)
     {
-    m_state.colorMap().SetTableValue(i, m_colorMapCache + 4*i);
+    m_mvState.colorMap().SetTableValue(i, m_colorMapCache + 4*i);
     }
 
   // Redraw
@@ -1126,8 +1074,8 @@ float * MooseViewer::getHistogram(void)
 //----------------------------------------------------------------------------
 void MooseViewer::updateHistogram(void)
 {
-  if (this->HistogramMTime > m_state.reader().dataObject()->GetMTime() &&
-      this->HistogramMTime > m_state.colorByMTime())
+  if (this->HistogramMTime > m_mvState.reader().dataObject()->GetMTime() &&
+      this->HistogramMTime > m_mvState.colorByMTime())
     {
     // Up to date.
     return;
@@ -1135,10 +1083,10 @@ void MooseViewer::updateHistogram(void)
 
   std::fill(this->Histogram, this->Histogram + 256, 0.f);
 
-  auto metaData = m_state.reader().variableMetaData(m_state.colorByArray());
+  auto metaData = m_mvState.reader().variableMetaData(m_mvState.colorByArray());
   if (metaData.valid())
     {
-    vtkCompositeDataIterator *it = m_state.reader().dataObject()->NewIterator();
+    vtkCompositeDataIterator *it = m_mvState.reader().dataObject()->NewIterator();
     for (it->InitTraversal(); !it->IsDoneWithTraversal(); it->GoToNextItem())
       {
       vtkDataSet *ds = vtkDataSet::SafeDownCast(it->GetCurrentDataObject());
@@ -1151,15 +1099,15 @@ void MooseViewer::updateHistogram(void)
       switch (metaData.location)
         {
         case mvReader::VariableMetaData::Location::PointData:
-          array = ds->GetPointData()->GetArray(m_state.colorByArray().c_str());
+          array = ds->GetPointData()->GetArray(m_mvState.colorByArray().c_str());
           break;
 
         case mvReader::VariableMetaData::Location::CellData:
-          array = ds->GetCellData()->GetArray(m_state.colorByArray().c_str());
+          array = ds->GetCellData()->GetArray(m_mvState.colorByArray().c_str());
           break;
 
         case mvReader::VariableMetaData::Location::FieldData:
-          array = ds->GetFieldData()->GetArray(m_state.colorByArray().c_str());
+          array = ds->GetFieldData()->GetArray(m_mvState.colorByArray().c_str());
           break;
 
         default:
@@ -1202,7 +1150,7 @@ void MooseViewer::updateHistogram(void)
 //----------------------------------------------------------------------------
 void MooseViewer::updateScalarRange(void)
 {
-  auto metaData = m_state.reader().variableMetaData(m_state.colorByArray());
+  auto metaData = m_mvState.reader().variableMetaData(m_mvState.colorByArray());
   if (metaData.valid())
     {
     this->ScalarRange[0] = metaData.range[0];
@@ -1236,26 +1184,26 @@ void MooseViewer::showContoursDialogCallback(
 //----------------------------------------------------------------------------
 void MooseViewer::contourValueChangedCallback(Misc::CallbackData*)
 {
-  m_state.contours().setContourValues(this->ContoursDialog->getContourValues());
+  m_mvState.contours().setContourValues(this->ContoursDialog->getContourValues());
   Vrui::requestUpdate();
 }
 
 //----------------------------------------------------------------------------
 void MooseViewer::setContourVisible(bool visible)
 {
-  m_state.contours().setVisible(visible);
+  m_mvState.contours().setVisible(visible);
 }
 
 //----------------------------------------------------------------------------
 void MooseViewer::setRequestedRenderMode(int mode)
 {
-  m_state.volume().setRenderMode(mode);
+  m_mvState.volume().setRenderMode(mode);
 }
 
 //----------------------------------------------------------------------------
 int MooseViewer::getRequestedRenderMode(void) const
 {
-  return m_state.volume().renderMode();
+  return m_mvState.volume().renderMode();
 }
 
 //----------------------------------------------------------------------------
@@ -1281,7 +1229,7 @@ void MooseViewer::setScalarMaximum(double max)
 //----------------------------------------------------------------------------
 void MooseViewer::centerDisplay() const
 {
-  auto bbox = m_state.reader().bounds();
+  auto bbox = m_mvState.reader().bounds();
   double center[3];
   bbox.GetCenter(center);
   Vrui::setNavigationTransformation(Vrui::Point(center),

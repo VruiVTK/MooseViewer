@@ -6,6 +6,11 @@ ENDIF()
 
 PROJECT(MooseViewer)
 
+set(CMAKE_MODULE_PATH
+  "${MooseViewer_SOURCE_DIR}/CMake/Modules"
+  ${CMAKE_MODULE_PATH}
+)
+
 SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 # Use c++11:
@@ -39,6 +44,10 @@ IF (${VTK_RENDERING_BACKEND} STREQUAL "OpenGL")
   INCLUDE_DIRECTORIES (${GLEW_INCLUDE_DIR})
 ENDIF ()
 
+# Find vtkVRUI
+find_package(vtkVRUI REQUIRED)
+include_directories(${vtkVRUI_INCLUDE_DIRS})
+
 # add the automatically determined parts of the RPATH
 # which point to directories outside the build tree to the install RPATH
 SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
@@ -66,32 +75,18 @@ SET(${PROJECT_NAME}_SRCS
   MooseViewer.h
   mvApplicationState.cpp
   mvApplicationState.h
-  mvAsyncGLObject.cpp
-  mvAsyncGLObject.h
-  mvContextState.cpp
-  mvContextState.h
   mvContours.cpp
   mvContours.h
-  mvFramerate.cpp
-  mvFramerate.h
   mvGeometry.cpp
   mvGeometry.h
-  mvGLObject.cpp
-  mvGLObject.h
   mvInteractor.cpp
   mvInteractor.h
   mvInteractorTool.cpp
   mvInteractorTool.h
-  mvLODAsyncGLObject.cpp
-  mvLODAsyncGLObject.h
   mvMouseRotationTool.cpp
   mvMouseRotationTool.h
   mvOutline.cpp
   mvOutline.h
-  mvProgress.cpp
-  mvProgress.h
-  mvProgressCookie.cpp
-  mvProgressCookie.h
   mvReader.cpp
   mvReader.h
   mvSlice.cpp
@@ -126,7 +121,11 @@ SET(${PROJECT_NAME}_SRCS
 
 ADD_EXECUTABLE(${PROJECT_NAME} ${${PROJECT_NAME}_SRCS})
 
-TARGET_LINK_LIBRARIES(${PROJECT_NAME} ${VTK_LIBRARIES} "${VRUI_LDFLAGS}")
+TARGET_LINK_LIBRARIES(${PROJECT_NAME}
+  ${vtkVRUI_LIBRARIES}
+  ${VTK_LIBRARIES}
+  "${VRUI_LDFLAGS}"
+)
 
 IF (${VTK_RENDERING_BACKEND} STREQUAL "OpenGL")
   TARGET_LINK_LIBRARIES(${PROJECT_NAME} ${GLEW_LIBRARY})

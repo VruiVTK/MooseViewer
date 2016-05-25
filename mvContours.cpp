@@ -14,7 +14,7 @@
 #include <vtkUnstructuredGrid.h>
 
 #include "mvApplicationState.h"
-#include "mvContextState.h"
+#include "vvContextState.h"
 #include "mvReader.h"
 
 //------------------------------------------------------------------------------
@@ -28,8 +28,11 @@ mvContours::LoResDataPipeline::LoResDataPipeline()
 
 //------------------------------------------------------------------------------
 void mvContours::LoResDataPipeline::configure(
-    const ObjectState &objState, const mvApplicationState &appState)
+    const ObjectState &objState, const vvApplicationState &vvState)
 {
+  const mvApplicationState &appState =
+      static_cast<const mvApplicationState &>(vvState);
+
   // Only modify the filter if the colorByArray is loaded.
   auto metaData = appState.reader().variableMetaData(appState.colorByArray());
   if (!metaData.valid())
@@ -120,17 +123,20 @@ mvContours::LoResRenderPipeline::LoResRenderPipeline()
 
 //------------------------------------------------------------------------------
 void mvContours::LoResRenderPipeline::init(const ObjectState &objState,
-                                           mvContextState &contextState)
+                                           vvContextState &contextState)
 {
   contextState.renderer().AddActor(this->actor.Get());
 }
 
 //------------------------------------------------------------------------------
 void mvContours::LoResRenderPipeline::update(const ObjectState &objState,
-                                             const mvApplicationState &appState,
-                                             const mvContextState &contextState,
+                                             const vvApplicationState &vvState,
+                                             const vvContextState &contextState,
                                              const LODData &result)
 {
+  const mvApplicationState &appState =
+      static_cast<const mvApplicationState &>(vvState);
+
   const ContourState& state = static_cast<const ContourState&>(objState);
   const LoResLODData& data = static_cast<const LoResLODData&>(result);
 
@@ -190,8 +196,11 @@ mvContours::HiResDataPipeline::HiResDataPipeline()
 
 //------------------------------------------------------------------------------
 void mvContours::HiResDataPipeline::configure(
-    const ObjectState &objState, const mvApplicationState &appState)
+    const ObjectState &objState, const vvApplicationState &vvState)
 {
+  const mvApplicationState &appState =
+      static_cast<const mvApplicationState &>(vvState);
+
   // Only modify the filter if the colorByArray is loaded.
   auto metaData = appState.reader().variableMetaData(appState.colorByArray());
   if (!metaData.valid())
@@ -282,17 +291,20 @@ mvContours::HiResRenderPipeline::HiResRenderPipeline()
 
 //------------------------------------------------------------------------------
 void mvContours::HiResRenderPipeline::init(const ObjectState &objState,
-                                           mvContextState &contextState)
+                                           vvContextState &contextState)
 {
   contextState.renderer().AddActor(this->actor.Get());
 }
 
 //------------------------------------------------------------------------------
 void mvContours::HiResRenderPipeline::update(const ObjectState &objState,
-                                             const mvApplicationState &appState,
-                                             const mvContextState &contextState,
+                                             const vvApplicationState &vvState,
+                                             const vvContextState &contextState,
                                              const LODData &result)
 {
+  const mvApplicationState &appState =
+      static_cast<const mvApplicationState &>(vvState);
+
   const ContourState& state = static_cast<const ContourState&>(objState);
   const LoResLODData& data = static_cast<const LoResLODData&>(result);
 
@@ -347,13 +359,13 @@ mvContours::~mvContours()
 }
 
 //------------------------------------------------------------------------------
-mvLODAsyncGLObject::ObjectState *mvContours::createObjectState() const
+vvLODAsyncGLObject::ObjectState *mvContours::createObjectState() const
 {
   return new ContourState;
 }
 
 //------------------------------------------------------------------------------
-mvLODAsyncGLObject::DataPipeline *
+vvLODAsyncGLObject::DataPipeline *
 mvContours::createDataPipeline(LevelOfDetail lod) const
 {
   switch (lod)
@@ -373,7 +385,7 @@ mvContours::createDataPipeline(LevelOfDetail lod) const
 }
 
 //------------------------------------------------------------------------------
-mvLODAsyncGLObject::RenderPipeline *
+vvLODAsyncGLObject::RenderPipeline *
 mvContours::createRenderPipeline(LevelOfDetail lod) const
 {
   switch (lod)
@@ -393,7 +405,7 @@ mvContours::createRenderPipeline(LevelOfDetail lod) const
 }
 
 //------------------------------------------------------------------------------
-mvLODAsyncGLObject::LODData* mvContours::createLODData(LevelOfDetail lod) const
+vvLODAsyncGLObject::LODData* mvContours::createLODData(LevelOfDetail lod) const
 {
   switch (lod)
     {
