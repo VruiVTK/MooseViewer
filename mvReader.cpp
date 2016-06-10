@@ -1,7 +1,5 @@
 #include "mvReader.h"
 
-#include <Vrui/Vrui.h>
-
 #include <vtkCellData.h>
 #include <vtkCompositeDataIterator.h>
 #include <vtkDataArray.h>
@@ -17,25 +15,17 @@
 #include <vtkTimerLog.h>
 #include <vtkVoronoiKernel.h>
 
-#include "vvProgress.h"
-#include "vvProgressCookie.h"
-
 #include "mvApplicationState.h"
 
 #include <cassert>
-#include <chrono>
 #include <iostream>
-#include <sstream>
 
 //------------------------------------------------------------------------------
 mvReader::mvReader()
-  : m_cookie(nullptr),
-    m_reducerCookie(nullptr),
-    m_numberOfTimeSteps(0),
+  : m_numberOfTimeSteps(0),
     m_timeStep(0),
     m_timeStepRange{0, 0},
-    m_timeRange{0., 0.},
-    m_benchmark(false)
+    m_timeRange{0., 0.}
 {
   m_reducerSeed->SetDimensions(64, 64, 64);
   m_reducer->SetKernel(m_reducerKernel.Get());
@@ -50,116 +40,18 @@ mvReader::mvReader()
 //------------------------------------------------------------------------------
 mvReader::~mvReader()
 {
-  // Wait for background processes to finish:
-  if (m_future.valid())
-    {
-    std::cout << "Waiting for file read to complete..." << std::endl;
-    m_future.wait();
-    }
-
-  if (m_reducerFuture.valid())
-    {
-    std::cout << "Waiting for async data reduction to complete..." << std::endl;
-    m_reducerFuture.wait();
-    }
 }
 
 //------------------------------------------------------------------------------
-void mvReader::update(const vvApplicationState &appState)
+vtkMultiBlockDataSet *mvReader::typedDataObject() const
 {
-  // Are we currently reading the file?
-  if (m_future.valid())
-    {
-    // Get the current state of the update thread:
-    std::future_status state = m_future.wait_for(std::chrono::milliseconds(0));
-
-    // We always use the async launch policy:
-    assert("Always async." && state != std::future_status::deferred);
-
-    if (state == std::future_status::ready)
-      {
-      // Clear the future.
-      m_future.get();
-
-      // Sync the cached data.
-      this->updateInformationCache();
-      this->updateDataCache();
-
-      // Invalidate the reduced dataset as it is now out of date. This prevents
-      // LOD actors from displaying incorrect lowres data.
-      this->invalidateReducedData();
-
-      // Clean up the progress monitor:
-      assert("Cookie exists." && m_cookie != nullptr);
-      appState.progress().removeEntry(m_cookie);
-      m_cookie = nullptr;
-      }
-    else
-      {
-      // Still running, do nothing.
-      return;
-      }
-    }
-
-  // At this point, we know the background thread is not running and the
-  // cache object is up-to-date with the last execution. Check to see if the
-  // reader needs to re-run:
-  this->syncReaderState();
-  if (this->dataNeedsUpdate())
-    {
-    assert("Cookie cleaned up." && m_cookie == nullptr);
-    m_cookie = appState.progress().addEntry("Reading Data File");
-
-    m_future = std::async(std::launch::async,
-                          &mvReader::executeReaderData, this);
-
-    // Don't bother updating reduced data until the main data is up-to-date:
-    return;
-    }
-
-  // Update the reduced data as well. Logic is the same as above.
-  if (m_reducerFuture.valid())
-    {
-    std::chrono::seconds now(0);
-    std::future_status state = m_reducerFuture.wait_for(now);
-    assert("Always async." && state != std::future_status::deferred);
-    if (state == std::future_status::ready)
-      {
-      m_reducerFuture.get(); // Clear the thread state.
-      this->updateReducedData();
-      assert("Cookie exists." && m_reducerCookie != nullptr);
-      appState.progress().removeEntry(m_reducerCookie);
-      m_reducerCookie = nullptr;
-      }
-    else
-      {
-      return;
-      }
-    }
-
-  this->syncReducerState(appState);
-  if (this->reducerNeedsUpdate())
-    {
-    this->invalidateReducedData();
-    assert("Cookie cleaned up." && m_reducerCookie == nullptr);
-    m_reducerCookie = appState.progress().addEntry("Generating Reduced Data");
-    m_reducerFuture = std::async(std::launch::async,
-                                 &mvReader::executeReducer, this);
-    }
+  return static_cast<vtkMultiBlockDataSet*>(m_dataObject.Get());
 }
 
 //------------------------------------------------------------------------------
-void mvReader::updateInformation()
+vtkImageData *mvReader::typedReducedDataObject() const
 {
-  // Only update when the background thread is not running:
-  if (m_future.valid())
-    {
-    return;
-    }
-
-  this->syncReaderState();
-  this->executeReaderInformation();
-  this->updateInformationCache();
+  return static_cast<vtkImageData*>(m_reducedData.Get());
 }
 
 //------------------------------------------------------------------------------
@@ -188,18 +80,6 @@ void mvReader::unrequestVariable(const std::string &variable)
 }
 
 //------------------------------------------------------------------------------
-vtkMultiBlockDataSet* mvReader::dataObject() const
-{
-  return m_data.Get();
-}
-
-//------------------------------------------------------------------------------
-vtkDataObject *mvReader::reducedDataObject() const
-{
-  return m_reducedData.Get();
-}
-
-//------------------------------------------------------------------------------
 void mvReader::syncReaderState()
 {
   m_reader->SetFileName(m_fileName.c_str());
@@ -225,7 +105,7 @@ void mvReader::syncReaderState()
 //------------------------------------------------------------------------------
 bool mvReader::dataNeedsUpdate()
 {
-  return !m_data || m_data->GetMTime() < m_reader->GetMTime();
+  return !m_dataObject || m_dataObject->GetMTime() < m_reader->GetMTime();
 }
 
 //------------------------------------------------------------------------------
@@ -237,26 +117,7 @@ void mvReader::executeReaderInformation()
 //------------------------------------------------------------------------------
 void mvReader::executeReaderData()
 {
-  vtkTimerLog *log = nullptr;
-  if (m_benchmark)
-    {
-    log = vtkTimerLog::New();
-    std::cerr << "Updating full dataset.\n";
-    log->StartTimer();
-    }
-
   m_reader->Update();
-
-  if (log != nullptr)
-    {
-    log->StopTimer();
-    std::ostringstream out;
-    out << "Full dataset ready (" << log->GetElapsedTime() << "s)\n";
-    std::cerr << out.str();
-    log->Delete();
-    }
-
-  Vrui::requestUpdate();
 }
 
 //------------------------------------------------------------------------------
@@ -286,8 +147,8 @@ void mvReader::updateDataCache()
 {
   // Copy data object:
   vtkMultiBlockDataSet *mbds = m_reader->GetOutput();
-  m_data.TakeReference(mbds->NewInstance());
-  m_data->ShallowCopy(mbds);
+  m_dataObject.TakeReference(mbds->NewInstance());
+  m_dataObject->ShallowCopy(mbds);
 
   // Collect metadata next:
 
@@ -331,7 +192,7 @@ void mvReader::updateDataCache()
   };
 
   // Process datasets:
-  vtkCompositeDataIterator *i = m_data->NewIterator();
+  vtkCompositeDataIterator *i = this->typedDataObject()->NewIterator();
   for (i->InitTraversal(); !i->IsDoneWithTraversal(); i->GoToNextItem())
     {
     if (vtkDataSet *ds = vtkDataSet::SafeDownCast(i->GetCurrentDataObject()))
@@ -348,9 +209,9 @@ void mvReader::updateDataCache()
 }
 
 //------------------------------------------------------------------------------
-void mvReader::syncReducerState(const vvApplicationState &appState)
+void mvReader::syncReducerState()
 {
-  if (!m_data)
+  if (!m_dataObject)
     {
     m_reducer->SetSourceData(nullptr);
     return;
@@ -371,7 +232,7 @@ void mvReader::syncReducerState(const vvApplicationState &appState)
 
   m_reducerSeed->SetOrigin(origin.data());
   m_reducerSeed->SetSpacing(spacing.data());
-  m_reducer->SetSourceData(m_data.Get());
+  m_reducer->SetSourceData(m_dataObject.Get());
 }
 
 //------------------------------------------------------------------------------
@@ -384,38 +245,9 @@ bool mvReader::reducerNeedsUpdate()
 }
 
 //------------------------------------------------------------------------------
-bool mvReader::invalidateReducedData()
-{
-  if (m_reducedData && m_benchmark)
-    {
-    std::cerr << "Reduced data invalidated.\n";
-    }
-  m_reducedData = nullptr;
-}
-
-//------------------------------------------------------------------------------
 void mvReader::executeReducer()
 {
-  vtkTimerLog *log = nullptr;
-  if (m_benchmark)
-    {
-    log = vtkTimerLog::New();
-    std::cerr << "Generating reduced data.\n";
-    log->StartTimer();
-    }
-
   m_reducer->Update();
-
-  if (log != nullptr)
-    {
-    log->StopTimer();
-    std::ostringstream out;
-    out << "Reduced data ready (" << log->GetElapsedTime() << "s)\n";
-    std::cerr << out.str();
-    log->Delete();
-    }
-
-  Vrui::requestUpdate();
 }
 
 //------------------------------------------------------------------------------

@@ -1086,7 +1086,8 @@ void MooseViewer::updateHistogram(void)
   auto metaData = m_mvState.reader().variableMetaData(m_mvState.colorByArray());
   if (metaData.valid())
     {
-    vtkCompositeDataIterator *it = m_mvState.reader().dataObject()->NewIterator();
+    vtkCompositeDataIterator *it =
+        m_mvState.reader().typedDataObject()->NewIterator();
     for (it->InitTraversal(); !it->IsDoneWithTraversal(); it->GoToNextItem())
       {
       vtkDataSet *ds = vtkDataSet::SafeDownCast(it->GetCurrentDataObject());

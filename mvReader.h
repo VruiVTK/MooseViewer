@@ -5,22 +5,18 @@
 #include <vtkNew.h>
 #include <vtkSmartPointer.h>
 
-#include <chrono>
-#include <future>
+#include <vvReader.h>
+
 #include <map>
 #include <set>
 #include <limits>
-#include <string>
 #include <vector>
 
-class vtkDataObject;
 class vtkExodusIIReader;
 class vtkImageData;
 class vtkMultiBlockDataSet;
 class vtkPointInterpolator;
 class vtkVoronoiKernel;
-class vvApplicationState;
-class vvProgressCookie;
 
 /**
  * @brief The mvReader class manages loading the current dataset from a
@@ -38,7 +34,7 @@ class vvProgressCookie;
  * The updateInformation() method does execute synchronously, as long as no
  * background update is in progress.
  */
-class mvReader
+class mvReader : public vvReader
 {
 public:
   struct VariableMetaData;
@@ -49,45 +45,10 @@ public:
   ~mvReader();
 
   /**
-   * Trigger an update cycle. This is the synchronization point between the
-   * background reading thread and the main GUI thread. It will start a new
-   * asynchronous read if the reading parameters have changed, and it will
-   * update heavier data (e.g. dataObject(), variableMetaData(), ...) the
-   * first time it is called after a background read completes.
+   * Convenience method to retrieve the data object with proper type.
    */
-  void update(const vvApplicationState &appState);
-
-  /**
-   * This immediately and synchronously reads the file's metadata and updates
-   * lightweight data, such as the list of available data.
-   *
-   * This method does nothing if the file reader is already doing an
-   * asynchronous read from a call to update().
-   */
-  void updateInformation();
-
-  /**
-   * Returns true if the background thread is running, false, otherwise.
-   *
-   * If a non-zero @a duration is set, the background process will be given
-   * the specified amount of time to complete and this function will block. If
-   * @a duration is zero, the call will not block.
-   *
-   * @note This method should be use very sparingly. Rather than synchronizing
-   * data changes using this method, write code that is capable of waiting for
-   * the result to be available in a later renderframe.
-   */
-  template <typename Rep, typename Period>
-  bool running(const std::chrono::duration<Rep, Period> &duration =
-               std::chrono::seconds(0)) const;
-
-  /**
-   * The name of the Exodus II file to read.
-   * @{
-   */
-  void setFileName(const std::string &name) { m_fileName = name; }
-  const std::string& fileName() const { return m_fileName; }
-  /** @} */
+  vtkMultiBlockDataSet* typedDataObject() const;
+  vtkImageData* typedReducedDataObject() const;
 
   /**
    * The variables (i.e. attribute arrays) that can be read from the file.
@@ -143,23 +104,6 @@ public:
    */
   bool isVariableLoaded(const std::string &variable);
 
-  /**
-   * The current dataObject. This is updated when update() is called after a
-   * background file read completes.
-   */
-  vtkMultiBlockDataSet *dataObject() const;
-
-  /**
-   * The dataObject as a sampled vtkImageData. This is used for providing low
-   * detail LOD representations.
-   *
-   * The result may be nullptr.
-   */
-  vtkDataObject* reducedDataObject() const;
-
-  /** The bounds of the current dataObject. May be invalid. */
-  const vtkBoundingBox& bounds() const { return m_bounds; }
-
   /** The number of timesteps present in dataObject(). */
   int numberOfTimeSteps() const { return m_numberOfTimeSteps; }
 
@@ -178,43 +122,26 @@ public:
   void timeRange(double r[2]);
   /** @} */
 
-  /** Set true to print timing information to std::cerr. @{ */
-  bool benchmark() const { return m_benchmark; }
-  void setBenchmark(bool benchmark) { m_benchmark = benchmark; }
-  /** @} */
+private:
+  void syncReaderState() override;
+  bool dataNeedsUpdate() override;
+  void executeReaderInformation() override;
+  void executeReaderData() override;
+  void updateInformationCache() override;
+  void updateDataCache() override;
+
+  void syncReducerState() override;
+  bool reducerNeedsUpdate() override;
+  void executeReducer() override;
+  void updateReducedData() override;
 
 private:
-  void syncReaderState();
-  bool dataNeedsUpdate();
-  void executeReaderInformation();
-  void executeReaderData();
-  void updateInformationCache();
-  void updateDataCache();
-
-  void syncReducerState(const vvApplicationState &appState);
-  bool reducerNeedsUpdate();
-  bool invalidateReducedData();
-  void executeReducer();
-  void updateReducedData();
-
-private:
-  std::future<void> m_future;
-  vvProgressCookie *m_cookie;
   vtkNew<vtkExodusIIReader> m_reader;
-
-  vtkSmartPointer<vtkMultiBlockDataSet> m_data;
   VariableMetaDataMap m_variableMap;
 
-  std::future<void> m_reducerFuture;
-  vvProgressCookie *m_reducerCookie;
   vtkNew<vtkImageData> m_reducerSeed;
   vtkNew<vtkVoronoiKernel> m_reducerKernel;
   vtkNew<vtkPointInterpolator> m_reducer;
-  vtkSmartPointer<vtkDataObject> m_reducedData;
-
-  std::string m_fileName;
-
-  vtkBoundingBox m_bounds;
 
   int m_numberOfTimeSteps;
   int m_timeStep;
@@ -223,8 +150,6 @@ private:
 
   Variables m_availableVariables;
   Variables m_requestedVariables;
-
-  bool m_benchmark;
 };
 
 /**
@@ -250,18 +175,6 @@ struct mvReader::VariableMetaData
   Location location;
   double range[2];
 };
-
-//------------------------------------------------------------------------------
-template <typename Rep, typename Period>
-bool mvReader::
-running(const std::chrono::duration<Rep, Period> &duration) const
-{
-  if (m_future.valid())
-    {
-    return m_future.wait_for(duration) != std::future_status::ready;
-    }
-  return false;
-}
 
 //------------------------------------------------------------------------------
 inline bool mvReader::isVariableRequested(const std::string &variable)
