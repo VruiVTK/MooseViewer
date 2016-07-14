@@ -119,6 +119,9 @@ public:
   void setWidgetHintsFile(const std::string &whFile);
   const std::string& getWidgetHintsFile(void);
 
+  // Print data update timing information to stderr:
+  void setBenchmark(bool bench);
+
   /* Animation */
   bool IsPlaying;
   bool Loop;

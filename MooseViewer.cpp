@@ -88,13 +88,6 @@ MooseViewer::MooseViewer(int& argc,char**& argv)
 
   factory = new mvMouseRotationToolFactory(*toolMgr);
   toolMgr->addClass(factory, Vrui::ToolManager::defaultToolFactoryDestructor);
-
-  // TESTING: Enable benchmarking output:
-  m_mvState.reader().setBenchmark(true);
-  m_mvState.slice().setBenchmark(true);
-  m_mvState.contours().setBenchmark(true);
-  m_mvState.volume().setBenchmark(true);
-  m_mvState.geometry().setBenchmark(true);
 }
 
 //----------------------------------------------------------------------------
@@ -189,6 +182,16 @@ void MooseViewer::setWidgetHintsFile(const std::string &whFile)
 const std::string& MooseViewer::getWidgetHintsFile()
 {
   return this->widgetHintsFile;
+}
+
+//----------------------------------------------------------------------------
+void MooseViewer::setBenchmark(bool bench)
+{
+  m_mvState.contours().setBenchmark(bench);
+  m_mvState.geometry().setBenchmark(bench);
+  m_mvState.reader().setBenchmark(bench);
+  m_mvState.slice().setBenchmark(bench);
+  m_mvState.volume().setBenchmark(bench);
 }
 
 //----------------------------------------------------------------------------
