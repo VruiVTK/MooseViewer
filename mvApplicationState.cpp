@@ -23,7 +23,6 @@ mvApplicationState::mvApplicationState()
     m_slice(new mvSlice()),
     m_volume(new mvVolume())
 {
-  std::cout << "mvApplicationState ctor" << std::endl;
   m_objects.push_back(m_contours);
   m_objects.push_back(m_geometry);
   m_objects.push_back(m_outline);

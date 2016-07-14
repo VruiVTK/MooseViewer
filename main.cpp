@@ -20,6 +20,10 @@ void printUsage(bool longForm = true)
     std::cout << "\tRender mode to request for vtkSmartVolumeMapper.\n" << std::endl;
     std::cout << "\t-showfps" << std::endl;
     std::cout << "\tShow the FPS display by default.\n" << std::endl;
+    std::cout << "\t-benchmark" << std::endl;
+    std::cout << "\tPrints timing information for data updates to stderr.\n" << std::endl;
+    std::cout << "\t-hidebgnotifs" << std::endl;
+    std::cout << "\tHide notifications for background updates.\n" << std::endl;
     std::cout << "\t-widgetHints <path>" << std::endl;
     std::cout << "\tPath to a JSON file providing widget hints.\n" << std::endl;
     std::cout << "\t-h, -help" << std::endl;
@@ -49,6 +53,8 @@ int main(int argc, char* argv[])
     std::string name;
     int renderMode = -1;
     bool showFPS = false;
+    bool benchmark = false;
+    bool hidebgnotifs = false;
     std::string widgetHints;
     if(argc > 1)
       {
@@ -68,6 +74,14 @@ int main(int argc, char* argv[])
         if(strcmp(argv[i], "-showfps")==0)
           {
           showFPS = true;
+          }
+        if(strcmp(argv[i], "-benchmark")==0)
+          {
+          benchmark = true;
+          }
+        if(strcmp(argv[i], "-hidebgnotifs")==0)
+          {
+          hidebgnotifs = true;
           }
         if(strcmp(argv[i], "-widgetHints")==0)
           {
@@ -91,6 +105,8 @@ int main(int argc, char* argv[])
 
     MooseViewer application(argc, argv);
     application.setShowFPS(showFPS);
+    application.setBenchmark(benchmark);
+    application.setProgressVisibility(!hidebgnotifs);
     application.setWidgetHintsFile(widgetHints);
     if(!name.empty())
       {
