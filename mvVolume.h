@@ -10,10 +10,8 @@
 
 class vtkColorTransferFunction;
 class vtkDataObject;
-class vtkGaussianKernel;
-class vtkImageData;
 class vtkPiecewiseFunction;
-class vtkPointInterpolator;
+class vtkResampleToImage;
 class vtkSmartVolumeMapper;
 class vtkVolume;
 class vtkVolumeProperty;
@@ -35,8 +33,6 @@ public:
     bool visible;
 
     int dimension;
-    double radius;
-    double sharpness;
   };
 
   // LoRes LOD: ----------------------------------------------------------------
@@ -84,9 +80,7 @@ public:
   // Create a higher quality volume from the full dataset.
   struct HiResDataPipeline : public Superclass::DataPipeline
   {
-    vtkNew<vtkImageData> seed;
-    vtkNew<vtkGaussianKernel> kernel;
-    vtkNew<vtkPointInterpolator> filter;
+    vtkNew<vtkResampleToImage> filter;
 
     HiResDataPipeline();
     void configure(const ObjectState &objState,
@@ -112,16 +106,6 @@ public:
    */
   int renderMode() const;
   void setRenderMode(int mode);
-
-  /**
-   * The radius for point interpolation into the volume.
-   * Setting to 0.0 will use the norm of the volume's Spacing vector.
-   */
-  double radius() const;
-  void setRadius(double radius);
-
-  double sharpness() const;
-  void setSharpness(double s);
 
   double dimension() const;
   void setDimension(double d);

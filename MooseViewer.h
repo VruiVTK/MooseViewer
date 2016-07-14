@@ -154,8 +154,6 @@ public:
   void centerDisplayCallback(Misc::CallbackData*);
   void opacitySliderCallback(GLMotif::Slider::ValueChangedCallbackData* cbData);
   void sampleSliderCallback(GLMotif::Slider::ValueChangedCallbackData* cbData);
-  void radiusSliderCallback(GLMotif::Slider::ValueChangedCallbackData* cbData);
-  void sharpnessSliderCallback(GLMotif::Slider::ValueChangedCallbackData* cbData);
   void showVariableDialogCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
   void changeRepresentationCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
   void showRenderingDialogCallback(GLMotif::ToggleButton::ValueChangedCallbackData* callBackData);
