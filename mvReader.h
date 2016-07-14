@@ -15,8 +15,7 @@
 class vtkExodusIIReader;
 class vtkImageData;
 class vtkMultiBlockDataSet;
-class vtkPointInterpolator;
-class vtkVoronoiKernel;
+class vtkResampleToImage;
 
 /**
  * @brief The mvReader class manages loading the current dataset from a
@@ -139,9 +138,7 @@ private:
   vtkNew<vtkExodusIIReader> m_reader;
   VariableMetaDataMap m_variableMap;
 
-  vtkNew<vtkImageData> m_reducerSeed;
-  vtkNew<vtkVoronoiKernel> m_reducerKernel;
-  vtkNew<vtkPointInterpolator> m_reducer;
+  vtkNew<vtkResampleToImage> m_reducer;
 
   int m_numberOfTimeSteps;
   int m_timeStep;

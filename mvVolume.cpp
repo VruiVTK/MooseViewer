@@ -3,13 +3,12 @@
 #include <vtkColorTransferFunction.h>
 #include <vtkCompositeDataIterator.h>
 #include <vtkExternalOpenGLRenderer.h>
-#include <vtkGaussianKernel.h>
 #include <vtkImageData.h>
 #include <vtkLookupTable.h>
 #include <vtkMultiBlockDataSet.h>
 #include <vtkNew.h>
 #include <vtkPiecewiseFunction.h>
-#include <vtkPointInterpolator.h>
+#include <vtkResampleToImage.h>
 #include <vtkSmartVolumeMapper.h>
 #include <vtkVolume.h>
 #include <vtkVolumeProperty.h>
@@ -25,9 +24,7 @@
 mvVolume::VolumeState::VolumeState()
   : renderMode(vtkSmartVolumeMapper::DefaultRenderMode),
     visible(false),
-    dimension(32),
-    radius(0.0 /* == auto */),
-    sharpness(2.0)
+    dimension(32)
 {
 }
 
@@ -179,13 +176,6 @@ void mvVolume::VolumeRenderPipeline::disable()
 //------------------------------------------------------------------------------
 mvVolume::HiResDataPipeline::HiResDataPipeline()
 {
-  this->filter->SetInputDataObject(this->seed.Get());
-  this->filter->SetKernel(this->kernel.Get());
-  this->filter->PassPointArraysOff();
-  this->filter->PassCellArraysOff();
-  this->filter->PassFieldArraysOff();
-  this->filter->SetNullPointsStrategyToNullValue();
-  this->filter->SetNullValue(0.);
 }
 
 //------------------------------------------------------------------------------
@@ -196,41 +186,10 @@ void mvVolume::HiResDataPipeline::configure(const ObjectState &objState,
       static_cast<const mvApplicationState &>(vvState);
   const VolumeState &state = static_cast<const VolumeState&>(objState);
 
-  if (!appState.reader().dataObject())
-    {
-    this->filter->SetSourceData(nullptr);
-    return;
-    }
+  this->filter->SetInputDataObject(appState.reader().dataObject());
+  this->filter->SetSamplingDimensions(state.dimension, state.dimension,
+                                      state.dimension);
 
-  std::array<double, 3> dataDims;
-  std::array<double, 3> spacing;
-  std::array<double, 3> origin;
-
-  appState.reader().bounds().GetLengths(dataDims.data());
-  appState.reader().bounds().GetMinPoint(origin[0], origin[1], origin[2]);
-
-  spacing[0] = dataDims[0] / static_cast<double>(state.dimension - 1);
-  spacing[1] = dataDims[1] / static_cast<double>(state.dimension - 1);
-  spacing[2] = dataDims[2] / static_cast<double>(state.dimension - 1);
-
-  this->seed->SetDimensions(state.dimension, state.dimension, state.dimension);
-  this->seed->SetOrigin(origin.data());
-  this->seed->SetSpacing(spacing.data());
-
-  if (state.radius != 0.0)
-    {
-    this->kernel->SetRadius(state.radius);
-    }
-  else
-    {
-    // Set the splat radius to 1/3 of the average point spacing.
-    double aveLength = (spacing[0] + spacing[1] + spacing[2]) / 3.;
-    this->kernel->SetRadius(0.33 * aveLength);
-    }
-
-  this->kernel->SetSharpness(state.sharpness);
-
-  this->filter->SetSourceData(appState.reader().dataObject());
 }
 
 //------------------------------------------------------------------------------
@@ -242,11 +201,9 @@ bool mvVolume::HiResDataPipeline::needsUpdate(const ObjectState &objState,
 
   return
       state.visible &&
-      this->filter->GetInputDataObject(1, 0) && // Check port 1: SourceData
+      this->filter->GetInputDataObject(0, 0) &&
       (!data.volume ||
-       data.volume->GetMTime() < this->filter->GetMTime() ||
-       data.volume->GetMTime() < this->kernel->GetMTime() ||
-       data.volume->GetMTime() < this->seed->GetMTime());
+       data.volume->GetMTime() < this->filter->GetMTime());
 }
 
 //------------------------------------------------------------------------------
@@ -284,30 +241,6 @@ int mvVolume::renderMode() const
 void mvVolume::setRenderMode(int mode)
 {
   this->objectState<VolumeState>().renderMode = mode;
-}
-
-//------------------------------------------------------------------------------
-double mvVolume::radius() const
-{
-  return this->objectState<VolumeState>().radius;
-}
-
-//------------------------------------------------------------------------------
-void mvVolume::setRadius(double r)
-{
-  this->objectState<VolumeState>().radius = r;
-}
-
-//------------------------------------------------------------------------------
-double mvVolume::sharpness() const
-{
-  return this->objectState<VolumeState>().sharpness;
-}
-
-//------------------------------------------------------------------------------
-void mvVolume::setSharpness(double s)
-{
-  this->objectState<VolumeState>().sharpness = s;
 }
 
 //------------------------------------------------------------------------------

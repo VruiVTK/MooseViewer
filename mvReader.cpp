@@ -10,10 +10,9 @@
 #include <vtkFieldData.h>
 #include <vtkInformation.h>
 #include <vtkPointData.h>
-#include <vtkPointInterpolator.h>
+#include <vtkResampleToImage.h>
 #include <vtkStreamingDemandDrivenPipeline.h>
 #include <vtkTimerLog.h>
-#include <vtkVoronoiKernel.h>
 
 #include "mvApplicationState.h"
 
@@ -27,14 +26,7 @@ mvReader::mvReader()
     m_timeStepRange{0, 0},
     m_timeRange{0., 0.}
 {
-  m_reducerSeed->SetDimensions(64, 64, 64);
-  m_reducer->SetKernel(m_reducerKernel.Get());
-  m_reducer->SetInputDataObject(m_reducerSeed.Get());
-  m_reducer->SetNullPointsStrategyToNullValue();
-  m_reducer->SetNullValue(0.0);
-  m_reducer->PassPointArraysOff();
-  m_reducer->PassCellArraysOff();
-  m_reducer->PassFieldArraysOff();
+  m_reducer->SetSamplingDimensions(64, 64, 64);
 }
 
 //------------------------------------------------------------------------------
@@ -211,35 +203,14 @@ void mvReader::updateDataCache()
 //------------------------------------------------------------------------------
 void mvReader::syncReducerState()
 {
-  if (!m_dataObject)
-    {
-    m_reducer->SetSourceData(nullptr);
-    return;
-    }
-
-  std::array<double, 3> dataDims;
-  std::array<int, 3> seedDims;
-  std::array<double, 3> spacing;
-  std::array<double, 3> origin;
-
-  m_reducerSeed->GetDimensions(seedDims.data());
-  m_bounds.GetLengths(dataDims.data());
-  m_bounds.GetMinPoint(origin[0], origin[1], origin[2]);
-
-  spacing[0] = dataDims[0] / static_cast<double>(seedDims[0] - 1);
-  spacing[1] = dataDims[1] / static_cast<double>(seedDims[1] - 1);
-  spacing[2] = dataDims[2] / static_cast<double>(seedDims[2] - 1);
-
-  m_reducerSeed->SetOrigin(origin.data());
-  m_reducerSeed->SetSpacing(spacing.data());
-  m_reducer->SetSourceData(m_dataObject.Get());
+  m_reducer->SetInputDataObject(m_dataObject.Get());
 }
 
 //------------------------------------------------------------------------------
 bool mvReader::reducerNeedsUpdate()
 {
   return
-      m_reducer->GetInputDataObject(1, 0) && // Check source (port 1).
+      m_reducer->GetInputDataObject(0, 0) &&
       (!m_reducedData.Get() ||
        m_reducer->GetMTime() > m_reducedData->GetMTime());
 }

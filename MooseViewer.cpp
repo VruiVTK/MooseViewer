@@ -646,7 +646,7 @@ GLMotif::PopupWindow* MooseViewer::createRenderingDialog(void) {
     "SampleLabel", sampleRow, "Volume Sampling Dimensions");
   GLMotif::Slider* sampleSlider = new GLMotif::Slider(
     "SampleSlider", sampleRow, GLMotif::Slider::HORIZONTAL, ss.fontHeight*10.0f);
-  sampleSlider->setValue(m_mvState.volume().sharpness());
+  sampleSlider->setValue(m_mvState.volume().dimension());
   sampleSlider->setValueRange(8.0, 512.0, 8.0);
   sampleSlider->getValueChangedCallbacks().add(
     this, &MooseViewer::sampleSliderCallback);
@@ -659,51 +659,6 @@ GLMotif::PopupWindow* MooseViewer::createRenderingDialog(void) {
             << m_mvState.volume().dimension();
   sampleValue->setString(stringstr.str().c_str());
   sampleRow->manageChild();
-
-  GLMotif::RowColumn * radiusRow = new GLMotif::RowColumn(
-    "RadiusRow", dialog, false);
-  radiusRow->setOrientation(GLMotif::RowColumn::HORIZONTAL);
-  radiusRow->setPacking(GLMotif::RowColumn::PACK_GRID);
-  GLMotif::Label* radiusLabel = new GLMotif::Label(
-    "RadiusLabel", radiusRow, "Volume Sampling Radius");
-  GLMotif::Slider* radiusSlider = new GLMotif::Slider(
-    "RadiusSlider", radiusRow, GLMotif::Slider::HORIZONTAL,
-    ss.fontHeight*10.0f);
-  radiusSlider->setValue(m_mvState.volume().radius());
-  radiusSlider->setValueRange(0.0, 10.0, 0.01);
-  radiusSlider->getValueChangedCallbacks().add(
-    this, &MooseViewer::radiusSliderCallback);
-  radiusValue = new GLMotif::TextField("RadiusValue", radiusRow, 6);
-  radiusValue->setFieldWidth(6);
-  radiusValue->setPrecision(3);
-  if (m_mvState.volume().radius() == 0.)
-    {
-    radiusValue->setString("Auto");
-    }
-  else
-    {
-    radiusValue->setValue(m_mvState.volume().radius());
-    }
-  radiusRow->manageChild();
-
-  GLMotif::RowColumn * sharpnessRow = new GLMotif::RowColumn(
-        "SharpnessRow", dialog, false);
-  sharpnessRow->setOrientation(GLMotif::RowColumn::HORIZONTAL);
-  sharpnessRow->setPacking(GLMotif::RowColumn::PACK_GRID);
-  GLMotif::Label* expLabel = new GLMotif::Label(
-        "SharpnessLabel", sharpnessRow, "Volume Sampling Sharpness");
-  GLMotif::Slider* sharpnessSlider = new GLMotif::Slider(
-        "SharpnessSlider", sharpnessRow, GLMotif::Slider::HORIZONTAL,
-        ss.fontHeight*10.0f);
-  sharpnessSlider->setValue(m_mvState.volume().sharpness());
-  sharpnessSlider->setValueRange(0.1, 5.0, .1);
-  sharpnessSlider->getValueChangedCallbacks().add(
-        this, &MooseViewer::sharpnessSliderCallback);
-  sharpnessValue = new GLMotif::TextField("SharpnessValue", sharpnessRow, 6);
-  sharpnessValue->setFieldWidth(6);
-  sharpnessValue->setPrecision(3);
-  sharpnessValue->setValue(m_mvState.volume().sharpness());
-  sharpnessRow->manageChild();
 
   dialog->manageChild();
   return dialogPopup;
@@ -796,29 +751,6 @@ void MooseViewer::sampleSliderCallback(
      << m_mvState.volume().dimension() << " x "
      << m_mvState.volume().dimension();
   sampleValue->setString(ss.str().c_str());
-}
-
-//----------------------------------------------------------------------------
-void MooseViewer::radiusSliderCallback(
-  GLMotif::Slider::ValueChangedCallbackData* callBackData)
-{
-  m_mvState.volume().setRadius(static_cast<double>(callBackData->value));
-  if (callBackData->value == 0.)
-    {
-    radiusValue->setString("Auto");
-    }
-  else
-    {
-    radiusValue->setValue(callBackData->value);
-    }
-}
-
-//----------------------------------------------------------------------------
-void MooseViewer::sharpnessSliderCallback(
-  GLMotif::Slider::ValueChangedCallbackData* callBackData)
-{
-  m_mvState.volume().setSharpness(static_cast<double>(callBackData->value));
-  sharpnessValue->setValue(callBackData->value);
 }
 
 //----------------------------------------------------------------------------
