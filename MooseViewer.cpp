@@ -37,6 +37,7 @@
 
 // vtkVRUI includes
 #include <vvFramerate.h>
+#include <vvProgress.h>
 
 // MooseViewer includes
 #include "AnimationDialog.h"
@@ -192,6 +193,12 @@ void MooseViewer::setBenchmark(bool bench)
   m_mvState.reader().setBenchmark(bench);
   m_mvState.slice().setBenchmark(bench);
   m_mvState.volume().setBenchmark(bench);
+}
+
+//----------------------------------------------------------------------------
+void MooseViewer::setProgressVisibility(bool vis)
+{
+  m_mvState.progress().setVisible(vis);
 }
 
 //----------------------------------------------------------------------------
