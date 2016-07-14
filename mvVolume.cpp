@@ -223,9 +223,9 @@ void mvVolume::HiResDataPipeline::configure(const ObjectState &objState,
     }
   else
     {
-    // Compute the norm of the largest sample spacing:
-    double maxLength = std::max(spacing[0], std::max(spacing[1], spacing[2]));
-    this->kernel->SetRadius(std::sqrt(3 * maxLength * maxLength));
+    // Set the splat radius to 1/3 of the average point spacing.
+    double aveLength = (spacing[0] + spacing[1] + spacing[2]) / 3.;
+    this->kernel->SetRadius(0.33 * aveLength);
     }
 
   this->kernel->SetSharpness(state.sharpness);
