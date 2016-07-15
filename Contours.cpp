@@ -79,7 +79,6 @@ void Contours::createAlphaComponent(const GLMotif::StyleSheet& styleSheet, GLMot
     alphaComponent->setHistogram(this->mooseViewer->getHistogram());
     alphaComponent->useAs1DWidget(true);
     alphaComponent->setComponent(3);
-    alphaComponent->drawHistogram();
 } // end createAlphaComponent()
 
 /*
